@@ -64,7 +64,7 @@ function ensureDataFile() {
 
 function readData() {
   ensureDataFile();
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  return normalizeStorage(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')));
 }
 
 function writeData(data) {
@@ -101,7 +101,60 @@ function findSlot(template, slotId) {
   return null;
 }
 
+function findOp(data, id) {
+  return (data.ops || []).find((op) => op.id === Number(id));
+}
+
+function findOpSlot(op, slotId) {
+  for (const section of op.sections || []) {
+    const slot = (section.slots || []).find((item) => item.id === Number(slotId));
+    if (slot) return slot;
+  }
+  return null;
+}
+
+function buildOpSectionsFromTemplate(template, existingSections = []) {
+  return (template.sections || []).map((section) => {
+    const existingSection = existingSections.find((item) => item.id === section.id);
+
+    return {
+      id: section.id,
+      title: section.title,
+      slots: (section.slots || []).map((slot) => {
+        const existingSlot = existingSection?.slots?.find((item) => item.id === slot.id);
+
+        return {
+          id: slot.id,
+          name: slot.name,
+          role: slot.role,
+          allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
+          notes: slot.notes || '',
+          assignedUserId: existingSlot?.assignedUserId ?? null
+        };
+      })
+    };
+  });
+}
+
 function normalizeStorage(data) {
+  data.users = (data.users || []).map((user) => ({
+    ...user,
+    permissions: user.permissions || {}
+  }));
+
+  data.templates = (data.templates || []).map((template) => ({
+    ...template,
+    sections: (template.sections || []).map((section) => ({
+      ...section,
+      slots: (section.slots || []).map((slot) => ({
+        ...slot,
+        allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
+        notes: slot.notes || '',
+        assignedUserId: slot.assignedUserId ?? null
+      }))
+    }))
+  }));
+
   data.ops = data.ops || [];
   data.recurrences = data.recurrences || [];
   return data;
@@ -221,6 +274,13 @@ app.post('/api/login', async (req, res) => {
   res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
 });
 
+app.get('/api/public-data', (req, res) => {
+  const data = normalizeStorage(readData());
+  generateRecurringOps(data);
+  const safeUsers = data.users.map(({ password, ...rest }) => rest);
+  res.json({ users: safeUsers, templates: data.templates, ops: data.ops || [] });
+});
+
 app.get('/api/data', authMiddleware, (req, res) => {
   const data = normalizeStorage(readData());
   generateRecurringOps(data);
@@ -287,18 +347,7 @@ app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
     date: req.body.date || '',
     time: req.body.time || '',
     createdAt: new Date().toISOString(),
-    sections: template.sections.map((section) => ({
-      id: section.id,
-      title: section.title,
-      slots: section.slots.map((slot) => ({
-        id: slot.id,
-        name: slot.name,
-        role: slot.role,
-        allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
-        notes: slot.notes || '',
-        assignedUserId: null
-      }))
-    }))
+    sections: buildOpSectionsFromTemplate(template)
   };
   let recurrenceEntry = null;
   if (recurrence === 'none') {
@@ -327,7 +376,7 @@ app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
 
 app.post('/api/ops/:id/join', authMiddleware, (req, res) => {
   const data = readData();
-  const op = (data.ops || []).find((entry) => entry.id === Number(req.params.id));
+  const op = findOp(data, req.params.id);
   if (!op) return res.status(404).json({ error: 'Op niet gevonden' });
   const slot = op.sections.flatMap((section) => section.slots).find((slotItem) => slotItem.id === Number(req.body.slotId));
   if (!slot) return res.status(404).json({ error: 'Slot niet gevonden' });
@@ -346,6 +395,36 @@ app.post('/api/ops/:id/join', authMiddleware, (req, res) => {
   res.json({ op });
 });
 
+app.put('/api/ops/:opId/slots/:slotId', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const op = findOp(data, req.params.opId);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+  const slot = findOpSlot(op, req.params.slotId);
+  if (!slot) return res.status(404).json({ error: 'Slot not found' });
+
+  if (typeof req.body.name === 'string') slot.name = req.body.name;
+  if (typeof req.body.role === 'string') slot.role = req.body.role;
+  if (typeof req.body.notes === 'string') slot.notes = req.body.notes;
+  if (Array.isArray(req.body.allowedRoles)) slot.allowedRoles = req.body.allowedRoles;
+
+  writeData(data);
+  res.json({ op });
+});
+
+app.post('/api/ops/:id/load-template', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const op = findOp(data, req.params.id);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+
+  const template = findTemplate(data, op.templateId);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  op.sections = buildOpSectionsFromTemplate(template, op.sections || []);
+
+  writeData(data);
+  res.json({ op });
+});
+
 app.delete('/api/ops/:id', authMiddleware, requireAdmin, (req, res) => {
   const data = readData();
   const opIndex = (data.ops || []).findIndex((op) => op.id === Number(req.params.id));
@@ -353,6 +432,40 @@ app.delete('/api/ops/:id', authMiddleware, requireAdmin, (req, res) => {
   data.ops.splice(opIndex, 1);
   writeData(data);
   res.status(204).end();
+});
+
+app.put('/api/roles/rename', authMiddleware, requireAdmin, (req, res) => {
+  const { oldName, newName } = req.body;
+  if (!oldName || !newName || oldName === newName) return res.status(400).json({ error: 'oldName and newName required' });
+
+  const data = normalizeStorage(readData());
+
+  const renameInSlots = (slots) => {
+    (slots || []).forEach((slot) => {
+      if (slot.role === oldName) slot.role = newName;
+      if (Array.isArray(slot.allowedRoles)) {
+        slot.allowedRoles = slot.allowedRoles.map((r) => (r === oldName ? newName : r));
+      }
+    });
+  };
+
+  const renameInSections = (sections) => {
+    (sections || []).forEach((section) => renameInSlots(section.slots));
+  };
+
+  data.templates.forEach((t) => renameInSections(t.sections));
+  (data.ops || []).forEach((op) => renameInSections(op.sections));
+  (data.recurrences || []).forEach((rec) => renameInSections(rec.sections));
+
+  data.users.forEach((user) => {
+    if (user.permissions && user.permissions[oldName] !== undefined) {
+      user.permissions[newName] = user.permissions[oldName];
+      delete user.permissions[oldName];
+    }
+  });
+
+  writeData(data);
+  res.json({ ok: true });
 });
 
 app.delete('/api/recurrences/:id', authMiddleware, requireAdmin, (req, res) => {
@@ -364,11 +477,81 @@ app.delete('/api/recurrences/:id', authMiddleware, requireAdmin, (req, res) => {
   res.status(204).end();
 });
 
+app.put('/api/recurrences/:id', authMiddleware, requireAdmin, (req, res) => {
+  const data = normalizeStorage(readData());
+  const recurrence = (data.recurrences || []).find((entry) => entry.id === Number(req.params.id));
+  if (!recurrence) return res.status(404).json({ error: 'Recurrence not found' });
+
+  if (typeof req.body.name === 'string') recurrence.name = req.body.name;
+  if (typeof req.body.recurrence === 'string') recurrence.recurrence = req.body.recurrence;
+  if (typeof req.body.time === 'string') recurrence.time = req.body.time;
+  if (typeof req.body.startDate === 'string') recurrence.startDate = req.body.startDate;
+  if ('recurrenceEndDate' in req.body) recurrence.repeatUntil = req.body.recurrenceEndDate || null;
+  if ('weeklyDays' in req.body) recurrence.weeklyDays = normalizeDays(req.body.weeklyDays);
+  if ('monthlyDay' in req.body) recurrence.monthlyDay = req.body.monthlyDay || null;
+
+  const baseDateTime = `${recurrence.startDate}T${recurrence.time || '00:00'}:00`;
+  const base = new Date(baseDateTime);
+  recurrence.nextDateTime = base > new Date() ? base.toISOString() : getNextRecurrenceDate(baseDateTime, recurrence);
+  if (recurrence.repeatUntil && recurrence.nextDateTime && new Date(recurrence.repeatUntil) < new Date(recurrence.nextDateTime)) {
+    recurrence.nextDateTime = null;
+  }
+
+  writeData(data);
+  res.json({ recurrence });
+});
+
+
 app.delete('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
   const data = readData();
   const templateIndex = data.templates.findIndex((template) => template.id === Number(req.params.id));
   if (templateIndex === -1) return res.status(404).json({ error: 'Template not found' });
   data.templates.splice(templateIndex, 1);
+  writeData(data);
+  res.status(204).end();
+});
+
+app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const template = findTemplate(data, req.params.templateId);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  const section = {
+    id: Date.now(),
+    title: req.body.title || 'Nieuwe sectie',
+    slots: []
+  };
+
+  template.sections.push(section);
+  writeData(data);
+  res.json({ section });
+});
+
+app.put('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const template = findTemplate(data, req.params.templateId);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  const section = template.sections.find((item) => item.id === Number(req.params.sectionId));
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+
+  if (typeof req.body.title === 'string' && req.body.title.trim()) {
+    section.title = req.body.title.trim();
+  }
+
+  writeData(data);
+  res.json({ section });
+});
+
+app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const template = findTemplate(data, req.params.templateId);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  const sectionIndex = template.sections.findIndex((item) => item.id === Number(req.params.sectionId));
+  if (sectionIndex === -1) return res.status(404).json({ error: 'Section not found' });
+
+  template.sections.splice(sectionIndex, 1);
   writeData(data);
   res.status(204).end();
 });

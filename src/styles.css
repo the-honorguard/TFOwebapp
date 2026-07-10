@@ -44,6 +44,10 @@ header { display: flex; justify-content: space-between; align-items: center; mar
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .theme-toggle { background: var(--button-secondary); color: var(--text); border: 1px solid var(--border); }
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.login-popover { position: fixed; top: 5.5rem; right: 2rem; z-index: 45; width: min(360px, calc(100vw - 2rem)); }
+.login-modal { background: var(--bg-alt); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; width: min(420px, 100%); box-shadow: 0 24px 60px rgba(0,0,0,0.25); }
+.login-modal h2 { margin: 0 0 0.25rem; }
+.login-panel-actions { display: flex; justify-content: flex-end; gap: 0.75rem; }
 .header-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .top-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
 .tab { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 0.75rem 1rem; border-radius: 999px; }
@@ -99,6 +103,20 @@ button.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
 .role-card h4 { margin: 0; }
 .role-card p { margin: 0; color: var(--text); opacity: 0.85; }
 .role-card button[disabled] { opacity: 0.5; cursor: not-allowed; }
+.role-rename-form { display: flex; align-items: center; gap: 0.4rem; flex: 1; }
+.role-rename-input { flex: 1; padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--button); background: var(--panel); color: var(--text); font-size: 0.95rem; }
+.op-vertical-list { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.75rem; }
+.op-list-row { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; text-align: left; transition: background 0.15s ease; }
+.op-list-row:hover { background: var(--accent-bg); border-color: var(--button); }
+.op-list-row-top { display: flex; align-items: center; gap: 0.5rem; width: 100%; }
+.op-list-name { font-weight: 600; font-size: 1rem; color: var(--text); }
+.op-list-meta { font-size: 0.85rem; color: var(--text); opacity: 0.65; }
+.op-list-badge { font-size: 0.75rem; font-weight: 600; background: var(--accent-bg); color: var(--button); border: 1px solid var(--button); border-radius: 999px; padding: 0.15rem 0.55rem; white-space: nowrap; }
+.recurring-settings { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; }
+.recurring-settings p { margin: 0; }
+.recurring-settings-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.recurring-settings-form label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; color: var(--text); opacity: 0.9; }
+.recurring-settings-form .weekly-days { grid-column: 1 / -1; }
 .role-add-section { margin-top: 1rem; }
 .role-add-form { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; margin-top: 0.75rem; }
 .role-add-form input { flex: 1 1 auto; min-width: 220px; max-width: 420px; height: 44px; }
@@ -110,3 +128,18 @@ button.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
 .role-list label { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
 .role-modal-buttons { display: flex; justify-content: flex-end; gap: 0.75rem; }
 .role-modal button { min-width: 100px; }
+
+@media (max-width: 720px) {
+  .app-shell { padding: 1rem; }
+  .login-popover { top: 4.75rem; right: 1rem; width: calc(100vw - 2rem); }
+  .header-card,
+  .builder-toolbar,
+  .playerlist-toolbar,
+  .slot-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .player-form {
+    grid-template-columns: 1fr;
+  }
+}
