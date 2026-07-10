@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const API = '/api';
 
@@ -9,10 +9,35 @@ function App() {
   const [ops, setOps] = useState([]);
   const [recurrences, setRecurrences] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+  const [schedulerLoadTemplateId, setSchedulerLoadTemplateId] = useState('');
   const [selectedOpId, setSelectedOpId] = useState(null);
   const [selectedRecurrenceId, setSelectedRecurrenceId] = useState(null);
   const [page, setPage] = useState('overview');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const [overviewMode] = useState('orbat');
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() => window.innerWidth <= 900);
+  const builderCompact = false;
+  const [builderFlowMode, setBuilderFlowMode] = useState(() => localStorage.getItem('builderFlowMode') === 'true');
+  const [canvasLayout, setCanvasLayout] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('overviewOrbatLayout') || '{}');
+    } catch (error) {
+      return {};
+    }
+  });
+  const [canvasDrag, setCanvasDrag] = useState(null);
+  const [nodeHeights, setNodeHeights] = useState({});
+  const [draggedSlot, setDraggedSlot] = useState(null);
+  const slotSaveTimersRef = useRef({});
+  const pendingSlotUpdatesRef = useRef({});
+  const [flowEdges, setFlowEdges] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('builderFlowEdges') || '{}');
+    } catch (error) {
+      return {};
+    }
+  });
+  const [flowLinkSource, setFlowLinkSource] = useState(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showLoginPanel, setShowLoginPanel] = useState(false);
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'member', rank: '', status: 'Active' });
@@ -22,6 +47,32 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('overviewMode', overviewMode);
+  }, [overviewMode]);
+
+  useEffect(() => {
+    const handleResize = () => setIsNarrowViewport(window.innerWidth <= 900);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('builderFlowMode', String(builderFlowMode));
+  }, [builderFlowMode]);
+
+  useEffect(() => {
+    localStorage.setItem('overviewOrbatLayout', JSON.stringify(canvasLayout));
+  }, [canvasLayout]);
+
+  useEffect(() => {
+    localStorage.setItem('builderFlowEdges', JSON.stringify(flowEdges));
+  }, [flowEdges]);
+
+  useEffect(() => () => {
+    Object.values(slotSaveTimersRef.current).forEach((timerId) => clearTimeout(timerId));
+  }, []);
 
   const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
 
@@ -266,6 +317,24 @@ function App() {
     }
   };
 
+  const signOffOpSlot = async (opId, slotId) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/ops/${opId}/signoff`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ slotId })
+    });
+    const data = await res.json();
+    if (data.op) {
+      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+    } else {
+      alert(data.error || 'Kon niet uitschrijven');
+    }
+  };
+
   const updateOpSlot = async (opId, slotId, updates) => {
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/ops/${opId}/slots/${slotId}`, {
@@ -284,8 +353,9 @@ function App() {
     }
   };
 
-  const loadTemplateIntoOp = async (opId) => {
-    if (!window.confirm('Reload the current template into this operation? Existing matching assignments will be kept, but manual slot edits will be replaced.')) {
+  const loadTemplateIntoOp = async (opId, templateId = null) => {
+    const selectedTemplateName = templateId ? getTemplateName(templateId) : 'current template';
+    if (!window.confirm(`Load ${selectedTemplateName} into this operation? Existing matching assignments will be kept, but manual slot edits will be replaced.`)) {
       return;
     }
 
@@ -293,8 +363,10 @@ function App() {
     const res = await fetch(`${API}/ops/${opId}/load-template`, {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
-      }
+      },
+      body: JSON.stringify(templateId ? { templateId } : {})
     });
     const data = await res.json();
     if (data.op) {
@@ -308,6 +380,26 @@ function App() {
     const token = localStorage.getItem('token');
     const title = prompt('Section title');
     if (!title) return;
+    const res = await fetch(`${API}/templates/${templateId}/sections`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ title })
+    });
+    const data = await res.json();
+    if (data.section) {
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return { ...template, sections: [...template.sections, data.section] };
+      }));
+    }
+  };
+
+  const addSectionQuick = async (templateId, currentSectionCount) => {
+    const token = localStorage.getItem('token');
+    const title = `Section ${currentSectionCount + 1}`;
     const res = await fetch(`${API}/templates/${templateId}/sections`, {
       method: 'POST',
       headers: {
@@ -347,6 +439,24 @@ function App() {
           sections: template.sections.map((section) => (section.id === data.section.id ? data.section : section))
         };
       }));
+      setOps((prev) => prev.map((op) => {
+        if (Number(op.templateId) !== Number(templateId)) return op;
+        return {
+          ...op,
+          sections: (op.sections || []).map((section) => (
+            section.id === data.section.id ? { ...section, title: data.section.title } : section
+          ))
+        };
+      }));
+      setRecurrences((prev) => prev.map((recurrence) => {
+        if (Number(recurrence.templateId) !== Number(templateId)) return recurrence;
+        return {
+          ...recurrence,
+          sections: (recurrence.sections || []).map((section) => (
+            section.id === data.section.id ? { ...section, title: data.section.title } : section
+          ))
+        };
+      }));
     } else {
       alert(data.error || 'Could not rename section');
     }
@@ -377,6 +487,29 @@ function App() {
   };
 
   const addSlot = async (templateId, sectionId) => {
+    const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempSlot = {
+      id: tempId,
+      sectionId,
+      name: 'Nieuwe slot',
+      role: 'Rifleman',
+      allowedRoles: [],
+      notes: '',
+      assignedUserId: null,
+      _pendingCreate: true
+    };
+
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return {
+        ...template,
+        sections: template.sections.map((section) => {
+          if (section.id !== sectionId) return section;
+          return { ...section, slots: [...section.slots, tempSlot] };
+        })
+      };
+    }));
+
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/templates/${templateId}/slots`, {
       method: 'POST',
@@ -400,14 +533,42 @@ function App() {
           ...template,
           sections: template.sections.map((section) => {
             if (section.id !== sectionId) return section;
-            return { ...section, slots: [...section.slots, data.slot] };
+            return {
+              ...section,
+              slots: section.slots.map((slot) => (slot.id === tempId ? data.slot : slot))
+            };
           })
         };
       }));
+    } else {
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return {
+          ...template,
+          sections: template.sections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return { ...section, slots: section.slots.filter((slot) => slot.id !== tempId) };
+          })
+        };
+      }));
+      alert(data.error || 'Could not add slot');
     }
   };
 
-  const updateSlot = async (templateId, slotId, updates) => {
+  const applySlotUpdatesLocally = (templateId, slotId, updates) => {
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return {
+        ...template,
+        sections: template.sections.map((section) => ({
+          ...section,
+          slots: section.slots.map((slot) => (slot.id === slotId ? { ...slot, ...updates } : slot))
+        }))
+      };
+    }));
+  };
+
+  const saveSlotUpdates = async (templateId, slotId, updates) => {
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/templates/${templateId}/slots/${slotId}`, {
       method: 'PUT',
@@ -429,11 +590,69 @@ function App() {
           }))
         };
       }));
+    } else {
+      alert(data.error || 'Could not update slot');
     }
+  };
+
+  const flushSlotUpdate = (templateId, slotId) => {
+    const key = `${templateId}:${slotId}`;
+    const pending = pendingSlotUpdatesRef.current[key];
+    if (!pending) return;
+
+    if (slotSaveTimersRef.current[key]) {
+      clearTimeout(slotSaveTimersRef.current[key]);
+      delete slotSaveTimersRef.current[key];
+    }
+
+    delete pendingSlotUpdatesRef.current[key];
+    saveSlotUpdates(templateId, slotId, pending);
+  };
+
+  const updateSlot = (templateId, slotId, updates) => {
+    if (Number.isNaN(Number(slotId))) {
+      applySlotUpdatesLocally(templateId, slotId, updates);
+      return;
+    }
+
+    const key = `${templateId}:${slotId}`;
+
+    applySlotUpdatesLocally(templateId, slotId, updates);
+    pendingSlotUpdatesRef.current[key] = {
+      ...(pendingSlotUpdatesRef.current[key] || {}),
+      ...updates
+    };
+
+    if (slotSaveTimersRef.current[key]) clearTimeout(slotSaveTimersRef.current[key]);
+    slotSaveTimersRef.current[key] = setTimeout(() => {
+      flushSlotUpdate(templateId, slotId);
+    }, 300);
   };
 
   const deleteSlot = async (templateId, slotId) => {
     if (!window.confirm('Are you sure you want to delete this slot?')) return;
+
+    if (Number.isNaN(Number(slotId))) {
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return {
+          ...template,
+          sections: template.sections.map((section) => ({
+            ...section,
+            slots: section.slots.filter((slot) => slot.id !== slotId)
+          }))
+        };
+      }));
+      return;
+    }
+
+    const key = `${templateId}:${slotId}`;
+    if (slotSaveTimersRef.current[key]) {
+      clearTimeout(slotSaveTimersRef.current[key]);
+      delete slotSaveTimersRef.current[key];
+    }
+    delete pendingSlotUpdatesRef.current[key];
+
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/templates/${templateId}/slots/${slotId}`, {
       method: 'DELETE',
@@ -455,6 +674,80 @@ function App() {
     } else {
       alert('Could not delete slot');
     }
+  };
+
+  const reorderTemplateSlots = async (templateId, sectionId, slotIds) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}/slots/reorder`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ slotIds })
+    });
+
+    const data = await res.json();
+    if (data.section) {
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return {
+          ...template,
+          sections: template.sections.map((section) => (section.id === sectionId ? data.section : section))
+        };
+      }));
+    } else {
+      alert(data.error || 'Could not reorder slots');
+      loadPrivateData();
+    }
+  };
+
+  const moveTemplateSlot = (templateId, sectionId, fromSlotId, toSlotId) => {
+    if (!fromSlotId || !toSlotId || fromSlotId === toSlotId) return;
+
+    const template = templates.find((item) => item.id === templateId);
+    const section = template?.sections?.find((item) => item.id === sectionId);
+    const slots = section?.slots || [];
+    const fromIndex = slots.findIndex((slot) => slot.id === fromSlotId);
+    const toIndex = slots.findIndex((slot) => slot.id === toSlotId);
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+
+    const reordered = [...slots];
+    const [movedSlot] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, movedSlot);
+
+    setTemplates((prev) => prev.map((item) => {
+      if (item.id !== templateId) return item;
+      return {
+        ...item,
+        sections: item.sections.map((itemSection) => (
+          itemSection.id === sectionId ? { ...itemSection, slots: reordered } : itemSection
+        ))
+      };
+    }));
+
+    reorderTemplateSlots(templateId, sectionId, reordered.map((slot) => slot.id));
+  };
+
+  const handleSlotDragStart = (templateId, sectionId, slotId, event) => {
+    event.stopPropagation();
+    setDraggedSlot({ templateId, sectionId, slotId });
+  };
+
+  const handleSlotDragOver = (templateId, sectionId, event) => {
+    if (!draggedSlot) return;
+    if (draggedSlot.templateId !== templateId || draggedSlot.sectionId !== sectionId) return;
+    event.preventDefault();
+  };
+
+  const handleSlotDrop = (templateId, sectionId, targetSlotId, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!draggedSlot) return;
+    if (draggedSlot.templateId !== templateId || draggedSlot.sectionId !== sectionId) return;
+
+    moveTemplateSlot(templateId, sectionId, draggedSlot.slotId, targetSlotId);
+    setDraggedSlot(null);
   };
 
   const joinSlot = async (templateId, slotId) => {
@@ -510,6 +803,8 @@ function App() {
   };
 
   const isAdmin = auth?.role === 'admin';
+  const effectiveOverviewMode = overviewMode === 'orbat' && isNarrowViewport ? 'cards' : overviewMode;
+  const isWideCanvasPage = page === 'builder' || (page === 'overview' && effectiveOverviewMode === 'orbat');
 
   const normalizeRoleKey = (role) => role?.trim().toLowerCase();
 
@@ -550,6 +845,12 @@ function App() {
     }
   }, [selectedOpId, sortedOps]);
 
+  useEffect(() => {
+    if (page === 'scheduler-detail' && selectedOp) {
+      setSchedulerLoadTemplateId(String(selectedOp.templateId || ''));
+    }
+  }, [page, selectedOp?.id, selectedOp?.templateId]);
+
   const recurrenceLabel = (recurrence) => {
     if (!recurrence || recurrence.recurrence === 'none') return 'No recurrence';
 
@@ -572,6 +873,173 @@ function App() {
       return recurrence.monthlyDay ? `Monthly on day ${recurrence.monthlyDay}` : 'Monthly';
     }
     return recurrence.recurrence;
+  };
+
+  const sectionStats = (section) => {
+    const total = section?.slots?.length || 0;
+    const occupied = section?.slots?.filter((slot) => slot.assignedUserId).length || 0;
+    return { occupied, total };
+  };
+
+  const getTemplateFlowEdges = (templateId, sections) => {
+    const sectionIds = new Set((sections || []).map((section) => section.id));
+    return (flowEdges?.[templateId] || []).filter((edge) => sectionIds.has(edge.sourceId) && sectionIds.has(edge.targetId));
+  };
+
+  const addTemplateFlowEdge = (templateId, sourceId, targetId, sourceAnchor = 'bottom', targetAnchor = 'top') => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+
+    setFlowEdges((prev) => {
+      const current = prev?.[templateId] || [];
+      const exists = current.some((edge) => (
+        edge.sourceId === sourceId
+        && edge.targetId === targetId
+        && (edge.sourceAnchor || 'bottom') === sourceAnchor
+        && (edge.targetAnchor || 'top') === targetAnchor
+      ));
+      if (exists) return prev;
+
+      return {
+        ...prev,
+        [templateId]: [...current, {
+          id: Date.now() + Math.random(),
+          sourceId,
+          targetId,
+          sourceAnchor,
+          targetAnchor
+        }]
+      };
+    });
+  };
+
+  const clearTemplateFlowEdges = (templateId) => {
+    setFlowEdges((prev) => ({
+      ...prev,
+      [templateId]: []
+    }));
+    setFlowLinkSource(null);
+  };
+
+  const resetTemplateCanvasLayout = (templateId) => {
+    setCanvasLayout((prev) => ({
+      ...prev,
+      [templateId]: {}
+    }));
+    setFlowLinkSource(null);
+  };
+
+  const handleFlowConnectorClick = (templateId, sectionId, anchor, event) => {
+    event.stopPropagation();
+
+    if (!flowLinkSource || flowLinkSource.templateId !== templateId) {
+      setFlowLinkSource({ templateId, sectionId, anchor });
+      return;
+    }
+
+    if (flowLinkSource.sectionId === sectionId && flowLinkSource.anchor === anchor) {
+      setFlowLinkSource(null);
+      return;
+    }
+
+    addTemplateFlowEdge(templateId, flowLinkSource.sectionId, sectionId, flowLinkSource.anchor || 'bottom', anchor || 'top');
+    setFlowLinkSource(null);
+  };
+
+  const resolveSectionParentId = (templateId, sections, sectionId, index) => {
+    const explicitParent = getCanvasNode(templateId, sectionId, index).parentId;
+    if (explicitParent && sections.some((item) => item.id === explicitParent)) {
+      return explicitParent;
+    }
+    if (index === 0) return null;
+    return sections[0]?.id || null;
+  };
+
+  const updateSectionParent = (templateId, sectionId, parentId) => {
+    updateCanvasNode(templateId, sectionId, { parentId: parentId || null });
+  };
+
+  const getCanvasNode = (templateId, sectionId, index) => {
+    const templateLayout = canvasLayout?.[templateId] || {};
+    const existing = templateLayout?.[sectionId];
+    if (existing) return existing;
+
+    return {
+      x: 40 + (index % 3) * 300,
+      y: 40 + Math.floor(index / 3) * 240,
+      parentId: null
+    };
+  };
+
+  const updateCanvasNode = (templateId, sectionId, updates) => {
+    setCanvasLayout((prev) => {
+      const templateLayout = prev?.[templateId] || {};
+      const nextNode = {
+        ...(templateLayout?.[sectionId] || {}),
+        ...updates
+      };
+
+      return {
+        ...prev,
+        [templateId]: {
+          ...templateLayout,
+          [sectionId]: nextNode
+        }
+      };
+    });
+  };
+
+  const getCanvasSize = (template) => {
+    let maxX = 0;
+    let maxY = 0;
+
+    template.sections.forEach((section, index) => {
+      const node = getCanvasNode(template.id, section.id, index);
+      maxX = Math.max(maxX, node.x);
+      maxY = Math.max(maxY, node.y);
+    });
+
+    return {
+      width: Math.max(1000, maxX + 360),
+      height: Math.max(700, maxY + 320)
+    };
+  };
+
+  const startCanvasDrag = (event, templateId, sectionId, index) => {
+    if (event.button !== 0) return;
+
+    const canvasElement = event.currentTarget.closest('.drag-canvas');
+    if (!canvasElement) return;
+
+    const rect = canvasElement.getBoundingClientRect();
+    const node = getCanvasNode(templateId, sectionId, index);
+    const pointerX = event.clientX - rect.left;
+    const pointerY = event.clientY - rect.top;
+
+    setCanvasDrag({
+      templateId,
+      sectionId,
+      offsetX: pointerX - node.x,
+      offsetY: pointerY - node.y
+    });
+  };
+
+  const moveCanvasDrag = (event, template) => {
+    if (!canvasDrag || canvasDrag.templateId !== template.id) return;
+
+    const canvasElement = event.currentTarget;
+    const rect = canvasElement.getBoundingClientRect();
+    const nextX = Math.max(12, event.clientX - rect.left - canvasDrag.offsetX);
+    const nextY = Math.max(12, event.clientY - rect.top - canvasDrag.offsetY);
+
+    updateCanvasNode(template.id, canvasDrag.sectionId, { x: nextX, y: nextY });
+  };
+
+  const stopCanvasDrag = () => setCanvasDrag(null);
+
+  const setNodeHeightRef = (nodeKey) => (element) => {
+    if (!element) return;
+    const nextHeight = element.offsetHeight;
+    setNodeHeights((prev) => (prev[nodeKey] === nextHeight ? prev : { ...prev, [nodeKey]: nextHeight }));
   };
 
   const [extraRoles, setExtraRoles] = useState(() => {
@@ -775,7 +1243,7 @@ function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={isWideCanvasPage ? 'app-shell app-shell-builder' : 'app-shell'}>
       <header>
         <h1>TFO Attendance</h1>
         <div className="header-actions">
@@ -852,6 +1320,13 @@ function App() {
                       : 'The next scheduled operation opens automatically. Login is only required when you want to join.'}
                   </p>
                 </div>
+                <div className="builder-actions">
+                  <span className="slot-meta">
+                    {effectiveOverviewMode === 'orbat'
+                      ? 'ORBAT viewer active'
+                      : 'Card viewer fallback active (small screen)'}
+                  </span>
+                </div>
               </div>
 
               <div className="template-list">
@@ -876,11 +1351,149 @@ function App() {
                       <p>{op.date} at {op.time} using {getTemplateName(op.templateId)}.</p>
                     </div>
                   </div>
-                  <div className="builder-grid">
-                    {op.sections?.length === 0 ? (
-                      <div className="empty-state">This operation has no sections.</div>
-                    ) : (
-                      op.sections.map((section, index) => (
+                  {op.sections?.length === 0 ? (
+                    <div className="empty-state">This operation has no sections.</div>
+                  ) : effectiveOverviewMode === 'orbat' ? (
+                    (() => {
+                      const canvasTemplate = { id: op.templateId, sections: op.sections };
+                      const canvasSize = getCanvasSize(canvasTemplate);
+                      const nodes = op.sections.map((section, index) => {
+                        const node = getCanvasNode(op.templateId, section.id, index);
+                        return {
+                          section,
+                          index,
+                          nodeKey: `overview-${op.id}-${section.id}`,
+                          x: node.x,
+                          y: node.y,
+                          parentId: resolveSectionParentId(op.templateId, op.sections, section.id, index)
+                        };
+                      });
+
+                      const nodeMap = new Map(nodes.map((node) => [node.section.id, node]));
+                      const links = nodes
+                        .filter((node) => node.parentId && nodeMap.has(node.parentId))
+                        .map((node) => {
+                          const parent = nodeMap.get(node.parentId);
+                          return {
+                            id: `${parent.section.id}-${node.section.id}`,
+                            x1: parent.x + 140,
+                            y1: parent.y + (nodeHeights[parent.nodeKey] || 172),
+                            x2: node.x + 140,
+                            y2: node.y
+                          };
+                        });
+
+                      return (
+                        <div className="orbat-wrapper">
+                          <div
+                            className="orbat-canvas drag-canvas"
+                            style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
+                            onMouseMove={(event) => moveCanvasDrag(event, canvasTemplate)}
+                            onMouseUp={stopCanvasDrag}
+                            onMouseLeave={stopCanvasDrag}
+                          >
+                            <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
+                              {links.map((link) => (
+                                <line
+                                  key={link.id}
+                                  x1={link.x1}
+                                  y1={link.y1}
+                                  x2={link.x2}
+                                  y2={link.y2}
+                                  className="orbat-link"
+                                />
+                              ))}
+                            </svg>
+
+                            {nodes.map((node) => (
+                              <div
+                                key={node.section.id}
+                                className="orbat-node"
+                                style={{ left: `${node.x}px`, top: `${node.y}px` }}
+                                ref={setNodeHeightRef(node.nodeKey)}
+                              >
+                                <span className="orbat-connector top" aria-hidden="true" />
+                                <span className="orbat-connector bottom" aria-hidden="true" />
+                                <div
+                                  className="orbat-node-head"
+                                  onMouseDown={isAdmin ? (event) => startCanvasDrag(event, op.templateId, node.section.id, node.index) : undefined}
+                                >
+                                  <strong>{node.section.title}</strong>
+                                  <span className="section-count">
+                                    {sectionStats(node.section).occupied}/{sectionStats(node.section).total} filled
+                                  </span>
+                                </div>
+
+                                {isAdmin ? (
+                                  <select
+                                    className="orbat-parent-select"
+                                    value={node.parentId || ''}
+                                    onChange={(event) => updateSectionParent(op.templateId, node.section.id, event.target.value || null)}
+                                  >
+                                    <option value="">Top command</option>
+                                    {op.sections
+                                      .filter((section) => section.id !== node.section.id)
+                                      .map((section) => (
+                                        <option key={section.id} value={section.id}>
+                                          Reports to {section.title}
+                                        </option>
+                                      ))}
+                                  </select>
+                                ) : null}
+
+                                <div className="orbat-slot-list">
+                                  {node.section.slots.slice(0, 6).map((slot) => {
+                                    const assignedUser = users.find((user) => user.id === slot.assignedUserId);
+                                    const allowedRoles = slot.allowedRoles || [];
+                                    const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
+                                    const isOwnSlot = Boolean(auth && slot.assignedUserId === auth.id);
+                                    return (
+                                      <div key={slot.id} className="orbat-slot-item">
+                                        <span className={`slot-badge ${assignedUser ? 'occupied' : 'free'}`}>
+                                          {assignedUser ? 'occupied' : 'free'}
+                                        </span>
+                                        <span className="orbat-slot-text">{slot.name}</span>
+                                        {isOwnSlot ? (
+                                          <button
+                                            type="button"
+                                            className="secondary small orbat-slot-join"
+                                            onClick={() => signOffOpSlot(op.id, slot.id)}
+                                          >
+                                            Sign off
+                                          </button>
+                                        ) : auth && canJoin ? (
+                                          <button
+                                            type="button"
+                                            className="secondary small orbat-slot-join"
+                                            onClick={() => joinOpSlot(op.id, slot.id)}
+                                          >
+                                            Join
+                                          </button>
+                                        ) : !auth && !assignedUser ? (
+                                          <button
+                                            type="button"
+                                            className="secondary small orbat-slot-join"
+                                            onClick={() => setShowLoginPanel(true)}
+                                          >
+                                            Login
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })}
+                                  {node.section.slots.length > 6 ? (
+                                    <div className="orbat-slot-more">+{node.section.slots.length - 6} more slots</div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="builder-grid">
+                      {op.sections.map((section, index) => (
                         <div key={section.id} className={`builder-panel panel-${index % 5}`}>
                           <div className="panel-title">
                             <strong>{section.title}</strong>
@@ -893,6 +1506,7 @@ function App() {
                                 const assignedUser = users.find((user) => user.id === slot.assignedUserId);
                                 const allowedRoles = slot.allowedRoles || [];
                                 const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
+                                const isOwnSlot = Boolean(auth && slot.assignedUserId === auth.id);
 
                                 return (
                                   <div key={slot.id} className="slot-card">
@@ -940,7 +1554,11 @@ function App() {
                                     </div>
                                     <div className="slot-footer">
                                       <span>{assignedUser ? `Occupied by ${assignedUser.username}` : 'Available'}</span>
-                                      {auth && canJoin ? (
+                                      {isOwnSlot ? (
+                                        <button className="secondary small" onClick={() => signOffOpSlot(op.id, slot.id)}>
+                                          Sign off
+                                        </button>
+                                      ) : auth && canJoin ? (
                                         <button className="secondary small" onClick={() => joinOpSlot(op.id, slot.id)}>
                                           Join
                                         </button>
@@ -956,9 +1574,9 @@ function App() {
                             )}
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
               ))}
             </section>
@@ -1041,7 +1659,9 @@ function App() {
                       placeholder="Day of month"
                     />
                   ) : null}
-                  <button type="submit">Create operation</button>
+                  <div className="role-add-submit-row">
+                    <button type="submit" className="small create-op-button">Create operation</button>
+                  </div>
                 </form>
               </section>
 
@@ -1088,7 +1708,22 @@ function App() {
                   <p>{selectedOp.date} at {selectedOp.time} &middot; {getTemplateName(selectedOp.templateId)}</p>
                 </div>
                 <div style={{display:'flex',gap:'0.5rem'}}>
-                  <button className="secondary" onClick={() => loadTemplateIntoOp(selectedOp.id)}>
+                  <select
+                    value={schedulerLoadTemplateId}
+                    onChange={(e) => setSchedulerLoadTemplateId(e.target.value)}
+                  >
+                    <option value="">Choose template</option>
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="secondary"
+                    onClick={() => loadTemplateIntoOp(selectedOp.id, Number(schedulerLoadTemplateId) || null)}
+                    disabled={!schedulerLoadTemplateId}
+                  >
                     Load template
                   </button>
                   {selectedRecurrence
@@ -1113,8 +1748,6 @@ function App() {
                         ) : (
                           section.slots.map((slot) => {
                             const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                            const allowedRoles = slot.allowedRoles || [];
-                            const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
 
                             return (
                               <div key={slot.id} className="slot-card builder-slot">
@@ -1152,11 +1785,6 @@ function App() {
                                 </div>
                                 <div className="slot-footer">
                                   <span>{assignedUser ? `Occupied by ${assignedUser.username}` : 'Available'}</span>
-                                  {canJoin ? (
-                                    <button className="secondary small" onClick={() => joinOpSlot(selectedOp.id, slot.id)}>
-                                      Join
-                                    </button>
-                                  ) : null}
                                 </div>
                               </div>
                             );
@@ -1297,97 +1925,347 @@ function App() {
                         <h3>Configure template</h3>
                         <p>Edit the selected template contents.</p>
                       </div>
-                      {selectedTemplateId ? (
-                        <button onClick={() => addSection(selectedTemplateId)} className="secondary">
-                          Add section
+                      <div className="builder-actions">
+                        <button
+                          type="button"
+                          className={builderFlowMode ? '' : 'secondary'}
+                          onClick={() => setBuilderFlowMode(true)}
+                        >
+                          Flow mode
                         </button>
-                      ) : null}
+                        <button
+                          type="button"
+                          className={!builderFlowMode ? '' : 'secondary'}
+                          onClick={() => setBuilderFlowMode(false)}
+                        >
+                          Form mode
+                        </button>
+                      </div>
                     </div>
 
                     {selectedTemplateId ? (
                       templates.filter((template) => template.id === selectedTemplateId).map((template) => (
-                        <div key={template.id} className="builder-grid">
-                          {template.sections.length === 0 ? (
-                            <div className="empty-state">This template has no sections yet. Add a section to start.</div>
-                          ) : (
-                            template.sections.map((section, index) => (
-                              <div key={section.id} className={`builder-panel panel-${index % 5}`}>
-                                <div className="panel-title">
-                                  <strong>{section.title}</strong>
-                                  <div className="slot-actions">
-                                    <button
-                                      onClick={() => renameSection(template.id, section.id, section.title)}
-                                      className="secondary small"
+                        <div key={template.id}>
+                          {builderFlowMode ? (
+                            (() => {
+                              const canvasSize = getCanvasSize(template);
+                              const nodes = template.sections.map((section, index) => {
+                                const node = getCanvasNode(template.id, section.id, index);
+                                return {
+                                  section,
+                                  index,
+                                    nodeKey: `flow-${template.id}-${section.id}`,
+                                  x: node.x,
+                                  y: node.y
+                                };
+                              });
+                              const nodeMap = new Map(nodes.map((node) => [node.section.id, node]));
+                              const edges = getTemplateFlowEdges(template.id, template.sections)
+                                .filter((edge) => nodeMap.has(edge.sourceId) && nodeMap.has(edge.targetId))
+                                .map((edge) => {
+                                  const source = nodeMap.get(edge.sourceId);
+                                  const target = nodeMap.get(edge.targetId);
+                                  const sourceAnchor = edge.sourceAnchor || 'bottom';
+                                  const targetAnchor = edge.targetAnchor || 'top';
+                                  return {
+                                    id: edge.id,
+                                    x1: source.x + 150,
+                                    y1: sourceAnchor === 'top' ? source.y : source.y + (nodeHeights[source.nodeKey] || 124),
+                                    x2: target.x + 150,
+                                    y2: targetAnchor === 'top' ? target.y : target.y + (nodeHeights[target.nodeKey] || 124)
+                                  };
+                                });
+                              const selectedFlowSectionId = flowLinkSource?.templateId === template.id ? flowLinkSource.sectionId : null;
+                              const selectedFlowSection = template.sections.find((section) => section.id === selectedFlowSectionId);
+
+                              return (
+                                <div className="flow-layout flow-fullscreen">
+                                  <div className="orbat-wrapper flow-fullscreen-wrapper">
+                                    <div className="flow-canvas-controls">
+                                      <button
+                                        type="button"
+                                        className="secondary small"
+                                        onClick={() => addSectionQuick(template.id, template.sections.length)}
+                                      >
+                                        + Section
+                                      </button>
+                                      <button type="button" className="secondary small" onClick={() => clearTemplateFlowEdges(template.id)}>
+                                        Clear
+                                      </button>
+                                      <button type="button" className="secondary small" onClick={() => resetTemplateCanvasLayout(template.id)}>
+                                        Reset
+                                      </button>
+                                    </div>
+                                    <div
+                                      className="orbat-canvas drag-canvas"
+                                      style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
+                                      onMouseMove={(event) => moveCanvasDrag(event, template)}
+                                      onMouseUp={stopCanvasDrag}
+                                      onMouseLeave={stopCanvasDrag}
                                     >
-                                      Rename
-                                    </button>
-                                    <button onClick={() => deleteSection(template.id, section.id)} className="secondary small">
-                                      Delete
-                                    </button>
-                                    <button onClick={() => addSlot(template.id, section.id)} className="secondary small">
-                                      Add slot
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="panel-content">
-                                  {section.slots.length === 0 ? (
-                                    <p className="panel-empty">No slots in this section.</p>
-                                  ) : (
-                                    section.slots.map((slot) => {
-                                      const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                                      return (
-                                        <div key={slot.id} className="slot-card builder-slot">
-                                          <div>
-                                            <input
-                                              className="slot-name-input"
-                                              value={slot.name}
-                                              placeholder="Slot name"
-                                              onChange={(e) => updateSlot(template.id, slot.id, { name: e.target.value })}
+                                      <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
+                                        {edges.map((edge) => (
+                                          <line
+                                            key={edge.id}
+                                            x1={edge.x1}
+                                            y1={edge.y1}
+                                            x2={edge.x2}
+                                            y2={edge.y2}
+                                            className="orbat-link"
+                                          />
+                                        ))}
+                                      </svg>
+
+                                      {nodes.map((node) => {
+                                        const isSelected = selectedFlowSectionId === node.section.id;
+
+                                        return (
+                                          <div
+                                            key={node.section.id}
+                                            className={`orbat-node flow-node ${isSelected ? 'selected' : ''}`}
+                                            style={{ left: `${node.x}px`, top: `${node.y}px` }}
+                                            ref={setNodeHeightRef(node.nodeKey)}
+                                          >
+                                            <button
+                                              type="button"
+                                              className={`orbat-connector top clickable ${isSelected && flowLinkSource?.anchor === 'top' ? 'active' : ''}`}
+                                              onClick={(event) => handleFlowConnectorClick(template.id, node.section.id, 'top', event)}
+                                              aria-label="Connect from top"
                                             />
-                                            <textarea
-                                              className="slot-notes-input"
-                                              value={slot.notes}
-                                              placeholder="Place extra notes here"
-                                              onChange={(e) => updateSlot(template.id, slot.id, { notes: e.target.value })}
+                                            <button
+                                              type="button"
+                                              className={`orbat-connector bottom clickable ${isSelected && flowLinkSource?.anchor === 'bottom' ? 'active' : ''}`}
+                                              onClick={(event) => handleFlowConnectorClick(template.id, node.section.id, 'bottom', event)}
+                                              aria-label="Connect from bottom"
                                             />
-                                            <div className="slot-meta-row">
-                                              <select
-                                                value={slot.role}
-                                                onChange={(e) => updateSlot(template.id, slot.id, { role: e.target.value })}
-                                              >
-                                                {allRoles.length > 0
-                                                  ? allRoles.map((roleOption) => (
-                                                      <option key={roleOption} value={roleOption}>
-                                                        {roleOption}
-                                                      </option>
-                                                    ))
-                                                  : ['Rifleman', 'Admin'].map((roleOption) => (
-                                                      <option key={roleOption} value={roleOption}>
-                                                        {roleOption}
-                                                      </option>
-                                                    ))}
-                                              </select>
+                                            <div
+                                              className="orbat-node-head"
+                                              onMouseDown={(event) => startCanvasDrag(event, template.id, node.section.id, node.index)}
+                                            >
+                                              <div className="orbat-title-row">
+                                                <strong>{node.section.title}</strong>
+                                                <button
+                                                  type="button"
+                                                  className="secondary small orbat-edit-button"
+                                                  onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    renameSection(template.id, node.section.id, node.section.title);
+                                                  }}
+                                                >
+                                                  Edit
+                                                </button>
+                                              </div>
                                             </div>
-                                          </div>
-                                          <div className="slot-footer">
-                                            <span>{assignedUser ? `Occupied by ${assignedUser.username}` : 'Free'}</span>
-                                            <div className="slot-actions">
+                                            <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
+                                              <div className="slot-actions">
+                                                <button
+                                                  type="button"
+                                                  className="secondary small"
+                                                  onClick={() => renameSection(template.id, node.section.id, node.section.title)}
+                                                >
+                                                  Rename
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className="secondary small"
+                                                  onClick={() => deleteSection(template.id, node.section.id)}
+                                                >
+                                                  Delete
+                                                </button>
+                                              </div>
+                                              <div className="flow-slot-list">
+                                                {node.section.slots.length === 0 ? (
+                                                  <p className="panel-empty">No slots yet.</p>
+                                                ) : (
+                                                  node.section.slots.map((slot) => (
+                                                    <div
+                                                      key={slot.id}
+                                                      className="flow-slot-row"
+                                                      onDragOver={(event) => handleSlotDragOver(template.id, node.section.id, event)}
+                                                      onDrop={(event) => handleSlotDrop(template.id, node.section.id, slot.id, event)}
+                                                    >
+                                                      <button
+                                                        type="button"
+                                                        className="slot-drag-handle"
+                                                        draggable={!slot._pendingCreate}
+                                                        disabled={slot._pendingCreate}
+                                                        onDragStart={(event) => handleSlotDragStart(template.id, node.section.id, slot.id, event)}
+                                                        onDragEnd={() => setDraggedSlot(null)}
+                                                        aria-label="Drag slot"
+                                                      >
+                                                        ≡
+                                                      </button>
+                                                      <input
+                                                        className="flow-slot-name"
+                                                        value={slot.name}
+                                                        placeholder="Slot name"
+                                                        onChange={(event) => updateSlot(template.id, slot.id, { name: event.target.value })}
+                                                        onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                                                        disabled={slot._pendingCreate}
+                                                      />
+                                                      <select
+                                                        className="flow-slot-role"
+                                                        value={slot.role}
+                                                        onChange={(event) => updateSlot(template.id, slot.id, { role: event.target.value })}
+                                                        onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                                                        disabled={slot._pendingCreate}
+                                                      >
+                                                        {allRoles.length > 0
+                                                          ? allRoles.map((roleOption) => (
+                                                              <option key={roleOption} value={roleOption}>
+                                                                {roleOption}
+                                                              </option>
+                                                            ))
+                                                          : ['Rifleman', 'Admin'].map((roleOption) => (
+                                                              <option key={roleOption} value={roleOption}>
+                                                                {roleOption}
+                                                              </option>
+                                                            ))}
+                                                      </select>
+                                                      <button
+                                                        type="button"
+                                                        className="danger-x-button"
+                                                        onClick={() => deleteSlot(template.id, slot.id)}
+                                                        aria-label="Delete slot"
+                                                        disabled={slot._pendingCreate}
+                                                      >
+                                                        x
+                                                      </button>
+                                                    </div>
+                                                  ))
+                                                )}
+                                              </div>
                                               <button
                                                 type="button"
                                                 className="secondary small"
-                                                onClick={() => deleteSlot(template.id, slot.id)}
+                                                onClick={() => addSlot(template.id, node.section.id)}
                                               >
-                                                Delete slot
+                                                + Slot
                                               </button>
                                             </div>
                                           </div>
-                                        </div>
-                                      );
-                                    })
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                  {selectedFlowSection ? (
+                                    <p className="flow-help">
+                                      Link source: <strong>{selectedFlowSection.title}</strong>. Klik nu op een bolletje van een tweede sectie.
+                                    </p>
+                                  ) : (
+                                    <p className="flow-help">Klik op een top/bottom bolletje en daarna op een bolletje van een tweede sectie.</p>
                                   )}
                                 </div>
+                              );
+                            })()
+                          ) : template.sections.length === 0 ? (
+                            <div className="empty-state">This template has no sections yet. Add a section to start.</div>
+                          ) : (
+                              <div className={builderCompact ? 'builder-grid compact' : 'builder-grid'}>
+                                {template.sections.map((section, index) => (
+                                  <div key={section.id} className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''}`}>
+                                    <div className="panel-title">
+                                      <div className="panel-title-text">
+                                        <strong>{section.title}</strong>
+                                      </div>
+                                      <div className="slot-actions">
+                                        <button
+                                          onClick={() => renameSection(template.id, section.id, section.title)}
+                                          className="secondary small"
+                                        >
+                                          Rename
+                                        </button>
+                                        <button onClick={() => deleteSection(template.id, section.id)} className="secondary small">
+                                          Delete
+                                        </button>
+                                        <button onClick={() => addSlot(template.id, section.id)} className="secondary small">
+                                          Add slot
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="panel-content">
+                                      {section.slots.length === 0 ? (
+                                        <p className="panel-empty">No slots in this section.</p>
+                                      ) : (
+                                        section.slots.map((slot) => {
+                                          return (
+                                            <div
+                                              key={slot.id}
+                                              className={`slot-card builder-slot ${builderCompact ? 'compact' : ''}`}
+                                              onDragOver={(event) => handleSlotDragOver(template.id, section.id, event)}
+                                              onDrop={(event) => handleSlotDrop(template.id, section.id, slot.id, event)}
+                                            >
+                                              <div>
+                                                <button
+                                                  type="button"
+                                                  className="slot-drag-handle"
+                                                  draggable={!slot._pendingCreate}
+                                                  disabled={slot._pendingCreate}
+                                                  onDragStart={(event) => handleSlotDragStart(template.id, section.id, slot.id, event)}
+                                                  onDragEnd={() => setDraggedSlot(null)}
+                                                  aria-label="Drag slot"
+                                                >
+                                                  ≡
+                                                </button>
+                                                <input
+                                                  className="slot-name-input"
+                                                  value={slot.name}
+                                                  placeholder="Slot name"
+                                                  onChange={(e) => updateSlot(template.id, slot.id, { name: e.target.value })}
+                                                  onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                                                  disabled={slot._pendingCreate}
+                                                />
+                                                {!builderCompact ? (
+                                                  <textarea
+                                                    className="slot-notes-input"
+                                                    value={slot.notes}
+                                                    placeholder="Place extra notes here"
+                                                    onChange={(e) => updateSlot(template.id, slot.id, { notes: e.target.value })}
+                                                    onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                                                    disabled={slot._pendingCreate}
+                                                  />
+                                                ) : null}
+                                                <div className="slot-meta-row">
+                                                  <select
+                                                    value={slot.role}
+                                                    onChange={(e) => updateSlot(template.id, slot.id, { role: e.target.value })}
+                                                    onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                                                    disabled={slot._pendingCreate}
+                                                  >
+                                                    {allRoles.length > 0
+                                                      ? allRoles.map((roleOption) => (
+                                                          <option key={roleOption} value={roleOption}>
+                                                            {roleOption}
+                                                          </option>
+                                                        ))
+                                                      : ['Rifleman', 'Admin'].map((roleOption) => (
+                                                          <option key={roleOption} value={roleOption}>
+                                                            {roleOption}
+                                                          </option>
+                                                        ))}
+                                                  </select>
+                                                </div>
+                                              </div>
+                                              <div className="slot-footer">
+                                                <div className="slot-actions">
+                                                  <button
+                                                    type="button"
+                                                    className="secondary small"
+                                                    onClick={() => deleteSlot(template.id, slot.id)}
+                                                    disabled={slot._pendingCreate}
+                                                  >
+                                                    Delete slot
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            ))
                           )}
                         </div>
                       ))
@@ -1426,7 +2304,6 @@ function App() {
                             ) : (
                               section.slots.map((slot) => {
                                 const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                                const canJoin = !assignedUser && (slot.allowedRoles.length === 0 || slot.allowedRoles.includes(auth.role) || auth.role === 'admin');
                                 return (
                                   <div key={slot.id} className="slot-card">
                                     <div>
@@ -1473,11 +2350,6 @@ function App() {
                                     </div>
                                     <div className="slot-footer">
                                       <span>{assignedUser ? `Occupied by ${assignedUser.username}` : 'Available'}</span>
-                                      {canJoin ? (
-                                        <button className="secondary small" onClick={() => joinOpSlot(selectedOp.id, slot.id)}>
-                                          Join
-                                        </button>
-                                      ) : null}
                                     </div>
                                   </div>
                                 );
@@ -1552,9 +2424,6 @@ function App() {
                               <th>Status</th>
                               <th>Admin status</th>
                               <th>Roles</th>
-                              {permissionColumns.map((permission) => (
-                                <th key={permission}>{permission}</th>
-                              ))}
                               <th>Action</th>
                             </tr>
                           </thead>
@@ -1578,15 +2447,6 @@ function App() {
                                     Roles
                                   </button>
                                 </td>
-                                {permissionColumns.map((permission) => (
-                                  <td key={permission}>
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(user.permissions?.[permission])}
-                                      onChange={() => togglePermission(user.id, permission)}
-                                    />
-                                  </td>
-                                ))}
                                 <td>
                                   <button className="secondary small" onClick={() => deleteUser(user.id)}>
                                     Delete
@@ -1598,9 +2458,7 @@ function App() {
                         </table>
                       </div>
                     )}
-                    {permissionColumns.length === 0 ? (
-                      <p>Create a template with slots to display permissions.</p>
-                    ) : null}
+                    <p>Use the Roles button to manage role permissions for each player.</p>
                   </section>
                 </section>
               )}

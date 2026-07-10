@@ -395,6 +395,22 @@ app.post('/api/ops/:id/join', authMiddleware, (req, res) => {
   res.json({ op });
 });
 
+app.post('/api/ops/:id/signoff', authMiddleware, (req, res) => {
+  const data = readData();
+  const op = findOp(data, req.params.id);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+
+  const slot = op.sections.flatMap((section) => section.slots).find((slotItem) => slotItem.id === Number(req.body.slotId));
+  if (!slot) return res.status(404).json({ error: 'Slot not found' });
+  if (slot.assignedUserId !== req.user.id) {
+    return res.status(403).json({ error: 'You are not assigned to this slot' });
+  }
+
+  slot.assignedUserId = null;
+  writeData(data);
+  res.json({ op });
+});
+
 app.put('/api/ops/:opId/slots/:slotId', authMiddleware, requireAdmin, (req, res) => {
   const data = readData();
   const op = findOp(data, req.params.opId);
@@ -416,9 +432,11 @@ app.post('/api/ops/:id/load-template', authMiddleware, requireAdmin, (req, res) 
   const op = findOp(data, req.params.id);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
 
-  const template = findTemplate(data, op.templateId);
+  const requestedTemplateId = req.body?.templateId ? Number(req.body.templateId) : op.templateId;
+  const template = findTemplate(data, requestedTemplateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
+  op.templateId = template.id;
   op.sections = buildOpSectionsFromTemplate(template, op.sections || []);
 
   writeData(data);
@@ -554,6 +572,34 @@ app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, req
   template.sections.splice(sectionIndex, 1);
   writeData(data);
   res.status(204).end();
+});
+
+app.put('/api/templates/:templateId/sections/:sectionId/slots/reorder', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const template = findTemplate(data, req.params.templateId);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  const section = template.sections.find((item) => item.id === Number(req.params.sectionId));
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+
+  const slotIds = Array.isArray(req.body.slotIds) ? req.body.slotIds.map(Number) : null;
+  if (!slotIds) return res.status(400).json({ error: 'slotIds must be an array' });
+
+  const currentIds = section.slots.map((slot) => Number(slot.id));
+  const uniqueSlotIds = new Set(slotIds);
+  if (
+    slotIds.length !== currentIds.length
+    || uniqueSlotIds.size !== slotIds.length
+    || currentIds.some((id) => !uniqueSlotIds.has(id))
+  ) {
+    return res.status(400).json({ error: 'slotIds do not match section slots' });
+  }
+
+  const slotMap = new Map(section.slots.map((slot) => [Number(slot.id), slot]));
+  section.slots = slotIds.map((slotId) => slotMap.get(slotId));
+
+  writeData(data);
+  res.json({ section });
 });
 
 app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, (req, res) => {
