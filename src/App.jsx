@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import OrbatOverview from './OrbatOverview';
+import OrbatScheduler from './OrbatScheduler';
+import OrbatTemplate from './OrbatTemplate';
 
 const API = '/api';
 
@@ -1446,253 +1449,30 @@ function App() {
               </div>
 
               {overviewOps.map((op) => (
-                <section key={op.id} className="card">
-                  <div className="builder-toolbar">
-                    <div>
-                      <h4>{op.name}</h4>
-                      <p>{op.date} at {op.time} using {getTemplateName(op.templateId)}.</p>
-                      <p className="op-info">
-                        {op.serverName ? `${op.serverName}` : ''}
-                        {op.serverName && op.modlist ? ' · ' : ''}
-                        {op.modlist ? (<a href={op.modlist} target="_blank" rel="noreferrer">modlist</a>) : null}
-                        {op.tsAddress ? (
-                          <>
-                            {(op.serverName || op.modlist) ? ' · ' : ''}
-                            <a href={`ts3server://${op.tsAddress}`}>{op.tsAddress}</a>
-                          </>
-                        ) : null}
-                      </p>
-                    </div>
-                  </div>
-                  {op.sections?.length === 0 ? (
-                    <div className="empty-state">This operation has no sections.</div>
-                  ) : effectiveOverviewMode === 'orbat' ? (
-                    (() => {
-                      const canvasTemplate = { id: op.templateId, sections: op.sections };
-                      const canvasSize = getCanvasSize(canvasTemplate);
-                      const nodes = op.sections.map((section, index) => {
-                        const node = getCanvasNode(op.templateId, section.id, index);
-                        return {
-                          section,
-                          index,
-                          nodeKey: `overview-${op.id}-${section.id}`,
-                          x: node.x,
-                          y: node.y,
-                          parentId: resolveSectionParentId(op.templateId, op.sections, section.id, index)
-                        };
-                      });
-
-                      const nodeMap = new Map(nodes.map((node) => [node.section.id, node]));
-                      const links = nodes
-                        .filter((node) => node.parentId && nodeMap.has(node.parentId))
-                        .map((node) => {
-                          const parent = nodeMap.get(node.parentId);
-                          return {
-                            id: `${parent.section.id}-${node.section.id}`,
-                            x1: parent.x + 140,
-                            y1: parent.y + (nodeHeights[parent.nodeKey] || 172),
-                            x2: node.x + 140,
-                            y2: node.y
-                          };
-                        });
-
-                      return (
-                        <div className="orbat-wrapper">
-                          <div
-                            className="orbat-canvas drag-canvas"
-                            style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
-                            onMouseMove={(event) => moveCanvasDrag(event, canvasTemplate)}
-                            onMouseUp={stopCanvasDrag}
-                            onMouseLeave={stopCanvasDrag}
-                          >
-                            <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
-                              {links.map((link) => (
-                                <line
-                                  key={link.id}
-                                  x1={link.x1}
-                                  y1={link.y1}
-                                  x2={link.x2}
-                                  y2={link.y2}
-                                  className="orbat-link"
-                                />
-                              ))}
-                            </svg>
-
-                            {nodes.map((node) => (
-                              <div
-                                key={node.section.id}
-                                className="orbat-node"
-                                style={{ left: `${node.x}px`, top: `${node.y}px` }}
-                                ref={setNodeHeightRef(node.nodeKey)}
-                              >
-                                <span className="orbat-connector top" aria-hidden="true" />
-                                <span className="orbat-connector bottom" aria-hidden="true" />
-                                <div
-                                  className="orbat-node-head"
-                                  onMouseDown={isAdmin ? (event) => startCanvasDrag(event, op.templateId, node.section.id, node.index) : undefined}
-                                >
-                                  <strong>{node.section.title}</strong>
-                                  <span className="section-count">
-                                    {sectionStats(node.section).occupied}/{sectionStats(node.section).total} filled
-                                  </span>
-                                  <span className="slot-meta">LR {node.section.lrChannel ?? '-'} · SR {node.section.srChannel ?? '-'}</span>
-                                </div>
-
-                                {isAdmin ? (
-                                  <select
-                                    className="orbat-parent-select"
-                                    value={node.parentId || ''}
-                                    onChange={(event) => updateSectionParent(op.templateId, node.section.id, event.target.value || null)}
-                                  >
-                                    <option value="">Top command</option>
-                                    {op.sections
-                                      .filter((section) => section.id !== node.section.id)
-                                      .map((section) => (
-                                        <option key={section.id} value={section.id}>
-                                          Reports to {section.title}
-                                        </option>
-                                      ))}
-                                  </select>
-                                ) : null}
-
-                                <div className="orbat-slot-list">
-                                  {node.section.slots.slice(0, 6).map((slot) => {
-                                    const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                                    const allowedRoles = slot.allowedRoles || [];
-                                    const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
-                                    const isOwnSlot = Boolean(auth && slot.assignedUserId === auth.id);
-                                    return (
-                                      <div key={slot.id} className="orbat-slot-item">
-                                        <span className={`slot-badge ${assignedUser ? 'occupied' : 'free'}`}>
-                                          {assignedUser ? 'occupied' : 'free'}
-                                        </span>
-                                        <span className="orbat-slot-text">{slot.name}</span>
-                                        {isOwnSlot ? (
-                                          <button
-                                            type="button"
-                                            className="secondary small orbat-slot-join"
-                                            onClick={() => signOffOpSlot(op.id, slot.id)}
-                                          >
-                                            Sign off
-                                          </button>
-                                        ) : auth && canJoin ? (
-                                          <button
-                                            type="button"
-                                            className="secondary small orbat-slot-join"
-                                            onClick={() => joinOpSlot(op.id, slot.id)}
-                                          >
-                                            Join
-                                          </button>
-                                        ) : !auth && !assignedUser ? (
-                                          <button
-                                            type="button"
-                                            className="secondary small orbat-slot-join"
-                                            onClick={() => setShowLoginPanel(true)}
-                                          >
-                                            Login
-                                          </button>
-                                        ) : null}
-                                      </div>
-                                    );
-                                  })}
-                                  {node.section.slots.length > 6 ? (
-                                    <div className="orbat-slot-more">+{node.section.slots.length - 6} more slots</div>
-                                  ) : null}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="builder-grid">
-                      {op.sections.map((section, index) => (
-                        <div key={section.id} className={`builder-panel panel-${index % 5}`}>
-                          <div className="panel-title">
-                            <strong>{section.title}</strong>
-                            <span className="slot-meta">LR {section.lrChannel ?? '-'} · SR {section.srChannel ?? '-'}</span>
-                          </div>
-                          <div className="panel-content">
-                            {section.slots.length === 0 ? (
-                              <p className="panel-empty">No slots in this section.</p>
-                            ) : (
-                              section.slots.map((slot) => {
-                                const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                                const allowedRoles = slot.allowedRoles || [];
-                                const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
-                                const isOwnSlot = Boolean(auth && slot.assignedUserId === auth.id);
-
-                                return (
-                                  <div key={slot.id} className="slot-card">
-                                    <div>
-                                      {auth?.role === 'admin' ? (
-                                        <>
-                                          <input
-                                            className="slot-name-input"
-                                            value={slot.name}
-                                            placeholder="Slot name"
-                                            onChange={(e) => updateOpSlot(op.id, slot.id, { name: e.target.value })}
-                                          />
-                                          <textarea
-                                            className="slot-notes-input"
-                                            value={slot.notes}
-                                            placeholder="Place extra notes here"
-                                            onChange={(e) => updateOpSlot(op.id, slot.id, { notes: e.target.value })}
-                                          />
-                                          <div className="slot-meta-row">
-                                            <select
-                                              value={slot.role}
-                                              onChange={(e) => updateOpSlot(op.id, slot.id, { role: e.target.value })}
-                                            >
-                                              {allRoles.length > 0
-                                                ? allRoles.map((roleOption) => (
-                                                    <option key={roleOption} value={roleOption}>
-                                                      {roleOption}
-                                                    </option>
-                                                  ))
-                                                : ['Rifleman', 'Admin'].map((roleOption) => (
-                                                    <option key={roleOption} value={roleOption}>
-                                                      {roleOption}
-                                                    </option>
-                                                  ))}
-                                            </select>
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <strong>{slot.name}</strong>
-                                          <p className="slot-meta">{slot.role}</p>
-                                          {slot.notes ? <p className="slot-meta">{slot.notes}</p> : null}
-                                        </>
-                                      )}
-                                    </div>
-                                    <div className="slot-footer">
-                                      <span>{assignedUser ? `Occupied by ${assignedUser.username}` : 'Available'}</span>
-                                      {isOwnSlot ? (
-                                        <button className="secondary small" onClick={() => signOffOpSlot(op.id, slot.id)}>
-                                          Sign off
-                                        </button>
-                                      ) : auth && canJoin ? (
-                                        <button className="secondary small" onClick={() => joinOpSlot(op.id, slot.id)}>
-                                          Join
-                                        </button>
-                                      ) : !auth && !assignedUser ? (
-                                        <button className="secondary small" onClick={() => setShowLoginPanel(true)}>
-                                          Login to join
-                                        </button>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
+                <OrbatOverview
+                  key={op.id}
+                  op={op}
+                  users={users}
+                  auth={auth}
+                  isAdmin={isAdmin}
+                  allRoles={allRoles}
+                  effectiveOverviewMode={effectiveOverviewMode}
+                  getTemplateName={getTemplateName}
+                  getCanvasSize={getCanvasSize}
+                  getCanvasNode={getCanvasNode}
+                  resolveSectionParentId={resolveSectionParentId}
+                  nodeHeights={nodeHeights}
+                  setNodeHeightRef={setNodeHeightRef}
+                  moveCanvasDrag={moveCanvasDrag}
+                  stopCanvasDrag={stopCanvasDrag}
+                  startCanvasDrag={startCanvasDrag}
+                  updateSectionParent={updateSectionParent}
+                  sectionStats={sectionStats}
+                  joinOpSlot={joinOpSlot}
+                  signOffOpSlot={signOffOpSlot}
+                  updateOpSlot={updateOpSlot}
+                  setShowLoginPanel={setShowLoginPanel}
+                />
               ))}
             </section>
           ) : null}
@@ -1825,240 +1605,32 @@ function App() {
             </section>
           ) : null}
 
-          {auth && isAdmin && page === 'scheduler-detail' && selectedOp ? (() => {
-            const selectedRecurrence = selectedRecurrenceId ? recurrences.find((r) => r.id === selectedRecurrenceId) : null;
-            return (
-            <section className="card">
-              <div className="builder-toolbar">
-                <button className="secondary small" onClick={goToSchedulerList}>
-                  ← Back to operations
-                </button>
-                <div>
-                  <h3>{selectedOp.name}{selectedRecurrence ? <span className="op-list-badge" style={{marginLeft:'0.5rem'}}>Recurring</span> : null}</h3>
-                  <p>{selectedOp.date} at {selectedOp.time} &middot; {getTemplateName(selectedOp.templateId)}</p>
-                </div>
-                <div style={{display:'flex',gap:'0.5rem'}}>
-                  <select
-                    value={schedulerLoadTemplateId}
-                    onChange={(e) => setSchedulerLoadTemplateId(e.target.value)}
-                  >
-                    <option value="">Choose template</option>
-                    {templates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="secondary"
-                    onClick={() => loadTemplateIntoOp(selectedOp.id, Number(schedulerLoadTemplateId) || null)}
-                    disabled={!schedulerLoadTemplateId}
-                  >
-                    Load template
-                  </button>
-                  {selectedRecurrence
-                    ? <button className="secondary small" onClick={() => { deleteRecurrence(selectedRecurrence.id); goToSchedulerList(); }}>Delete</button>
-                    : <button className="secondary small" onClick={() => deleteOp(selectedOp.id)}>Delete</button>
-                  }
-                </div>
-              </div>
-
-              <div className="role-add-form" style={{marginBottom:'1rem'}}>
-                <input
-                  placeholder="Server name (optional)"
-                  value={selectedOp.serverName || ''}
-                  onChange={(e) => updateOpMeta(selectedOp.id, { serverName: e.target.value })}
-                />
-                <input
-                  placeholder="Modlist URL (optional)"
-                  value={selectedOp.modlist || ''}
-                  onChange={(e) => updateOpMeta(selectedOp.id, { modlist: e.target.value })}
-                />
-                <input
-                  placeholder="TS3 address (optional)"
-                  value={selectedOp.tsAddress || ''}
-                  onChange={(e) => updateOpMeta(selectedOp.id, { tsAddress: e.target.value })}
-                />
-              </div>
-              <div
-                className="modlist-dropzone"
-                onDragOver={handleModlistDragOver}
-                onDrop={(e) => handleModlistDrop(selectedOp.id, e)}
-              >
-                Drag &amp; drop a modlist file here to upload
-              </div>
-
-              {selectedOp.sections?.length === 0 ? (
-                <div className="empty-state">This operation has no sections. Load a template to add slots.</div>
-              ) : (
-                <div className="builder-grid">
-                  {selectedOp.sections.map((section, index) => (
-                    <div key={section.id} className={`builder-panel panel-${index % 5}`}>
-                      <div className="panel-title">
-                        <strong>{section.title}</strong>
-                        <div className="slot-meta-row">
-                          <label className="slot-meta">
-                            LR
-                            <input
-                              type="number"
-                              min="0"
-                              max="99"
-                              className="lr-sr-input"
-                              value={section.lrChannel ?? 1}
-                              onChange={(e) => updateOpSectionMeta(selectedOp.id, section.id, { lrChannel: Number(e.target.value) })}
-                            />
-                          </label>
-                          <label className="slot-meta">
-                            SR
-                            <input
-                              type="number"
-                              min="0"
-                              max="99"
-                              className="lr-sr-input"
-                              value={section.srChannel ?? 1}
-                              onChange={(e) => updateOpSectionMeta(selectedOp.id, section.id, { srChannel: Number(e.target.value) })}
-                            />
-                          </label>
-                        </div>
-                      </div>
-                      <div className="panel-content">
-                        {section.slots.length === 0 ? (
-                          <p className="panel-empty">No slots in this section.</p>
-                        ) : (
-                          section.slots.map((slot) => {
-                            const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-
-                            return (
-                              <div key={slot.id} className="slot-card builder-slot">
-                                <div>
-                                  <input
-                                    className="slot-name-input"
-                                    value={slot.name}
-                                    placeholder="Slot name"
-                                    onChange={(e) => updateOpSlot(selectedOp.id, slot.id, { name: e.target.value })}
-                                  />
-                                  <textarea
-                                    className="slot-notes-input"
-                                    value={slot.notes}
-                                    placeholder="Place extra notes here"
-                                    onChange={(e) => updateOpSlot(selectedOp.id, slot.id, { notes: e.target.value })}
-                                  />
-                                  <div className="slot-meta-row">
-                                    <select
-                                      value={slot.role}
-                                      onChange={(e) => updateOpSlot(selectedOp.id, slot.id, { role: e.target.value })}
-                                    >
-                                      {allRoles.length > 0
-                                        ? allRoles.map((roleOption) => (
-                                            <option key={roleOption} value={roleOption}>
-                                              {roleOption}
-                                            </option>
-                                          ))
-                                        : ['Rifleman', 'Admin'].map((roleOption) => (
-                                            <option key={roleOption} value={roleOption}>
-                                              {roleOption}
-                                            </option>
-                                          ))}
-                                    </select>
-                                  </div>
-                                </div>
-                                <div className="slot-footer">
-                                  <span>{assignedUser ? `Occupied by ${assignedUser.username}` : 'Available'}</span>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {selectedRecurrence ? (
-                <section className="card">
-                  <h4>Recurring settings</h4>
-                  <div className="recurring-settings-form">
-                    <label>
-                      Repeat pattern
-                      <select
-                        value={selectedRecurrence.recurrence}
-                        onChange={(e) => updateRecurrence(selectedRecurrence.id, { recurrence: e.target.value })}
-                      >
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="biweekly">Every 2 weeks</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </label>
-
-                    {(selectedRecurrence.recurrence === 'weekly' || selectedRecurrence.recurrence === 'biweekly') && (
-                      <div className="weekly-days">
-                        <label>Choose days:</label>
-                        <div className="weekday-grid">
-                          {weekDayLabels.map((dayOption) => (
-                            <label key={dayOption.value}>
-                              <input
-                                type="checkbox"
-                                checked={(selectedRecurrence.weeklyDays || []).includes(dayOption.value)}
-                                onChange={() => toggleRecurrenceWeeklyDay(selectedRecurrence, dayOption.value)}
-                              />
-                              {dayOption.label}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedRecurrence.recurrence === 'monthly' ? (
-                      <label>
-                        Day of month
-                        <input
-                          type="number"
-                          min="1"
-                          max="31"
-                          value={selectedRecurrence.monthlyDay || ''}
-                          onChange={(e) => updateRecurrence(selectedRecurrence.id, { monthlyDay: Number(e.target.value) })}
-                        />
-                      </label>
-                    ) : null}
-
-                    <label>
-                      Start date
-                      <input
-                        type="date"
-                        value={selectedRecurrence.startDate || ''}
-                        onChange={(e) => updateRecurrence(selectedRecurrence.id, { startDate: e.target.value })}
-                      />
-                    </label>
-
-                    <label>
-                      Time
-                      <input
-                        type="time"
-                        value={selectedRecurrence.time || ''}
-                        onChange={(e) => updateRecurrence(selectedRecurrence.id, { time: e.target.value })}
-                      />
-                    </label>
-
-                    <label>
-                      Repeat until (optional)
-                      <input
-                        type="date"
-                        value={selectedRecurrence.repeatUntil || ''}
-                        onChange={(e) => updateRecurrence(selectedRecurrence.id, { recurrenceEndDate: e.target.value || null })}
-                      />
-                    </label>
-                  </div>
-                  <div className="recurring-settings">
-                    <p><strong>Pattern:</strong> {recurrenceLabel(selectedRecurrence)}</p>
-                    {selectedRecurrence.nextDateTime ? <p><strong>Next occurrence:</strong> {selectedRecurrence.nextDateTime?.slice(0, 10)} {selectedRecurrence.nextDateTime?.slice(11, 16)}</p> : <p><strong>Next occurrence:</strong> None scheduled</p>}
-                  </div>
-                </section>
-              ) : null}
-            </section>
-            );
-          })() : null}
+          {auth && isAdmin && page === 'scheduler-detail' && selectedOp ? (
+            <OrbatScheduler
+              selectedOp={selectedOp}
+              selectedRecurrenceId={selectedRecurrenceId}
+              recurrences={recurrences}
+              goToSchedulerList={goToSchedulerList}
+              getTemplateName={getTemplateName}
+              schedulerLoadTemplateId={schedulerLoadTemplateId}
+              setSchedulerLoadTemplateId={setSchedulerLoadTemplateId}
+              templates={templates}
+              loadTemplateIntoOp={loadTemplateIntoOp}
+              deleteRecurrence={deleteRecurrence}
+              deleteOp={deleteOp}
+              updateOpMeta={updateOpMeta}
+              handleModlistDragOver={handleModlistDragOver}
+              handleModlistDrop={handleModlistDrop}
+              updateOpSectionMeta={updateOpSectionMeta}
+              users={users}
+              updateOpSlot={updateOpSlot}
+              allRoles={allRoles}
+              weekDayLabels={weekDayLabels}
+              toggleRecurrenceWeeklyDay={toggleRecurrenceWeeklyDay}
+              updateRecurrence={updateRecurrence}
+              recurrenceLabel={recurrenceLabel}
+            />
+          ) : null}
 
           {isAdmin ? (
             <>
@@ -2124,349 +1696,37 @@ function App() {
 
                     {selectedTemplateId ? (
                       templates.filter((template) => template.id === selectedTemplateId).map((template) => (
-                        <div key={template.id}>
-                          {builderFlowMode ? (
-                            (() => {
-                              const canvasSize = getCanvasSize(template);
-                              const nodes = template.sections.map((section, index) => {
-                                const node = getCanvasNode(template.id, section.id, index);
-                                return {
-                                  section,
-                                  index,
-                                    nodeKey: `flow-${template.id}-${section.id}`,
-                                  x: node.x,
-                                  y: node.y
-                                };
-                              });
-                              const nodeMap = new Map(nodes.map((node) => [node.section.id, node]));
-                              const edges = getTemplateFlowEdges(template.id, template.sections)
-                                .filter((edge) => nodeMap.has(edge.sourceId) && nodeMap.has(edge.targetId))
-                                .map((edge) => {
-                                  const source = nodeMap.get(edge.sourceId);
-                                  const target = nodeMap.get(edge.targetId);
-                                  const sourceAnchor = edge.sourceAnchor || 'bottom';
-                                  const targetAnchor = edge.targetAnchor || 'top';
-                                  return {
-                                    id: edge.id,
-                                    x1: source.x + 150,
-                                    y1: sourceAnchor === 'top' ? source.y : source.y + (nodeHeights[source.nodeKey] || 124),
-                                    x2: target.x + 150,
-                                    y2: targetAnchor === 'top' ? target.y : target.y + (nodeHeights[target.nodeKey] || 124)
-                                  };
-                                });
-                              const selectedFlowSectionId = flowLinkSource?.templateId === template.id ? flowLinkSource.sectionId : null;
-                              const selectedFlowSection = template.sections.find((section) => section.id === selectedFlowSectionId);
-
-                              return (
-                                <div className="flow-layout flow-fullscreen">
-                                  <div className="orbat-wrapper flow-fullscreen-wrapper">
-                                    <div className="flow-canvas-controls">
-                                      <button
-                                        type="button"
-                                        className="secondary small"
-                                        onClick={() => addSectionQuick(template.id, template.sections.length)}
-                                      >
-                                        + Section
-                                      </button>
-                                      <button type="button" className="secondary small" onClick={() => clearTemplateFlowEdges(template.id)}>
-                                        Clear
-                                      </button>
-                                      <button type="button" className="secondary small" onClick={() => resetTemplateCanvasLayout(template.id)}>
-                                        Reset
-                                      </button>
-                                    </div>
-                                    <div
-                                      className="orbat-canvas drag-canvas"
-                                      style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
-                                      onMouseMove={(event) => moveCanvasDrag(event, template)}
-                                      onMouseUp={stopCanvasDrag}
-                                      onMouseLeave={stopCanvasDrag}
-                                    >
-                                      <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
-                                        {edges.map((edge) => (
-                                          <line
-                                            key={edge.id}
-                                            x1={edge.x1}
-                                            y1={edge.y1}
-                                            x2={edge.x2}
-                                            y2={edge.y2}
-                                            className="orbat-link"
-                                          />
-                                        ))}
-                                      </svg>
-
-                                      {nodes.map((node) => {
-                                        const isSelected = selectedFlowSectionId === node.section.id;
-
-                                        return (
-                                          <div
-                                            key={node.section.id}
-                                            className={`orbat-node flow-node ${isSelected ? 'selected' : ''}`}
-                                            style={{ left: `${node.x}px`, top: `${node.y}px` }}
-                                            ref={setNodeHeightRef(node.nodeKey)}
-                                          >
-                                            <button
-                                              type="button"
-                                              className={`orbat-connector top clickable ${isSelected && flowLinkSource?.anchor === 'top' ? 'active' : ''}`}
-                                              onClick={(event) => handleFlowConnectorClick(template.id, node.section.id, 'top', event)}
-                                              aria-label="Connect from top"
-                                            />
-                                            <button
-                                              type="button"
-                                              className={`orbat-connector bottom clickable ${isSelected && flowLinkSource?.anchor === 'bottom' ? 'active' : ''}`}
-                                              onClick={(event) => handleFlowConnectorClick(template.id, node.section.id, 'bottom', event)}
-                                              aria-label="Connect from bottom"
-                                            />
-                                            <div
-                                              className="orbat-node-head"
-                                              onMouseDown={(event) => startCanvasDrag(event, template.id, node.section.id, node.index)}
-                                            >
-                                              <div className="orbat-title-row">
-                                                <input
-                                                  className="section-title-input"
-                                                  value={node.section.title}
-                                                  placeholder="Section title"
-                                                  onMouseDown={(event) => event.stopPropagation()}
-                                                  onChange={(event) => updateSectionTitleLocal(template.id, node.section.id, event.target.value)}
-                                                  onBlur={(event) => updateSectionMeta(template.id, node.section.id, { title: event.target.value })}
-                                                />
-                                              </div>
-                                            </div>
-                                            <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
-                                              <div className="slot-actions">
-                                                <button
-                                                  type="button"
-                                                  className="danger-x-button"
-                                                  onClick={() => deleteSection(template.id, node.section.id)}
-                                                  aria-label="Delete section"
-                                                >
-                                                  ✕
-                                                </button>
-                                              </div>
-                                              <div className="flow-slot-list">
-                                                {node.section.slots.length === 0 ? (
-                                                  <p className="panel-empty">No slots yet.</p>
-                                                ) : (
-                                                  node.section.slots.map((slot) => (
-                                                    <div
-                                                      key={slot.id}
-                                                      className="flow-slot-row"
-                                                      onDragOver={(event) => handleSlotDragOver(template.id, node.section.id, event)}
-                                                      onDrop={(event) => handleSlotDrop(template.id, node.section.id, slot.id, event)}
-                                                    >
-                                                      <button
-                                                        type="button"
-                                                        className="slot-drag-handle"
-                                                        draggable={!slot._pendingCreate}
-                                                        disabled={slot._pendingCreate}
-                                                        onDragStart={(event) => handleSlotDragStart(template.id, node.section.id, slot.id, event)}
-                                                        onDragEnd={() => setDraggedSlot(null)}
-                                                        aria-label="Drag slot"
-                                                      >
-                                                        ≡
-                                                      </button>
-                                                      <input
-                                                        className="flow-slot-name"
-                                                        value={slot.name}
-                                                        placeholder="Slot name"
-                                                        onChange={(event) => updateSlot(template.id, slot.id, { name: event.target.value })}
-                                                        onBlur={() => flushSlotUpdate(template.id, slot.id)}
-                                                        disabled={slot._pendingCreate}
-                                                      />
-                                                      <select
-                                                        className="flow-slot-role"
-                                                        value={slot.role}
-                                                        onChange={(event) => updateSlot(template.id, slot.id, { role: event.target.value })}
-                                                        onBlur={() => flushSlotUpdate(template.id, slot.id)}
-                                                        disabled={slot._pendingCreate}
-                                                      >
-                                                        {allRoles.length > 0
-                                                          ? allRoles.map((roleOption) => (
-                                                              <option key={roleOption} value={roleOption}>
-                                                                {roleOption}
-                                                              </option>
-                                                            ))
-                                                          : ['Rifleman', 'Admin'].map((roleOption) => (
-                                                              <option key={roleOption} value={roleOption}>
-                                                                {roleOption}
-                                                              </option>
-                                                            ))}
-                                                      </select>
-                                                      <button
-                                                        type="button"
-                                                        className="danger-x-button"
-                                                        onClick={() => deleteSlot(template.id, slot.id)}
-                                                        aria-label="Delete slot"
-                                                        disabled={slot._pendingCreate}
-                                                      >
-                                                        x
-                                                      </button>
-                                                    </div>
-                                                  ))
-                                                )}
-                                              </div>
-                                              <button
-                                                type="button"
-                                                className="secondary small"
-                                                onClick={() => addSlot(template.id, node.section.id)}
-                                              >
-                                                + Slot
-                                              </button>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                  {selectedFlowSection ? (
-                                    <p className="flow-help">
-                                      Link source: <strong>{selectedFlowSection.title}</strong>. Klik nu op een bolletje van een tweede sectie.
-                                    </p>
-                                  ) : (
-                                    <p className="flow-help">Klik op een top/bottom bolletje en daarna op een bolletje van een tweede sectie.</p>
-                                  )}
-                                </div>
-                              );
-                            })()
-                          ) : template.sections.length === 0 ? (
-                            <div className="empty-state">This template has no sections yet. Add a section to start.</div>
-                          ) : (
-                              <div className={builderCompact ? 'builder-grid compact' : 'builder-grid'}>
-                                {template.sections.map((section, index) => (
-                                  <div key={section.id} className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''}`}>
-                                    <div className="panel-title">
-                                      <div className="panel-title-text">
-                                        <input
-                                          className="section-title-input"
-                                          value={section.title}
-                                          placeholder="Section title"
-                                          onChange={(e) => updateSectionTitleLocal(template.id, section.id, e.target.value)}
-                                          onBlur={(e) => updateSectionMeta(template.id, section.id, { title: e.target.value })}
-                                        />
-                                        <div className="slot-meta-row">
-                                          <label className="slot-meta">
-                                            LR
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              max="99"
-                                              className="lr-sr-input"
-                                              value={section.lrChannel ?? 1}
-                                              onChange={(e) => updateSectionMeta(template.id, section.id, { lrChannel: Number(e.target.value) })}
-                                            />
-                                          </label>
-                                          <label className="slot-meta">
-                                            SR
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              max="99"
-                                              className="lr-sr-input"
-                                              value={section.srChannel ?? 1}
-                                              onChange={(e) => updateSectionMeta(template.id, section.id, { srChannel: Number(e.target.value) })}
-                                            />
-                                          </label>
-                                        </div>
-                                      </div>
-                                      <div className="slot-actions">
-                                        <button onClick={() => addSlot(template.id, section.id)} className="secondary small">
-                                          Add slot
-                                        </button>
-                                        <button
-                                          onClick={() => deleteSection(template.id, section.id)}
-                                          className="danger-x-button"
-                                          aria-label="Delete section"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                    </div>
-                                    <div className="panel-content">
-                                      {section.slots.length === 0 ? (
-                                        <p className="panel-empty">No slots in this section.</p>
-                                      ) : (
-                                        section.slots.map((slot) => {
-                                          return (
-                                            <div
-                                              key={slot.id}
-                                              className={`slot-card builder-slot ${builderCompact ? 'compact' : ''}`}
-                                              onDragOver={(event) => handleSlotDragOver(template.id, section.id, event)}
-                                              onDrop={(event) => handleSlotDrop(template.id, section.id, slot.id, event)}
-                                            >
-                                              <div>
-                                                <button
-                                                  type="button"
-                                                  className="slot-drag-handle"
-                                                  draggable={!slot._pendingCreate}
-                                                  disabled={slot._pendingCreate}
-                                                  onDragStart={(event) => handleSlotDragStart(template.id, section.id, slot.id, event)}
-                                                  onDragEnd={() => setDraggedSlot(null)}
-                                                  aria-label="Drag slot"
-                                                >
-                                                  ≡
-                                                </button>
-                                                <input
-                                                  className="slot-name-input"
-                                                  value={slot.name}
-                                                  placeholder="Slot name"
-                                                  onChange={(e) => updateSlot(template.id, slot.id, { name: e.target.value })}
-                                                  onBlur={() => flushSlotUpdate(template.id, slot.id)}
-                                                  disabled={slot._pendingCreate}
-                                                />
-                                                {!builderCompact ? (
-                                                  <textarea
-                                                    className="slot-notes-input"
-                                                    value={slot.notes}
-                                                    placeholder="Place extra notes here"
-                                                    onChange={(e) => updateSlot(template.id, slot.id, { notes: e.target.value })}
-                                                    onBlur={() => flushSlotUpdate(template.id, slot.id)}
-                                                    disabled={slot._pendingCreate}
-                                                  />
-                                                ) : null}
-                                                <div className="slot-meta-row">
-                                                  <select
-                                                    value={slot.role}
-                                                    onChange={(e) => updateSlot(template.id, slot.id, { role: e.target.value })}
-                                                    onBlur={() => flushSlotUpdate(template.id, slot.id)}
-                                                    disabled={slot._pendingCreate}
-                                                  >
-                                                    {allRoles.length > 0
-                                                      ? allRoles.map((roleOption) => (
-                                                          <option key={roleOption} value={roleOption}>
-                                                            {roleOption}
-                                                          </option>
-                                                        ))
-                                                      : ['Rifleman', 'Admin'].map((roleOption) => (
-                                                          <option key={roleOption} value={roleOption}>
-                                                            {roleOption}
-                                                          </option>
-                                                        ))}
-                                                  </select>
-                                                </div>
-                                              </div>
-                                              <div className="slot-footer">
-                                                <div className="slot-actions">
-                                                  <button
-                                                    type="button"
-                                                    className="danger-x-button"
-                                                    onClick={() => deleteSlot(template.id, slot.id)}
-                                                    disabled={slot._pendingCreate}
-                                                    aria-label="Delete slot"
-                                                  >
-                                                    ✕
-                                                  </button>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        })
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                          )}
-                        </div>
+                        <OrbatTemplate
+                          key={template.id}
+                          template={template}
+                          builderFlowMode={builderFlowMode}
+                          builderCompact={builderCompact}
+                          allRoles={allRoles}
+                          nodeHeights={nodeHeights}
+                          flowLinkSource={flowLinkSource}
+                          getCanvasSize={getCanvasSize}
+                          getCanvasNode={getCanvasNode}
+                          getTemplateFlowEdges={getTemplateFlowEdges}
+                          addSectionQuick={addSectionQuick}
+                          clearTemplateFlowEdges={clearTemplateFlowEdges}
+                          resetTemplateCanvasLayout={resetTemplateCanvasLayout}
+                          moveCanvasDrag={moveCanvasDrag}
+                          stopCanvasDrag={stopCanvasDrag}
+                          startCanvasDrag={startCanvasDrag}
+                          setNodeHeightRef={setNodeHeightRef}
+                          handleFlowConnectorClick={handleFlowConnectorClick}
+                          updateSectionTitleLocal={updateSectionTitleLocal}
+                          updateSectionMeta={updateSectionMeta}
+                          deleteSection={deleteSection}
+                          handleSlotDragOver={handleSlotDragOver}
+                          handleSlotDrop={handleSlotDrop}
+                          handleSlotDragStart={handleSlotDragStart}
+                          setDraggedSlot={setDraggedSlot}
+                          updateSlot={updateSlot}
+                          flushSlotUpdate={flushSlotUpdate}
+                          deleteSlot={deleteSlot}
+                          addSlot={addSlot}
+                        />
                       ))
                     ) : (
                       <div className="empty-state">Choose a template to edit first.</div>
