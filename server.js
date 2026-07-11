@@ -192,6 +192,8 @@ function normalizeStorage(data) {
     ...op,
     serverName: op.serverName || '',
     modlist: op.modlist || '',
+    modlistPlayer: op.modlistPlayer || '',
+    modlistServer: op.modlistServer || '',
     tsAddress: op.tsAddress || '',
     sections: (op.sections || []).map((section, index) => ({
       ...section,
@@ -391,6 +393,8 @@ app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
     time: req.body.time || '',
     serverName: req.body.serverName || '',
     modlist: req.body.modlist || '',
+    modlistPlayer: req.body.modlistPlayer || '',
+    modlistServer: req.body.modlistServer || '',
     tsAddress: req.body.tsAddress || '',
     createdAt: new Date().toISOString(),
     sections: buildOpSectionsFromTemplate(template)
@@ -499,6 +503,8 @@ app.put('/api/ops/:id', authMiddleware, requireAdmin, (req, res) => {
   if (typeof req.body.time === 'string') op.time = req.body.time;
   if (typeof req.body.serverName === 'string') op.serverName = req.body.serverName;
   if (typeof req.body.modlist === 'string') op.modlist = req.body.modlist;
+  if (typeof req.body.modlistPlayer === 'string') op.modlistPlayer = req.body.modlistPlayer;
+  if (typeof req.body.modlistServer === 'string') op.modlistServer = req.body.modlistServer;
   if (typeof req.body.tsAddress === 'string') op.tsAddress = req.body.tsAddress;
 
   writeData(data);

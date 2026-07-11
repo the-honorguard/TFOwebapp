@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import OrbatOverview from './OrbatOverview';
 import OrbatScheduler from './OrbatScheduler';
 import OrbatTemplate from './OrbatTemplate';
+import Settings from './Settings';
 
 const API = '/api';
 
@@ -44,7 +45,14 @@ function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showLoginPanel, setShowLoginPanel] = useState(false);
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'member', rank: '', status: 'Active' });
-  const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', serverName: '', modlist: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' });
+  const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', serverName: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' });
+  const [defaultOpSettings, setDefaultOpSettings] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('defaultOpSettings') || '{}');
+    } catch (e) {
+      return {};
+    }
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -64,6 +72,12 @@ function App() {
   useEffect(() => {
     localStorage.setItem('builderFlowMode', String(builderFlowMode));
   }, [builderFlowMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('defaultOpSettings', JSON.stringify(defaultOpSettings));
+    } catch (e) {}
+  }, [defaultOpSettings]);
 
   useEffect(() => {
     localStorage.setItem('overviewOrbatLayout', JSON.stringify(canvasLayout));
@@ -136,6 +150,7 @@ function App() {
   const goToRoles = () => setPage('roles');
   const goToPlayers = () => setPage('players');
   const goToDashboard = () => setPage('overview');
+  const goToSettings = () => setPage('settings');
   const showOpOnDashboard = (opId) => {
     setSelectedOpId(opId);
     setPage('overview');
@@ -159,6 +174,17 @@ function App() {
       loadPublicData();
     }
   }, []);
+
+  useEffect(() => {
+    if (templates.length > 0) {
+      setOpForm((prev) => ({
+        ...prev,
+        templateId: prev.templateId || defaultOpSettings.templateId || templates?.[0]?.id || null,
+        time: prev.time || defaultOpSettings.time || ''
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templates]);
 
   const login = async (e) => {
     e.preventDefault();
@@ -226,7 +252,6 @@ function App() {
         date: opForm.date,
         time: opForm.time,
         serverName: opForm.serverName,
-        modlist: opForm.modlist,
         tsAddress: opForm.tsAddress,
         recurrence: opForm.recurrence,
         weeklyDays: opForm.weeklyDays,
@@ -240,7 +265,18 @@ function App() {
     if (data.recurrence) {
       setRecurrences((prev) => [...prev, data.recurrence]);
     }
-    setOpForm((prev) => ({ ...prev, name: '', date: '', time: '', serverName: '', modlist: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' }));
+    setOpForm((prev) => ({
+      ...prev,
+      name: '',
+      date: '',
+      time: defaultOpSettings.time || '',
+      serverName: defaultOpSettings.serverName || '',
+      modlist: defaultOpSettings.modlist || '',
+      tsAddress: defaultOpSettings.tsAddress || '',
+      recurrence: defaultOpSettings.recurrence || 'none',
+      weeklyDays: [],
+      monthlyDay: ''
+    }));
   };
 
   const deleteOp = async (opId) => {
@@ -412,17 +448,17 @@ function App() {
     return data.url;
   };
 
-  const handleModlistDrop = async (opId, event) => {
+  const handleModlistDrop = async (opId, type, event) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
     const url = await uploadFile(file);
-    if (url) updateOpMeta(opId, { modlist: url });
+    if (!url) return;
+    if (type === 'player') updateOpMeta(opId, { modlistPlayer: url });
+    else if (type === 'server') updateOpMeta(opId, { modlistServer: url });
   };
 
-  const handleModlistDragOver = (event) => {
-    event.preventDefault();
-  };
+  const handleModlistDragOver = (event) => { event.preventDefault(); };
 
   const loadTemplateIntoOp = async (opId, templateId = null) => {
     const selectedTemplateName = templateId ? getTemplateName(templateId) : 'current template';
@@ -1409,6 +1445,9 @@ function App() {
               <button className={page === 'players' ? 'tab active' : 'tab'} onClick={goToPlayers}>
                 Player List
               </button>
+              <button className={page === 'settings' ? 'tab active' : 'tab'} onClick={goToSettings}>
+                Settings
+              </button>
             </div>
           ) : null}
         </section>
@@ -1471,10 +1510,14 @@ function App() {
                   joinOpSlot={joinOpSlot}
                   signOffOpSlot={signOffOpSlot}
                   updateOpSlot={updateOpSlot}
-                  setShowLoginPanel={setShowLoginPanel}
+                    setShowLoginPanel={setShowLoginPanel}
+                    showOpInScheduler={showOpInScheduler}
                 />
               ))}
             </section>
+          ) : null}
+          {page === 'settings' ? (
+            <Settings defaultOpSettings={defaultOpSettings} setDefaultOpSettings={setDefaultOpSettings} templates={templates} />
           ) : null}
 
           {auth && isAdmin && page === 'scheduler' ? (
@@ -1629,6 +1672,17 @@ function App() {
               toggleRecurrenceWeeklyDay={toggleRecurrenceWeeklyDay}
               updateRecurrence={updateRecurrence}
               recurrenceLabel={recurrenceLabel}
+              isAdmin={isAdmin}
+              getCanvasSize={getCanvasSize}
+              getCanvasNode={getCanvasNode}
+              resolveSectionParentId={resolveSectionParentId}
+              nodeHeights={nodeHeights}
+              setNodeHeightRef={setNodeHeightRef}
+              moveCanvasDrag={moveCanvasDrag}
+              stopCanvasDrag={stopCanvasDrag}
+              startCanvasDrag={startCanvasDrag}
+              updateSectionParent={updateSectionParent}
+              sectionStats={sectionStats}
             />
           ) : null}
 
@@ -1748,77 +1802,75 @@ function App() {
                     </div>
                   </div>
 
-                  {selectedOp.sections?.length === 0 ? (
-                    <div className="empty-state">This operation has no sections.</div>
-                  ) : (
-                    <div className="builder-grid">
-                      {selectedOp.sections.map((section, index) => (
-                        <div key={section.id} className={`builder-panel panel-${index % 5}`}>
-                          <div className="panel-title">
-                            <strong>{section.title}</strong>
-                          </div>
-                          <div className="panel-content">
-                            {section.slots.length === 0 ? (
-                              <p className="panel-empty">No slots in this section.</p>
-                            ) : (
-                              section.slots.map((slot) => {
-                                const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                                return (
-                                  <div key={slot.id} className="slot-card">
-                                    <div>
-                                      {auth?.role === 'admin' ? (
-                                        <>
-                                          <input
-                                            className="slot-name-input"
-                                            value={slot.name}
-                                            placeholder="Slot name"
-                                            onChange={(e) => updateOpSlot(selectedOp.id, slot.id, { name: e.target.value })}
-                                          />
-                                          <textarea
-                                            className="slot-notes-input"
-                                            value={slot.notes}
-                                            placeholder="Place extra notes here"
-                                            onChange={(e) => updateOpSlot(selectedOp.id, slot.id, { notes: e.target.value })}
-                                          />
-                                          <div className="slot-meta-row">
-                                            <select
-                                              value={slot.role}
-                                              onChange={(e) => updateOpSlot(selectedOp.id, slot.id, { role: e.target.value })}
-                                            >
-                                              {allRoles.length > 0
-                                                ? allRoles.map((roleOption) => (
-                                                    <option key={roleOption} value={roleOption}>
-                                                      {roleOption}
-                                                    </option>
-                                                  ))
-                                                : ['Rifleman', 'Admin'].map((roleOption) => (
-                                                    <option key={roleOption} value={roleOption}>
-                                                      {roleOption}
-                                                    </option>
-                                                  ))}
-                                            </select>
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <strong>{slot.name}</strong>
-                                          <p className="slot-meta">{slot.role}</p>
-                                          {slot.notes ? <p className="slot-meta">{slot.notes}</p> : null}
-                                        </>
-                                      )}
-                                    </div>
-                                    <div className="slot-footer">
-                                      <span>{assignedUser ? `Occupied by ${assignedUser.username}` : 'Available'}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                  {/* Show server info and embed the full OrbatScheduler for this operation */}
+                  <div className="role-add-form" style={{marginBottom:'1rem'}}>
+                    <div style={{marginBottom:'0.5rem'}}>
+                      <strong>Server:</strong> {selectedOp.serverName || '-'}
                     </div>
-                  )}
+                    <div style={{marginBottom:'0.5rem'}}>
+                      <strong>Modlist:</strong> {selectedOp.modlist ? <a href={selectedOp.modlist} target="_blank" rel="noreferrer">modlist</a> : '-'}
+                    </div>
+                    <div>
+                      <strong>TS3:</strong> {selectedOp.tsAddress || '-'}
+                    </div>
+                  </div>
+
+                  {/* Visual ORBAT (reuse template builder view) */}
+                  <OrbatTemplate
+                    template={{ id: selectedOp.templateId, sections: selectedOp.sections || [] }}
+                    builderFlowMode={true}
+                    builderCompact={false}
+                    allRoles={allRoles}
+                    nodeHeights={nodeHeights}
+                    flowLinkSource={flowLinkSource}
+                    getCanvasSize={getCanvasSize}
+                    getCanvasNode={getCanvasNode}
+                    getTemplateFlowEdges={getTemplateFlowEdges}
+                    addSectionQuick={() => {}}
+                    clearTemplateFlowEdges={() => {}}
+                    resetTemplateCanvasLayout={() => {}}
+                    moveCanvasDrag={moveCanvasDrag}
+                    stopCanvasDrag={stopCanvasDrag}
+                    startCanvasDrag={startCanvasDrag}
+                    setNodeHeightRef={setNodeHeightRef}
+                    handleFlowConnectorClick={() => {}}
+                    updateSectionTitleLocal={() => {}}
+                    updateSectionMeta={(templateId, sectionId, updates) => updateOpSectionMeta(selectedOp.id, sectionId, updates)}
+                    deleteSection={() => {}}
+                    handleSlotDragOver={() => {}}
+                    handleSlotDrop={() => {}}
+                    handleSlotDragStart={() => {}}
+                    setDraggedSlot={() => {}}
+                    updateSlot={(templateId, slotId, updates) => updateOpSlot(selectedOp.id, slotId, updates)}
+                    flushSlotUpdate={() => {}}
+                    deleteSlot={() => {}}
+                    addSlot={() => {}}
+                  />
+
+                  <OrbatScheduler
+                    selectedOp={selectedOp}
+                    selectedRecurrenceId={selectedRecurrenceId}
+                    recurrences={recurrences}
+                    goToSchedulerList={goToSchedulerList}
+                    getTemplateName={getTemplateName}
+                    schedulerLoadTemplateId={schedulerLoadTemplateId}
+                    setSchedulerLoadTemplateId={setSchedulerLoadTemplateId}
+                    templates={templates}
+                    loadTemplateIntoOp={loadTemplateIntoOp}
+                    deleteRecurrence={deleteRecurrence}
+                    deleteOp={deleteOp}
+                    updateOpMeta={updateOpMeta}
+                    handleModlistDragOver={handleModlistDragOver}
+                    handleModlistDrop={handleModlistDrop}
+                    updateOpSectionMeta={updateOpSectionMeta}
+                    users={users}
+                    updateOpSlot={updateOpSlot}
+                    allRoles={allRoles}
+                    weekDayLabels={weekDayLabels}
+                    toggleRecurrenceWeeklyDay={toggleRecurrenceWeeklyDay}
+                    updateRecurrence={updateRecurrence}
+                    recurrenceLabel={recurrenceLabel}
+                  />
                 </section>
               ) : null}
 

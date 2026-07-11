@@ -21,7 +21,8 @@ export default function OrbatOverview({
   joinOpSlot,
   signOffOpSlot,
   updateOpSlot,
-  setShowLoginPanel
+  setShowLoginPanel,
+  showOpInScheduler
 }) {
   return (
     <section className="card">
@@ -31,15 +32,20 @@ export default function OrbatOverview({
           <p>{op.date} at {op.time} using {getTemplateName(op.templateId)}.</p>
           <p className="op-info">
             {op.serverName ? `${op.serverName}` : ''}
-            {op.serverName && op.modlist ? ' · ' : ''}
-            {op.modlist ? (<a href={op.modlist} target="_blank" rel="noreferrer">modlist</a>) : null}
             {op.tsAddress ? (
               <>
-                {(op.serverName || op.modlist) ? ' · ' : ''}
+                {op.serverName ? ' · ' : ''}
                 <a href={`ts3server://${op.tsAddress}`}>{op.tsAddress}</a>
               </>
             ) : null}
           </p>
+        </div>
+        <div style={{display:'flex',gap:'0.5rem'}}>
+          {isAdmin ? (
+            <button className="secondary small" onClick={() => showOpInScheduler(op.id)}>
+              Open in Operation Scheduler
+            </button>
+          ) : null}
         </div>
       </div>
       {op.sections?.length === 0 ? (

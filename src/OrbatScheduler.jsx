@@ -22,7 +22,18 @@ export default function OrbatScheduler({
   weekDayLabels,
   toggleRecurrenceWeeklyDay,
   updateRecurrence,
-  recurrenceLabel
+  recurrenceLabel,
+  isAdmin,
+  getCanvasSize,
+  getCanvasNode,
+  resolveSectionParentId,
+  nodeHeights,
+  setNodeHeightRef,
+  moveCanvasDrag,
+  stopCanvasDrag,
+  startCanvasDrag,
+  updateSectionParent,
+  sectionStats
 }) {
   const selectedRecurrence = selectedRecurrenceId ? recurrences.find((r) => r.id === selectedRecurrenceId) : null;
 
@@ -69,23 +80,140 @@ export default function OrbatScheduler({
           onChange={(e) => updateOpMeta(selectedOp.id, { serverName: e.target.value })}
         />
         <input
-          placeholder="Modlist URL (optional)"
-          value={selectedOp.modlist || ''}
-          onChange={(e) => updateOpMeta(selectedOp.id, { modlist: e.target.value })}
-        />
-        <input
           placeholder="TS3 address (optional)"
           value={selectedOp.tsAddress || ''}
           onChange={(e) => updateOpMeta(selectedOp.id, { tsAddress: e.target.value })}
         />
       </div>
-      <div
-        className="modlist-dropzone"
-        onDragOver={handleModlistDragOver}
-        onDrop={(e) => handleModlistDrop(selectedOp.id, e)}
-      >
-        Drag &amp; drop a modlist file here to upload
+      <div className="modlist-dropzone-row">
+        <div
+          className="modlist-dropzone"
+          onDragOver={handleModlistDragOver}
+          onDrop={(e) => handleModlistDrop(selectedOp.id, 'player', e)}
+        >
+          Drag &amp; drop a player modlist file here
+        </div>
+        <div
+          className="modlist-dropzone"
+          onDragOver={handleModlistDragOver}
+          onDrop={(e) => handleModlistDrop(selectedOp.id, 'server', e)}
+        >
+          Drag &amp; drop a server modlist file here
+        </div>
       </div>
+
+      {selectedOp.sections?.length > 0 ? (
+        (() => {
+          const canvasTemplate = { id: selectedOp.templateId, sections: selectedOp.sections };
+          const canvasSize = getCanvasSize(canvasTemplate);
+          const nodes = selectedOp.sections.map((section, index) => {
+            const node = getCanvasNode(selectedOp.templateId, section.id, index);
+            return {
+              section,
+              index,
+              nodeKey: `scheduler-${selectedOp.id}-${section.id}`,
+              x: node.x,
+              y: node.y,
+              parentId: resolveSectionParentId(selectedOp.templateId, selectedOp.sections, section.id, index)
+            };
+          });
+
+          const nodeMap = new Map(nodes.map((node) => [node.section.id, node]));
+          const links = nodes
+            .filter((node) => node.parentId && nodeMap.has(node.parentId))
+            .map((node) => {
+              const parent = nodeMap.get(node.parentId);
+              return {
+                id: `${parent.section.id}-${node.section.id}`,
+                x1: parent.x + 140,
+                y1: parent.y + (nodeHeights[parent.nodeKey] || 172),
+                x2: node.x + 140,
+                y2: node.y
+              };
+            });
+
+          return (
+            <div className="orbat-wrapper">
+              <div
+                className="orbat-canvas drag-canvas"
+                style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
+                onMouseMove={(event) => moveCanvasDrag(event, canvasTemplate)}
+                onMouseUp={stopCanvasDrag}
+                onMouseLeave={stopCanvasDrag}
+              >
+                <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
+                  {links.map((link) => (
+                    <line
+                      key={link.id}
+                      x1={link.x1}
+                      y1={link.y1}
+                      x2={link.x2}
+                      y2={link.y2}
+                      className="orbat-link"
+                    />
+                  ))}
+                </svg>
+
+                {nodes.map((node) => (
+                  <div
+                    key={node.section.id}
+                    className="orbat-node"
+                    style={{ left: `${node.x}px`, top: `${node.y}px` }}
+                    ref={setNodeHeightRef(node.nodeKey)}
+                  >
+                    <span className="orbat-connector top" aria-hidden="true" />
+                    <span className="orbat-connector bottom" aria-hidden="true" />
+                    <div
+                      className="orbat-node-head"
+                      onMouseDown={(event) => startCanvasDrag(event, selectedOp.templateId, node.section.id, node.index)}
+                    >
+                      <strong>{node.section.title}</strong>
+                      <span className="section-count">
+                        {sectionStats(node.section).occupied}/{sectionStats(node.section).total} filled
+                      </span>
+                      <span className="slot-meta">LR {node.section.lrChannel ?? '-'} · SR {node.section.srChannel ?? '-'}</span>
+                    </div>
+
+                    <select
+                      className="orbat-parent-select"
+                      value={node.parentId || ''}
+                      onChange={(event) => updateSectionParent(selectedOp.templateId, node.section.id, event.target.value || null)}
+                    >
+                      <option value="">Top command</option>
+                      {selectedOp.sections
+                        .filter((section) => section.id !== node.section.id)
+                        .map((section) => (
+                          <option key={section.id} value={section.id}>
+                            Reports to {section.title}
+                          </option>
+                        ))}
+                    </select>
+
+                    <div className="orbat-slot-list">
+                      {node.section.slots.slice(0, 6).map((slot) => {
+                        const assignedUser = users.find((user) => user.id === slot.assignedUserId);
+                        return (
+                          <div key={slot.id} className="orbat-slot-item">
+                            <span className={`slot-badge ${assignedUser ? 'occupied' : 'free'}`}>
+                              {assignedUser ? 'occupied' : 'free'}
+                            </span>
+                            <span className="orbat-slot-text">
+                              {slot.name}{assignedUser ? ` · ${assignedUser.username}` : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {node.section.slots.length > 6 ? (
+                        <div className="orbat-slot-more">+{node.section.slots.length - 6} more slots</div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()
+      ) : null}
 
       {selectedOp.sections?.length === 0 ? (
         <div className="empty-state">This operation has no sections. Load a template to add slots.</div>
