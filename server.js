@@ -4,14 +4,43 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+import multer from 'multer';
 
 const app = express();
 const PORT = 3000;
 const SECRET = 'tfo-secret';
 const DATA_FILE = path.join(process.cwd(), 'data', 'app-data.json');
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.html', '.htm', '.txt', '.json']);
+
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+const uploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${crypto.randomUUID()}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_UPLOAD_EXTENSIONS.has(ext)) {
+      return cb(new Error('File type not allowed'));
+    }
+    cb(null, true);
+  }
+});
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 function ensureDataFile() {
   if (!fs.existsSync(path.dirname(DATA_FILE))) {
@@ -114,12 +143,14 @@ function findOpSlot(op, slotId) {
 }
 
 function buildOpSectionsFromTemplate(template, existingSections = []) {
-  return (template.sections || []).map((section) => {
+  return (template.sections || []).map((section, index) => {
     const existingSection = existingSections.find((item) => item.id === section.id);
 
     return {
       id: section.id,
       title: section.title,
+      lrChannel: section.lrChannel ?? existingSection?.lrChannel ?? 1,
+      srChannel: section.srChannel ?? existingSection?.srChannel ?? (index + 1),
       slots: (section.slots || []).map((slot) => {
         const existingSlot = existingSection?.slots?.find((item) => item.id === slot.id);
 
@@ -144,8 +175,10 @@ function normalizeStorage(data) {
 
   data.templates = (data.templates || []).map((template) => ({
     ...template,
-    sections: (template.sections || []).map((section) => ({
+    sections: (template.sections || []).map((section, index) => ({
       ...section,
+      lrChannel: section.lrChannel ?? 1,
+      srChannel: section.srChannel ?? (index + 1),
       slots: (section.slots || []).map((slot) => ({
         ...slot,
         allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
@@ -155,7 +188,17 @@ function normalizeStorage(data) {
     }))
   }));
 
-  data.ops = data.ops || [];
+  data.ops = (data.ops || []).map((op) => ({
+    ...op,
+    serverName: op.serverName || '',
+    modlist: op.modlist || '',
+    tsAddress: op.tsAddress || '',
+    sections: (op.sections || []).map((section, index) => ({
+      ...section,
+      lrChannel: section.lrChannel ?? 1,
+      srChannel: section.srChannel ?? (index + 1)
+    }))
+  }));
   data.recurrences = data.recurrences || [];
   return data;
 }
@@ -346,6 +389,9 @@ app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
     templateId: Number(req.body.templateId),
     date: req.body.date || '',
     time: req.body.time || '',
+    serverName: req.body.serverName || '',
+    modlist: req.body.modlist || '',
+    tsAddress: req.body.tsAddress || '',
     createdAt: new Date().toISOString(),
     sections: buildOpSectionsFromTemplate(template)
   };
@@ -438,6 +484,22 @@ app.post('/api/ops/:id/load-template', authMiddleware, requireAdmin, (req, res) 
 
   op.templateId = template.id;
   op.sections = buildOpSectionsFromTemplate(template, op.sections || []);
+
+  writeData(data);
+  res.json({ op });
+});
+
+app.put('/api/ops/:id', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const op = findOp(data, req.params.id);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+
+  if (typeof req.body.name === 'string') op.name = req.body.name;
+  if (typeof req.body.date === 'string') op.date = req.body.date;
+  if (typeof req.body.time === 'string') op.time = req.body.time;
+  if (typeof req.body.serverName === 'string') op.serverName = req.body.serverName;
+  if (typeof req.body.modlist === 'string') op.modlist = req.body.modlist;
+  if (typeof req.body.tsAddress === 'string') op.tsAddress = req.body.tsAddress;
 
   writeData(data);
   res.json({ op });
@@ -537,6 +599,8 @@ app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (r
   const section = {
     id: Date.now(),
     title: req.body.title || 'Nieuwe sectie',
+    lrChannel: 1,
+    srChannel: template.sections.length + 1,
     slots: []
   };
 
@@ -544,6 +608,11 @@ app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (r
   writeData(data);
   res.json({ section });
 });
+
+function isValidChannel(value) {
+  const num = Number(value);
+  return Number.isInteger(num) && num >= 0 && num <= 99;
+}
 
 app.put('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, (req, res) => {
   const data = readData();
@@ -556,9 +625,38 @@ app.put('/api/templates/:templateId/sections/:sectionId', authMiddleware, requir
   if (typeof req.body.title === 'string' && req.body.title.trim()) {
     section.title = req.body.title.trim();
   }
+  if ('lrChannel' in req.body) {
+    if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' });
+    section.lrChannel = Number(req.body.lrChannel);
+  }
+  if ('srChannel' in req.body) {
+    if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
+    section.srChannel = Number(req.body.srChannel);
+  }
 
   writeData(data);
   res.json({ section });
+});
+
+app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const op = findOp(data, req.params.opId);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+
+  const section = (op.sections || []).find((item) => item.id === Number(req.params.sectionId));
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+
+  if ('lrChannel' in req.body) {
+    if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' });
+    section.lrChannel = Number(req.body.lrChannel);
+  }
+  if ('srChannel' in req.body) {
+    if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
+    section.srChannel = Number(req.body.srChannel);
+  }
+
+  writeData(data);
+  res.json({ op });
 });
 
 app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, (req, res) => {
@@ -671,6 +769,14 @@ app.post('/api/templates/:templateId/join', authMiddleware, (req, res) => {
   slot.assignedUserId = req.user.id;
   writeData(data);
   res.json({ slot });
+});
+
+app.post('/api/upload', authMiddleware, requireAdmin, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.originalname });
+  });
 });
 
 app.listen(PORT, () => {

@@ -41,7 +41,7 @@ function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showLoginPanel, setShowLoginPanel] = useState(false);
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'member', rank: '', status: 'Active' });
-  const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' });
+  const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', serverName: '', modlist: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -222,6 +222,9 @@ function App() {
         templateId: opForm.templateId,
         date: opForm.date,
         time: opForm.time,
+        serverName: opForm.serverName,
+        modlist: opForm.modlist,
+        tsAddress: opForm.tsAddress,
         recurrence: opForm.recurrence,
         weeklyDays: opForm.weeklyDays,
         monthlyDay: opForm.monthlyDay || null
@@ -234,7 +237,7 @@ function App() {
     if (data.recurrence) {
       setRecurrences((prev) => [...prev, data.recurrence]);
     }
-    setOpForm((prev) => ({ ...prev, name: '', date: '', time: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' }));
+    setOpForm((prev) => ({ ...prev, name: '', date: '', time: '', serverName: '', modlist: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' }));
   };
 
   const deleteOp = async (opId) => {
@@ -353,6 +356,71 @@ function App() {
     }
   };
 
+  const updateOpMeta = async (opId, updates) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/ops/${opId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(updates)
+    });
+    const data = await res.json();
+    if (data.op) {
+      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+    } else {
+      alert(data.error || 'Could not update operation');
+    }
+  };
+
+  const updateOpSectionMeta = async (opId, sectionId, updates) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/ops/${opId}/sections/${sectionId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(updates)
+    });
+    const data = await res.json();
+    if (data.op) {
+      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+    } else {
+      alert(data.error || 'Could not update section');
+    }
+  };
+
+  const uploadFile = async (file) => {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API}/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'Upload failed');
+      return null;
+    }
+    return data.url;
+  };
+
+  const handleModlistDrop = async (opId, event) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    const url = await uploadFile(file);
+    if (url) updateOpMeta(opId, { modlist: url });
+  };
+
+  const handleModlistDragOver = (event) => {
+    event.preventDefault();
+  };
+
   const loadTemplateIntoOp = async (opId, templateId = null) => {
     const selectedTemplateName = templateId ? getTemplateName(templateId) : 'current template';
     if (!window.confirm(`Load ${selectedTemplateName} into this operation? Existing matching assignments will be kept, but manual slot edits will be replaced.`)) {
@@ -460,6 +528,40 @@ function App() {
     } else {
       alert(data.error || 'Could not rename section');
     }
+  };
+
+  const updateSectionMeta = async (templateId, sectionId, updates) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(updates)
+    });
+    const data = await res.json();
+    if (data.section) {
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return {
+          ...template,
+          sections: template.sections.map((section) => (section.id === data.section.id ? data.section : section))
+        };
+      }));
+    } else {
+      alert(data.error || 'Could not update section');
+    }
+  };
+
+  const updateSectionTitleLocal = (templateId, sectionId, title) => {
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return {
+        ...template,
+        sections: template.sections.map((section) => (section.id === sectionId ? { ...section, title } : section))
+      };
+    }));
   };
 
   const deleteSection = async (templateId, sectionId) => {
@@ -1349,6 +1451,17 @@ function App() {
                     <div>
                       <h4>{op.name}</h4>
                       <p>{op.date} at {op.time} using {getTemplateName(op.templateId)}.</p>
+                      <p className="op-info">
+                        {op.serverName ? `${op.serverName}` : ''}
+                        {op.serverName && op.modlist ? ' · ' : ''}
+                        {op.modlist ? (<a href={op.modlist} target="_blank" rel="noreferrer">modlist</a>) : null}
+                        {op.tsAddress ? (
+                          <>
+                            {(op.serverName || op.modlist) ? ' · ' : ''}
+                            <a href={`ts3server://${op.tsAddress}`}>{op.tsAddress}</a>
+                          </>
+                        ) : null}
+                      </p>
                     </div>
                   </div>
                   {op.sections?.length === 0 ? (
@@ -1422,6 +1535,7 @@ function App() {
                                   <span className="section-count">
                                     {sectionStats(node.section).occupied}/{sectionStats(node.section).total} filled
                                   </span>
+                                  <span className="slot-meta">LR {node.section.lrChannel ?? '-'} · SR {node.section.srChannel ?? '-'}</span>
                                 </div>
 
                                 {isAdmin ? (
@@ -1497,6 +1611,7 @@ function App() {
                         <div key={section.id} className={`builder-panel panel-${index % 5}`}>
                           <div className="panel-title">
                             <strong>{section.title}</strong>
+                            <span className="slot-meta">LR {section.lrChannel ?? '-'} · SR {section.srChannel ?? '-'}</span>
                           </div>
                           <div className="panel-content">
                             {section.slots.length === 0 ? (
@@ -1620,6 +1735,21 @@ function App() {
                     value={opForm.time}
                     onChange={(e) => setOpForm((prev) => ({ ...prev, time: e.target.value }))}
                   />
+                  <input
+                    placeholder="Server name (optional)"
+                    value={opForm.serverName}
+                    onChange={(e) => setOpForm((prev) => ({ ...prev, serverName: e.target.value }))}
+                  />
+                  <input
+                    placeholder="Modlist URL (optional)"
+                    value={opForm.modlist}
+                    onChange={(e) => setOpForm((prev) => ({ ...prev, modlist: e.target.value }))}
+                  />
+                  <input
+                    placeholder="TS3 address (optional)"
+                    value={opForm.tsAddress}
+                    onChange={(e) => setOpForm((prev) => ({ ...prev, tsAddress: e.target.value }))}
+                  />
                   <select
                     value={opForm.recurrence}
                     onChange={(e) => setOpForm((prev) => ({ ...prev, recurrence: e.target.value }))}
@@ -1733,6 +1863,31 @@ function App() {
                 </div>
               </div>
 
+              <div className="role-add-form" style={{marginBottom:'1rem'}}>
+                <input
+                  placeholder="Server name (optional)"
+                  value={selectedOp.serverName || ''}
+                  onChange={(e) => updateOpMeta(selectedOp.id, { serverName: e.target.value })}
+                />
+                <input
+                  placeholder="Modlist URL (optional)"
+                  value={selectedOp.modlist || ''}
+                  onChange={(e) => updateOpMeta(selectedOp.id, { modlist: e.target.value })}
+                />
+                <input
+                  placeholder="TS3 address (optional)"
+                  value={selectedOp.tsAddress || ''}
+                  onChange={(e) => updateOpMeta(selectedOp.id, { tsAddress: e.target.value })}
+                />
+              </div>
+              <div
+                className="modlist-dropzone"
+                onDragOver={handleModlistDragOver}
+                onDrop={(e) => handleModlistDrop(selectedOp.id, e)}
+              >
+                Drag &amp; drop a modlist file here to upload
+              </div>
+
               {selectedOp.sections?.length === 0 ? (
                 <div className="empty-state">This operation has no sections. Load a template to add slots.</div>
               ) : (
@@ -1741,6 +1896,30 @@ function App() {
                     <div key={section.id} className={`builder-panel panel-${index % 5}`}>
                       <div className="panel-title">
                         <strong>{section.title}</strong>
+                        <div className="slot-meta-row">
+                          <label className="slot-meta">
+                            LR
+                            <input
+                              type="number"
+                              min="0"
+                              max="99"
+                              className="lr-sr-input"
+                              value={section.lrChannel ?? 1}
+                              onChange={(e) => updateOpSectionMeta(selectedOp.id, section.id, { lrChannel: Number(e.target.value) })}
+                            />
+                          </label>
+                          <label className="slot-meta">
+                            SR
+                            <input
+                              type="number"
+                              min="0"
+                              max="99"
+                              className="lr-sr-input"
+                              value={section.srChannel ?? 1}
+                              onChange={(e) => updateOpSectionMeta(selectedOp.id, section.id, { srChannel: Number(e.target.value) })}
+                            />
+                          </label>
+                        </div>
                       </div>
                       <div className="panel-content">
                         {section.slots.length === 0 ? (
@@ -2043,34 +2222,25 @@ function App() {
                                               onMouseDown={(event) => startCanvasDrag(event, template.id, node.section.id, node.index)}
                                             >
                                               <div className="orbat-title-row">
-                                                <strong>{node.section.title}</strong>
-                                                <button
-                                                  type="button"
-                                                  className="secondary small orbat-edit-button"
-                                                  onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    renameSection(template.id, node.section.id, node.section.title);
-                                                  }}
-                                                >
-                                                  Edit
-                                                </button>
+                                                <input
+                                                  className="section-title-input"
+                                                  value={node.section.title}
+                                                  placeholder="Section title"
+                                                  onMouseDown={(event) => event.stopPropagation()}
+                                                  onChange={(event) => updateSectionTitleLocal(template.id, node.section.id, event.target.value)}
+                                                  onBlur={(event) => updateSectionMeta(template.id, node.section.id, { title: event.target.value })}
+                                                />
                                               </div>
                                             </div>
                                             <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
                                               <div className="slot-actions">
                                                 <button
                                                   type="button"
-                                                  className="secondary small"
-                                                  onClick={() => renameSection(template.id, node.section.id, node.section.title)}
-                                                >
-                                                  Rename
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  className="secondary small"
+                                                  className="danger-x-button"
                                                   onClick={() => deleteSection(template.id, node.section.id)}
+                                                  aria-label="Delete section"
                                                 >
-                                                  Delete
+                                                  ✕
                                                 </button>
                                               </div>
                                               <div className="flow-slot-list">
@@ -2166,20 +2336,48 @@ function App() {
                                   <div key={section.id} className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''}`}>
                                     <div className="panel-title">
                                       <div className="panel-title-text">
-                                        <strong>{section.title}</strong>
+                                        <input
+                                          className="section-title-input"
+                                          value={section.title}
+                                          placeholder="Section title"
+                                          onChange={(e) => updateSectionTitleLocal(template.id, section.id, e.target.value)}
+                                          onBlur={(e) => updateSectionMeta(template.id, section.id, { title: e.target.value })}
+                                        />
+                                        <div className="slot-meta-row">
+                                          <label className="slot-meta">
+                                            LR
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="99"
+                                              className="lr-sr-input"
+                                              value={section.lrChannel ?? 1}
+                                              onChange={(e) => updateSectionMeta(template.id, section.id, { lrChannel: Number(e.target.value) })}
+                                            />
+                                          </label>
+                                          <label className="slot-meta">
+                                            SR
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="99"
+                                              className="lr-sr-input"
+                                              value={section.srChannel ?? 1}
+                                              onChange={(e) => updateSectionMeta(template.id, section.id, { srChannel: Number(e.target.value) })}
+                                            />
+                                          </label>
+                                        </div>
                                       </div>
                                       <div className="slot-actions">
-                                        <button
-                                          onClick={() => renameSection(template.id, section.id, section.title)}
-                                          className="secondary small"
-                                        >
-                                          Rename
-                                        </button>
-                                        <button onClick={() => deleteSection(template.id, section.id)} className="secondary small">
-                                          Delete
-                                        </button>
                                         <button onClick={() => addSlot(template.id, section.id)} className="secondary small">
                                           Add slot
+                                        </button>
+                                        <button
+                                          onClick={() => deleteSection(template.id, section.id)}
+                                          className="danger-x-button"
+                                          aria-label="Delete section"
+                                        >
+                                          ✕
                                         </button>
                                       </div>
                                     </div>
@@ -2250,11 +2448,12 @@ function App() {
                                                 <div className="slot-actions">
                                                   <button
                                                     type="button"
-                                                    className="secondary small"
+                                                    className="danger-x-button"
                                                     onClick={() => deleteSlot(template.id, slot.id)}
                                                     disabled={slot._pendingCreate}
+                                                    aria-label="Delete slot"
                                                   >
-                                                    Delete slot
+                                                    ✕
                                                   </button>
                                                 </div>
                                               </div>
