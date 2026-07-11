@@ -241,6 +241,11 @@ function generateRecurringOps(data) {
         templateId: recurrence.templateId,
         date: nextDate.toISOString().slice(0, 10),
         time: nextDate.toISOString().slice(11, 16),
+        campaignName: '',
+        serverName: '',
+        modlistLink: '',
+        tsAddress: '',
+        missionStart: '',
         createdAt: new Date().toISOString(),
         recurrenceId: recurrence.id,
         sections: recurrence.sections.map((section) => ({
@@ -346,6 +351,11 @@ app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
     templateId: Number(req.body.templateId),
     date: req.body.date || '',
     time: req.body.time || '',
+    campaignName: '',
+    serverName: '',
+    modlistLink: '',
+    tsAddress: '',
+    missionStart: '',
     createdAt: new Date().toISOString(),
     sections: buildOpSectionsFromTemplate(template)
   };
@@ -422,6 +432,21 @@ app.put('/api/ops/:opId/slots/:slotId', authMiddleware, requireAdmin, (req, res)
   if (typeof req.body.role === 'string') slot.role = req.body.role;
   if (typeof req.body.notes === 'string') slot.notes = req.body.notes;
   if (Array.isArray(req.body.allowedRoles)) slot.allowedRoles = req.body.allowedRoles;
+
+  writeData(data);
+  res.json({ op });
+});
+
+app.put('/api/ops/:id/info', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const op = findOp(data, req.params.id);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+
+  if (typeof req.body.campaignName === 'string') op.campaignName = req.body.campaignName;
+  if (typeof req.body.serverName === 'string') op.serverName = req.body.serverName;
+  if (typeof req.body.modlistLink === 'string') op.modlistLink = req.body.modlistLink;
+  if (typeof req.body.tsAddress === 'string') op.tsAddress = req.body.tsAddress;
+  if (typeof req.body.missionStart === 'string') op.missionStart = req.body.missionStart;
 
   writeData(data);
   res.json({ op });

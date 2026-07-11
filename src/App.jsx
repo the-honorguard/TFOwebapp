@@ -42,6 +42,7 @@ function App() {
   const [showLoginPanel, setShowLoginPanel] = useState(false);
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'member', rank: '', status: 'Active' });
   const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' });
+  const [alreadyInSlotPopup, setAlreadyInSlotPopup] = useState(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -312,6 +313,9 @@ function App() {
     const data = await res.json();
     if (data.op) {
       setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+      setAlreadyInSlotPopup(null);
+    } else if (res.status === 409) {
+      setAlreadyInSlotPopup({ opId, slotId, message: data.error || 'Je bent al ingeschreven in een andere slot.' });
     } else {
       alert(data.error || 'Kon slot niet bijwerken');
     }
@@ -350,6 +354,22 @@ function App() {
       setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
     } else {
       alert(data.error || 'Could not update operation slot');
+    }
+  };
+
+  const updateOpInfo = async (opId, updates) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/ops/${opId}/info`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(updates)
+    });
+    const data = await res.json();
+    if (data.op) {
+      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
     }
   };
 
@@ -1351,6 +1371,13 @@ function App() {
                       <p>{op.date} at {op.time} using {getTemplateName(op.templateId)}.</p>
                     </div>
                   </div>
+                  <div className="op-info-bar">
+                    <span className="op-info-item"><span className="op-info-label">Campaign:</span> {op.campaignName || <em>—</em>}</span>
+                    <span className="op-info-item"><span className="op-info-label">Server:</span> {op.serverName || <em>—</em>}</span>
+                    <span className="op-info-item"><span className="op-info-label">Modlist:</span> {op.modlistLink ? <a href={op.modlistLink} target="_blank" rel="noopener noreferrer">{op.modlistLink}</a> : <em>—</em>}</span>
+                    <span className="op-info-item"><span className="op-info-label">TS:</span> {op.tsAddress || <em>—</em>}</span>
+                    <span className="op-info-item"><span className="op-info-label">Mission start:</span> {op.missionStart || <em>—</em>}</span>
+                  </div>
                   {op.sections?.length === 0 ? (
                     <div className="empty-state">This operation has no sections.</div>
                   ) : effectiveOverviewMode === 'orbat' ? (
@@ -1462,13 +1489,28 @@ function App() {
                                             Sign off
                                           </button>
                                         ) : auth && canJoin ? (
-                                          <button
-                                            type="button"
-                                            className="secondary small orbat-slot-join"
-                                            onClick={() => joinOpSlot(op.id, slot.id)}
-                                          >
-                                            Join
-                                          </button>
+                                          <span className="orbat-join-wrapper">
+                                            <button
+                                              type="button"
+                                              className="secondary small orbat-slot-join"
+                                              onClick={() => joinOpSlot(op.id, slot.id)}
+                                            >
+                                              Join
+                                            </button>
+                                            {alreadyInSlotPopup?.opId === op.id && alreadyInSlotPopup?.slotId === slot.id ? (
+                                              <span className="already-in-slot-popup">
+                                                {alreadyInSlotPopup.message}
+                                                <button
+                                                  type="button"
+                                                  className="already-in-slot-close"
+                                                  onClick={() => setAlreadyInSlotPopup(null)}
+                                                  aria-label="Close"
+                                                >
+                                                  ×
+                                                </button>
+                                              </span>
+                                            ) : null}
+                                          </span>
                                         ) : !auth && !assignedUser ? (
                                           <button
                                             type="button"
@@ -1731,6 +1773,54 @@ function App() {
                     : <button className="secondary small" onClick={() => deleteOp(selectedOp.id)}>Delete</button>
                   }
                 </div>
+              </div>
+
+              <div className="op-info-edit-grid">
+                <label className="op-info-edit-label">
+                  Campaign name
+                  <input
+                    className="op-info-edit-input"
+                    value={selectedOp.campaignName || ''}
+                    placeholder="Campaign name"
+                    onChange={(e) => updateOpInfo(selectedOp.id, { campaignName: e.target.value })}
+                  />
+                </label>
+                <label className="op-info-edit-label">
+                  Server name
+                  <input
+                    className="op-info-edit-input"
+                    value={selectedOp.serverName || ''}
+                    placeholder="Server name"
+                    onChange={(e) => updateOpInfo(selectedOp.id, { serverName: e.target.value })}
+                  />
+                </label>
+                <label className="op-info-edit-label">
+                  Modlist link
+                  <input
+                    className="op-info-edit-input"
+                    value={selectedOp.modlistLink || ''}
+                    placeholder="https://..."
+                    onChange={(e) => updateOpInfo(selectedOp.id, { modlistLink: e.target.value })}
+                  />
+                </label>
+                <label className="op-info-edit-label">
+                  TS address
+                  <input
+                    className="op-info-edit-input"
+                    value={selectedOp.tsAddress || ''}
+                    placeholder="TeamSpeak address"
+                    onChange={(e) => updateOpInfo(selectedOp.id, { tsAddress: e.target.value })}
+                  />
+                </label>
+                <label className="op-info-edit-label">
+                  Mission start
+                  <input
+                    className="op-info-edit-input"
+                    value={selectedOp.missionStart || ''}
+                    placeholder="e.g. 20:00"
+                    onChange={(e) => updateOpInfo(selectedOp.id, { missionStart: e.target.value })}
+                  />
+                </label>
               </div>
 
               {selectedOp.sections?.length === 0 ? (

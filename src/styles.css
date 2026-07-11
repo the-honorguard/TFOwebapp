@@ -204,3 +204,20 @@ button.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
     justify-content: flex-start;
   }
 }
+
+/* Operation info bar (read-only, shown in overview) */
+.op-info-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 0.875rem; }
+.op-info-item { display: flex; gap: 0.3rem; align-items: baseline; }
+.op-info-label { font-weight: 600; opacity: 0.75; }
+.op-info-item a { color: var(--button); word-break: break-all; }
+
+/* Operation info edit grid (shown in scheduler-detail for admins) */
+.op-info-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.6rem; margin-bottom: 1rem; padding: 0.75rem; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.op-info-edit-label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; font-weight: 600; opacity: 0.85; }
+.op-info-edit-input { padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.875rem; }
+
+/* Already-in-slot popup in ORBAT */
+.orbat-join-wrapper { position: relative; display: inline-flex; align-items: center; }
+.already-in-slot-popup { position: absolute; left: calc(100% + 0.5rem); top: 50%; transform: translateY(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.65rem; white-space: nowrap; font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 20; }
+.already-in-slot-close { background: transparent; border: none; color: var(--text); opacity: 0.6; font-size: 1rem; line-height: 1; padding: 0 0.1rem; cursor: pointer; }
+.already-in-slot-close:hover { opacity: 1; }
