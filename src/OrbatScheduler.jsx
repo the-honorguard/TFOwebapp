@@ -306,6 +306,9 @@ export default function OrbatScheduler({
                         ) : null}
                       </div>
                       <div className="flow-meta-row" onMouseDown={(e) => e.stopPropagation()}>
+                        <span className="section-count">
+                          {sectionStats(node.section).occupied}/{sectionStats(node.section).total} filled
+                        </span>
                         <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
                           LR
                           <input
@@ -387,14 +390,27 @@ export default function OrbatScheduler({
                               >
                                 ≡
                               </button>
-                              <input
-                                className="flow-slot-name"
-                                value={slot.name}
-                                placeholder="Slot name"
-                                onChange={(event) => updateSlot(template.id, slot.id, { name: event.target.value })}
-                                onBlur={() => flushSlotUpdate(template.id, slot.id)}
-                                disabled={slot._pendingCreate}
-                              />
+                              <div style={{display:'flex',flexDirection:'column',gap:2,minWidth:0}}>
+                                <input
+                                  className="flow-slot-name"
+                                  value={slot.name}
+                                  placeholder="Slot name"
+                                  onChange={(event) => updateSlot(template.id, slot.id, { name: event.target.value })}
+                                  onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                                  disabled={slot._pendingCreate}
+                                />
+                                {(() => {
+                                  const assignedUser = users.find((user) => user.id === slot.assignedUserId);
+                                  return (
+                                    <span style={{display:'flex',flexDirection:'column',gap:2,alignItems:'flex-start'}}>
+                                      <span className={`slot-badge ${assignedUser ? 'occupied' : 'free'}`}>
+                                        {assignedUser ? 'occupied' : 'free'}
+                                      </span>
+                                      {assignedUser ? <span className="orbat-slot-text" style={{maxWidth:'100%'}}>{assignedUser.username}</span> : null}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                               <select
                                 className="flow-slot-role"
                                 value={slot.role}
@@ -464,6 +480,9 @@ export default function OrbatScheduler({
                       onBlur={(e) => updateSectionMeta(template.id, section.id, { title: e.target.value })}
                     />
                     <div className="slot-meta-row">
+                      <span className="section-count">
+                        {sectionStats(section).occupied}/{sectionStats(section).total} filled
+                      </span>
                       <label className="slot-meta">
                         LR
                         <input
@@ -592,6 +611,15 @@ export default function OrbatScheduler({
                           </div>
                         </div>
                         <div className="slot-footer">
+                          <span style={{display:'flex',alignItems:'center',gap:'0.3rem'}}>
+                            <span className={`slot-badge ${slot.assignedUserId ? 'occupied' : 'free'}`}>
+                              {slot.assignedUserId ? 'occupied' : 'free'}
+                            </span>
+                            {(() => {
+                              const assignedUser = users.find((user) => user.id === slot.assignedUserId);
+                              return assignedUser ? <span className="orbat-slot-text">{assignedUser.username}</span> : null;
+                            })()}
+                          </span>
                           <div className="slot-actions">
                             <button
                               type="button"
