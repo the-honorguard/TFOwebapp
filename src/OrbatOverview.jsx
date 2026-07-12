@@ -121,6 +121,11 @@ export default function OrbatOverview({
                         {sectionStats(node.section).occupied}/{sectionStats(node.section).total} filled
                       </span>
                       <span className="slot-meta">LR {node.section.lrChannel ?? '-'} · SR {node.section.srChannel ?? '-'}</span>
+                      {node.section.markerIconUrl ? (
+                        <img src={node.section.markerIconUrl} alt="marker" className="marker-icon" />
+                      ) : node.section.marker ? (
+                        <span className={`marker-badge marker-${String(node.section.marker).toLowerCase().replace(/\s+/g,'-')}`}>{node.section.marker}</span>
+                      ) : null}
                     </div>
 
                     {isAdmin ? (
@@ -194,9 +199,10 @@ export default function OrbatOverview({
         <div className="builder-grid">
           {op.sections.map((section, index) => (
             <div key={section.id} className={`builder-panel panel-${index % 5}`}>
-              <div className="panel-title">
+                <div className="panel-title">
                 <strong>{section.title}</strong>
                 <span className="slot-meta">LR {section.lrChannel ?? '-'} · SR {section.srChannel ?? '-'}</span>
+                {section.markerIconUrl ? <img src={section.markerIconUrl} alt="marker" className="marker-icon" /> : section.marker ? <span className={`marker-badge marker-${String(section.marker).toLowerCase().replace(/\s+/g,'-')}`}>{section.marker}</span> : null}
               </div>
               <div className="panel-content">
                 {section.slots.length === 0 ? (

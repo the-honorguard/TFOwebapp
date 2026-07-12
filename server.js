@@ -12,7 +12,7 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const SECRET = 'tfo-secret';
 const DATA_FILE = path.join(process.cwd(), 'data', 'app-data.json');
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.html', '.htm', '.txt', '.json']);
+const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.html', '.htm', '.txt', '.json', '.svg', '.png', '.jpg', '.jpeg', '.gif']);
 
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -149,8 +149,10 @@ function buildOpSectionsFromTemplate(template, existingSections = []) {
     return {
       id: section.id,
       title: section.title,
-      lrChannel: section.lrChannel ?? existingSection?.lrChannel ?? 1,
-      srChannel: section.srChannel ?? existingSection?.srChannel ?? (index + 1),
+        lrChannel: section.lrChannel ?? existingSection?.lrChannel ?? 1,
+        srChannel: section.srChannel ?? existingSection?.srChannel ?? (index + 1),
+        marker: section.marker ?? existingSection?.marker ?? null,
+        markerIconUrl: section.markerIconUrl ?? existingSection?.markerIconUrl ?? null,
       slots: (section.slots || []).map((slot) => {
         const existingSlot = existingSection?.slots?.find((item) => item.id === slot.id);
 
@@ -177,6 +179,8 @@ function normalizeStorage(data) {
     ...template,
     sections: (template.sections || []).map((section, index) => ({
       ...section,
+      marker: section.marker ?? null,
+      markerIconUrl: section.markerIconUrl ?? null,
       lrChannel: section.lrChannel ?? 1,
       srChannel: section.srChannel ?? (index + 1),
       slots: (section.slots || []).map((slot) => ({
@@ -195,8 +199,10 @@ function normalizeStorage(data) {
     modlistPlayer: op.modlistPlayer || '',
     modlistServer: op.modlistServer || '',
     tsAddress: op.tsAddress || '',
-    sections: (op.sections || []).map((section, index) => ({
+      sections: (op.sections || []).map((section, index) => ({
       ...section,
+      marker: section.marker ?? null,
+      markerIconUrl: section.markerIconUrl ?? null,
       lrChannel: section.lrChannel ?? 1,
       srChannel: section.srChannel ?? (index + 1)
     }))
@@ -431,6 +437,7 @@ app.put('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
   const template = findTemplate(data, req.params.id);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   if (typeof req.body.name === 'string') template.name = req.body.name;
+  if ('allowMissionmakerOverrides' in req.body) template.allowMissionmakerOverrides = Boolean(req.body.allowMissionmakerOverrides);
   writeData(data);
   res.json({ template });
 });
@@ -450,6 +457,8 @@ app.post('/api/templates/:id/duplicate', authMiddleware, requireAdmin, (req, res
       title: section.title,
       lrChannel: section.lrChannel || 1,
       srChannel: section.srChannel || 1,
+      marker: section.marker || null,
+      markerIconUrl: section.markerIconUrl || null,
       slots: (section.slots || []).map((slot) => ({
         id: nextId(),
         name: slot.name,
@@ -547,15 +556,67 @@ app.post('/api/ops/:id/signoff', authMiddleware, (req, res) => {
   res.json({ op });
 });
 
-app.put('/api/ops/:opId/slots/:slotId', authMiddleware, requireAdmin, (req, res) => {
+app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, (req, res) => {
   const data = readData();
   const op = findOp(data, req.params.opId);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
+
+  const section = (op.sections || []).find((item) => item.id === Number(req.params.sectionId));
+  if (!section) return res.status(404).json({ error: 'Section not found' });
+
+  const isAdminUser = req.user?.role === 'admin';
+  const isMissionmaker = req.user?.role === 'missionmaker';
+
+  if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
+  const allowMm = Boolean(op.allowMissionmakerOverrides);
+
+  if ('lrChannel' in req.body) {
+    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
+    if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' });
+    section.lrChannel = Number(req.body.lrChannel);
+  }
+  if ('srChannel' in req.body) {
+    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
+    if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
+    section.srChannel = Number(req.body.srChannel);
+  }
+  if ('marker' in req.body) {
+    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
+    if (req.body.marker === null) section.marker = null;
+    else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim();
+    else return res.status(400).json({ error: 'marker must be a string or null' });
+  }
+  if ('markerIconUrl' in req.body) {
+    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
+    if (req.body.markerIconUrl === null) section.markerIconUrl = null;
+    else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim();
+    else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
+  }
+
+  writeData(data);
+  res.json({ op });
+});
+
+app.put('/api/ops/:opId/slots/:slotId', authMiddleware, (req, res) => {
+  const data = readData();
+  const op = findOp(data, req.params.opId);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+
   const slot = findOpSlot(op, req.params.slotId);
   if (!slot) return res.status(404).json({ error: 'Slot not found' });
 
-  if (typeof req.body.name === 'string') slot.name = req.body.name;
-  if (typeof req.body.role === 'string') slot.role = req.body.role;
+  const isAdminUser = req.user?.role === 'admin';
+  const isMissionmaker = req.user?.role === 'missionmaker';
+  const allowMm = Boolean(op.allowMissionmakerOverrides);
+
+  if (typeof req.body.name === 'string') {
+    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
+    slot.name = req.body.name;
+  }
+  if (typeof req.body.role === 'string') {
+    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
+    slot.role = req.body.role;
+  }
   if (typeof req.body.notes === 'string') slot.notes = req.body.notes;
   if (Array.isArray(req.body.allowedRoles)) slot.allowedRoles = req.body.allowedRoles;
 
@@ -563,35 +624,31 @@ app.put('/api/ops/:opId/slots/:slotId', authMiddleware, requireAdmin, (req, res)
   res.json({ op });
 });
 
-app.post('/api/ops/:id/load-template', authMiddleware, requireAdmin, (req, res) => {
+app.put('/api/ops/:id', authMiddleware, (req, res) => {
   const data = readData();
   const op = findOp(data, req.params.id);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
 
-  const requestedTemplateId = req.body?.templateId ? Number(req.body.templateId) : op.templateId;
-  const template = findTemplate(data, requestedTemplateId);
-  if (!template) return res.status(404).json({ error: 'Template not found' });
+  const isAdminUser = req.user?.role === 'admin';
+  const isMissionmaker = req.user?.role === 'missionmaker';
 
-  op.templateId = template.id;
-  op.sections = buildOpSectionsFromTemplate(template, op.sections || []);
-
-  writeData(data);
-  res.json({ op });
-});
-
-app.put('/api/ops/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const op = findOp(data, req.params.id);
-  if (!op) return res.status(404).json({ error: 'Operation not found' });
-
-  if (typeof req.body.name === 'string') op.name = req.body.name;
-  if (typeof req.body.date === 'string') op.date = req.body.date;
-  if (typeof req.body.time === 'string') op.time = req.body.time;
-  if (typeof req.body.serverName === 'string') op.serverName = req.body.serverName;
-  if (typeof req.body.modlist === 'string') op.modlist = req.body.modlist;
-  if (typeof req.body.modlistPlayer === 'string') op.modlistPlayer = req.body.modlistPlayer;
-  if (typeof req.body.modlistServer === 'string') op.modlistServer = req.body.modlistServer;
-  if (typeof req.body.tsAddress === 'string') op.tsAddress = req.body.tsAddress;
+  // Admins can update all fields. Missionmakers may only toggle allowMissionmakerOverrides.
+  if (isAdminUser) {
+    if (typeof req.body.name === 'string') op.name = req.body.name;
+    if (typeof req.body.date === 'string') op.date = req.body.date;
+    if (typeof req.body.time === 'string') op.time = req.body.time;
+    if (typeof req.body.serverName === 'string') op.serverName = req.body.serverName;
+    if (typeof req.body.modlist === 'string') op.modlist = req.body.modlist;
+    if (typeof req.body.modlistPlayer === 'string') op.modlistPlayer = req.body.modlistPlayer;
+    if (typeof req.body.modlistServer === 'string') op.modlistServer = req.body.modlistServer;
+    if (typeof req.body.tsAddress === 'string') op.tsAddress = req.body.tsAddress;
+    if ('allowMissionmakerOverrides' in req.body) op.allowMissionmakerOverrides = Boolean(req.body.allowMissionmakerOverrides);
+  } else if (isMissionmaker) {
+    if ('allowMissionmakerOverrides' in req.body) op.allowMissionmakerOverrides = Boolean(req.body.allowMissionmakerOverrides);
+    else return res.status(403).json({ error: 'Forbidden' });
+  } else {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
 
   writeData(data);
   res.json({ op });
@@ -693,6 +750,8 @@ app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (r
     title: req.body.title || 'Nieuwe sectie',
     lrChannel: 1,
     srChannel: template.sections.length + 1,
+    marker: req.body.marker || null,
+    markerIconUrl: req.body.markerIconUrl || null,
     slots: []
   };
 
@@ -725,6 +784,16 @@ app.put('/api/templates/:templateId/sections/:sectionId', authMiddleware, requir
     if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
     section.srChannel = Number(req.body.srChannel);
   }
+  if ('marker' in req.body) {
+    if (req.body.marker === null) section.marker = null;
+    else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim();
+    else return res.status(400).json({ error: 'marker must be a string or null' });
+  }
+  if ('markerIconUrl' in req.body) {
+    if (req.body.markerIconUrl === null) section.markerIconUrl = null;
+    else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim();
+    else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
+  }
 
   writeData(data);
   res.json({ section });
@@ -745,6 +814,16 @@ app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, (req
   if ('srChannel' in req.body) {
     if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
     section.srChannel = Number(req.body.srChannel);
+  }
+  if ('marker' in req.body) {
+    if (req.body.marker === null) section.marker = null;
+    else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim();
+    else return res.status(400).json({ error: 'marker must be a string or null' });
+  }
+  if ('markerIconUrl' in req.body) {
+    if (req.body.markerIconUrl === null) section.markerIconUrl = null;
+    else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim();
+    else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
   }
 
   writeData(data);
@@ -864,6 +943,18 @@ app.post('/api/templates/:templateId/join', authMiddleware, (req, res) => {
 });
 
 app.post('/api/upload', authMiddleware, requireAdmin, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.originalname });
+  });
+});
+
+// Allow missionmakers to upload custom marker icons for their operations/templates
+app.post('/api/upload/custom-marker', authMiddleware, (req, res) => {
+  if (!(req.user?.role === 'admin' || req.user?.role === 'missionmaker')) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });

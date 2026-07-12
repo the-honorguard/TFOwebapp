@@ -4,7 +4,8 @@ export default function Settings({
                                    defaultOpSettings,
                                    setDefaultOpSettings,
                                    templates,
-                                   changePassword
+                                   changePassword,
+                                   uploadCustomMarker
                                  }) {
   const [local, setLocal] = useState({
     templateId: defaultOpSettings.templateId || '',
@@ -13,7 +14,8 @@ export default function Settings({
     modlist: defaultOpSettings.modlist || '',
     tsAddress: defaultOpSettings.tsAddress || '',
     recurrence: defaultOpSettings.recurrence || 'none',
-    minSignupAge: defaultOpSettings.minSignupAge ?? 17
+    minSignupAge: defaultOpSettings.minSignupAge ?? 17,
+    squadTypes: defaultOpSettings.squadTypes || []
   });
 
   useEffect(() => {
@@ -24,7 +26,8 @@ export default function Settings({
       modlist: defaultOpSettings.modlist || '',
       tsAddress: defaultOpSettings.tsAddress || '',
       recurrence: defaultOpSettings.recurrence || 'none',
-      minSignupAge: defaultOpSettings.minSignupAge ?? 17
+      minSignupAge: defaultOpSettings.minSignupAge ?? 17,
+      squadTypes: defaultOpSettings.squadTypes || []
     });
   }, [defaultOpSettings]);
 
@@ -37,9 +40,57 @@ export default function Settings({
       modlist: local.modlist || '',
       tsAddress: local.tsAddress || '',
       recurrence: local.recurrence || 'none',
-      minSignupAge: Number(local.minSignupAge) || 17
+      minSignupAge: Number(local.minSignupAge) || 17,
+      squadTypes: Array.isArray(local.squadTypes) ? local.squadTypes : []
     });
     alert('Default settings saved');
+  };
+
+  const AVAILABLE_MARKERS = [
+    'armor.svg',
+    'artillery.svg',
+    'engineer.svg',
+    'hq.svg',
+    'infantry.svg',
+    'logistics.svg',
+    'medic.svg',
+    'recon.svg'
+  ];
+
+  const addSquadType = () => {
+    setLocal((s) => ({
+      ...s,
+      squadTypes: [
+        ...(s.squadTypes || []),
+        { id: Date.now(), name: '', icon: AVAILABLE_MARKERS[0] }
+      ]
+    }));
+  };
+
+  const updateSquadType = (idx, patch) => {
+    setLocal((s) => {
+      const next = (s.squadTypes || []).slice();
+      next[idx] = { ...next[idx], ...patch };
+      return { ...s, squadTypes: next };
+    });
+  };
+
+  const removeSquadType = (idx) => {
+    setLocal((s) => ({ ...s, squadTypes: (s.squadTypes || []).filter((_, i) => i !== idx) }));
+  };
+
+  const uploadForSquadType = async (idx, file) => {
+    if (!file) return;
+    try {
+      if (!uploadCustomMarker) {
+        alert('Upload not available');
+        return;
+      }
+      const url = await uploadCustomMarker(file);
+      if (url) updateSquadType(idx, { icon: url });
+    } catch (err) {
+      alert('Upload failed: ' + (err.message || err));
+    }
   };
 
   return (
@@ -130,6 +181,55 @@ export default function Settings({
             <button type="submit">Save</button>
           </div>
         </form>
+
+        <section className="card" style={{ marginTop: '1rem' }}>
+          <h3>Squad types</h3>
+
+          <div className="form-row">
+            <button type="button" onClick={addSquadType}>Add squad type</button>
+          </div>
+
+          {(local.squadTypes || []).map((st, idx) => {
+            const inputId = `squad-icon-${st.id || idx}`;
+            const src = st.icon ? (st.icon.startsWith('/') ? st.icon : `/markers/${st.icon}`) : null;
+            return (
+              <div key={st.id || idx} className="form-row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <label style={{ minWidth: 38 }}>Type</label>
+                <input
+                    value={st.name}
+                    onChange={(e) => updateSquadType(idx, { name: e.target.value })}
+                    placeholder="Name"
+                    style={{ flex: '1 1 200px', maxWidth: 320 }}
+                />
+
+                <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+                      if (f) uploadForSquadType(idx, f);
+                    }}
+                    style={{ width: 56, height: 56, border: '2px dashed #666', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}
+                    title="Drop an image file here or click to choose"
+                    onClick={() => document.getElementById(inputId)?.click()}
+                >
+                  {src ? (
+                      <img src={src} alt="icon" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                      <div style={{ width: 28, height: 28, background: '#333', borderRadius: 4 }} />
+                  )}
+                </div>
+                <input id={inputId} type="file" accept=".svg,.png,.jpg,.jpeg,.gif" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) uploadForSquadType(idx, f); }} />
+
+                <button type="button" onClick={() => removeSquadType(idx)} style={{ marginLeft: 8 }}>Remove</button>
+              </div>
+            );
+          })}
+
+          <div className="form-row">
+            <small>Define squad type names and their default map icon. These values will be used as defaults for new operations.</small>
+          </div>
+        </section>
 
         <section className="card" style={{ marginTop: '1.5rem' }}>
           <h3>Change password</h3>

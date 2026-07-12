@@ -72,15 +72,15 @@ button.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
 .slot-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 0.75rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .slot-meta { margin: 0.25rem 0 0; color: var(--text); opacity: 0.75; font-size: 0.95rem; }
 .builder-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
-.orbat-wrapper { position: relative; overflow: auto; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)); }
-.orbat-canvas { position: relative; min-height: 680px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 24px 24px; }
+.orbat-wrapper { position: relative; /* keep wrapper visible so popovers can overflow */ overflow: visible; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)); }
+.orbat-canvas { position: relative; min-height: 680px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 24px 24px; overflow: auto; }
 .orbat-links { position: absolute; inset: 0; pointer-events: none; }
 .orbat-link { stroke: #94a3b8; stroke-width: 1.5; stroke-linecap: round; }
 .orbat-node { position: absolute; width: 280px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }
-.orbat-node-head { display: grid; gap: 0.2rem; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); background: rgba(148,163,184,0.08); cursor: grab; }
-.orbat-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.45rem; }
+.orbat-node-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.2rem; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); background: rgba(148,163,184,0.08); cursor: grab; }
+.orbat-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.45rem; min-width: 0; }
 .orbat-edit-button { padding: 0.2rem 0.45rem; font-size: 0.72rem; line-height: 1.1; }
-.orbat-connector { position: absolute; left: 50%; width: 12px; height: 12px; border-radius: 999px; border: 2px solid #3b82f6; background: #0f172a; transform: translate(-50%, -50%); pointer-events: none; z-index: 2; }
+.orbat-connector { position: absolute; left: 50%; width: 12px; height: 12px; padding: 0; min-width: 0; border-radius: 999px; border: 2px solid #3b82f6; background: #0f172a; transform: translate(-50%, -50%); pointer-events: none; z-index: 2; }
 .orbat-connector.top { top: 0; }
 .orbat-connector.bottom { top: auto; bottom: 0; transform: translate(-50%, 50%); }
 .orbat-connector.clickable { pointer-events: auto; cursor: pointer; }
@@ -98,6 +98,10 @@ button.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
 .flow-canvas-controls button { pointer-events: auto; padding: 0.4rem 0.55rem; min-width: auto; }
 .flow-help { margin: 0; font-size: 0.84rem; opacity: 0.78; }
 .flow-actions { margin-bottom: 0.75rem; }
+.flow-meta-row { display: flex; flex-wrap: wrap; gap: 0.4rem 0.5rem; margin-top: 6px; row-gap: 0.35rem; }
+.flow-meta-row label { min-width: 0; }
+.flow-meta-row .lr-sr-input { width: 2.6rem; }
+.flow-meta-row button.secondary.small { padding: 0.3rem 0.5rem; font-size: 0.8rem; }
 .flow-node { width: 300px; cursor: pointer; }
 .flow-node.selected { outline: 2px solid #22c55e; }
 .flow-node-body { padding: 0.65rem 0.75rem; display: grid; gap: 0.6rem; }
@@ -131,14 +135,30 @@ button.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
 .slot-badge { border-radius: 999px; padding: 0.15rem 0.5rem; border: 1px solid var(--border); text-transform: uppercase; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; }
 .slot-badge.occupied { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #fecaca; }
 .slot-badge.free { background: rgba(34,197,94,0.15); border-color: #22c55e; color: #bbf7d0; }
+/* Marker badge styles */
+.marker-badge { border-radius: 999px; padding: 0.15rem 0.5rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.03em; margin-left: 0.5rem; display: inline-block; border: 1px solid var(--panel-border); }
+.marker-badge.marker-infantry { background: rgba(59,130,246,0.12); color: #bfdbfe; border-color: rgba(59,130,246,0.35); }
+.marker-badge.marker-armor { background: rgba(234,88,12,0.12); color: #ffd8bf; border-color: rgba(234,88,12,0.35); }
+.marker-badge.marker-artillery { background: rgba(168,85,247,0.12); color: #f3e8ff; border-color: rgba(168,85,247,0.35); }
+.marker-badge.marker-hq { background: rgba(16,185,129,0.12); color: #bbf7d0; border-color: rgba(16,185,129,0.35); }
+.marker-badge.marker-logistics { background: rgba(245,158,11,0.12); color: #fff3bf; border-color: rgba(245,158,11,0.35); }
+.marker-badge.marker-medic { background: rgba(239,68,68,0.12); color: #ffe4e4; border-color: rgba(239,68,68,0.35); }
+.marker-badge.marker-recon { background: rgba(99,102,241,0.12); color: #e9e7ff; border-color: rgba(99,102,241,0.35); }
+.marker-badge.marker-engineer { background: rgba(71,85,105,0.12); color: #e6eef8; border-color: rgba(71,85,105,0.35); }
+
+.marker-icon { width: 18px; height: 18px; vertical-align: middle; margin-left: 0.5rem; border-radius: 3px; }
 .slot-meta-row { display: flex; gap: 1rem; flex-wrap: wrap; color: var(--text); opacity: 0.75; font-size: 0.9rem; margin-top: 0.5rem; }
 .lr-sr-input { width: 3.2rem; margin-left: 0.35rem; padding: 0.2rem 0.4rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
 .op-info { margin: 0.25rem 0 0; color: var(--text); opacity: 0.8; font-size: 0.9rem; }
 .modlist-dropzone { border: 2px dashed var(--border); border-radius: 10px; padding: 1rem; text-align: center; color: var(--text); opacity: 0.9; margin-bottom: 0.5rem; font-size: 0.9rem; flex:1 }
 .modlist-dropzone:hover { opacity: 1; border-color: var(--accent, #6366f1); }
 .modlist-dropzone-row { display:flex; gap:1rem; margin-bottom:1rem }
-.section-title-input { font-weight: 700; font-size: 1rem; padding: 0.35rem 0.5rem; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text); width: 100%; }
+.section-title-input { font-weight: 700; font-size: 1rem; padding: 0.35rem 0.5rem; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text); width: 100%; min-width: 0; }
 .section-title-input:hover, .section-title-input:focus { border-color: var(--border); background: var(--bg); outline: none; }
+.orbat-title-row .section-title-input { flex: 1 1 auto; width: auto; min-width: 0; }
+.orbat-title-row { flex-wrap: nowrap; }
+.orbat-title-row .danger-x-button { flex: 0 0 auto; }
+.orbat-title-row .marker-icon { flex: 0 0 auto; }
 .slot-name-input { width: 100%; padding: 0.75rem; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); margin-bottom: 0.75rem; }
 .slot-notes-input { width: 100%; min-height: 80px; padding: 0.75rem; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); margin: 0.75rem 0; resize: vertical; }
 .slot-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }

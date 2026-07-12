@@ -107,6 +107,34 @@ function App() {
     }
   };
 
+  const uploadCustomMarker = async (file) => {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API}/upload/custom-marker`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data.url;
+  };
+  const setTemplateOverride = async (templateId, enabled) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/templates/${templateId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ allowMissionmakerOverrides: Boolean(enabled) })
+    });
+    const data = await res.json();
+    if (data.template) {
+      setTemplates((prev) => prev.map((t) => (t.id === data.template.id ? data.template : t)));
+    } else {
+      alert(data.error || 'Could not update template');
+    }
+  };
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
@@ -212,7 +240,7 @@ function App() {
   const showOpInScheduler = (opId, recurrenceId = null) => {
     setSelectedOpId(opId);
     setSelectedRecurrenceId(recurrenceId);
-    setPage('scheduler-detail');
+    setPage('op-detail');
   };
   const goToSchedulerList = () => {
     setSelectedOpId(null);
@@ -1180,7 +1208,7 @@ function App() {
   }, [selectedOpId, sortedOps]);
 
   useEffect(() => {
-    if (page === 'scheduler-detail' && selectedOp) {
+    if ((page === 'scheduler-detail' || page === 'op-detail') && selectedOp) {
       setSchedulerLoadTemplateId(String(selectedOp.templateId || ''));
     }
   }, [page, selectedOp?.id, selectedOp?.templateId]);
@@ -1839,7 +1867,7 @@ function App() {
               <p>{auth ? `Role: ${auth.role}` : 'View the next operation now. Login when you want to claim a slot.'}</p>
             )}
           </div>
-          {isAdmin ? (
+            {isAdmin || isMissionmaker ? (
             <div className="top-tabs">
               <button className={page === 'dashboard' ? 'tab active' : 'tab'} onClick={goToDashboard}>
                 Overview
@@ -1933,12 +1961,13 @@ function App() {
                   defaultOpSettings={defaultOpSettings}
                   setDefaultOpSettings={setDefaultOpSettings}
                   templates={templates}
-                  changePassword={changePassword}
+                changePassword={changePassword}
+                uploadCustomMarker={uploadCustomMarker}
                   changePasswordForm={changePasswordForm}
                   setChangePasswordForm={setChangePasswordForm}
               />
           ) : null}
-          {auth && isAdmin && page === 'scheduler' ? (
+          {auth && (isAdmin || isMissionmaker) && page === 'scheduler' ? (
             <section className="card">
               <div className="builder-toolbar">
                 <div>
@@ -2066,42 +2095,79 @@ function App() {
             </section>
           ) : null}
 
-          {auth && isAdmin && page === 'scheduler-detail' && selectedOp ? (
-            <OrbatScheduler
-              selectedOp={selectedOp}
-              selectedRecurrenceId={selectedRecurrenceId}
-              recurrences={recurrences}
-              goToSchedulerList={goToSchedulerList}
-              getTemplateName={getTemplateName}
-              schedulerLoadTemplateId={schedulerLoadTemplateId}
-              setSchedulerLoadTemplateId={setSchedulerLoadTemplateId}
-              templates={templates}
-              loadTemplateIntoOp={loadTemplateIntoOp}
-              deleteRecurrence={deleteRecurrence}
-              deleteOp={deleteOp}
-              updateOpMeta={updateOpMeta}
-              handleModlistDragOver={handleModlistDragOver}
-              handleModlistDrop={handleModlistDrop}
-              updateOpSectionMeta={updateOpSectionMeta}
-              users={users}
-              updateOpSlot={updateOpSlot}
-              allRoles={allRoles}
-              weekDayLabels={weekDayLabels}
-              toggleRecurrenceWeeklyDay={toggleRecurrenceWeeklyDay}
-              updateRecurrence={updateRecurrence}
-              recurrenceLabel={recurrenceLabel}
-              isAdmin={isAdmin}
-              getCanvasSize={getCanvasSize}
-              getCanvasNode={getCanvasNode}
-              resolveSectionParentId={resolveSectionParentId}
-              nodeHeights={nodeHeights}
-              setNodeHeightRef={setNodeHeightRef}
-              moveCanvasDrag={moveCanvasDrag}
-              stopCanvasDrag={stopCanvasDrag}
-              startCanvasDrag={startCanvasDrag}
-              updateSectionParent={updateSectionParent}
-              sectionStats={sectionStats}
-            />
+          {auth && (isAdmin || isMissionmaker) && page === 'op-detail' && selectedOp ? (
+            <section className="card">
+              <div className="role-add-form" style={{marginBottom:'1rem'}}>
+                <div style={{marginBottom:'0.5rem'}}>
+                  <strong>Server:</strong> {selectedOp.serverName || '-'}
+                </div>
+                <div style={{marginBottom:'0.5rem'}}>
+                  <strong>Modlist:</strong> {selectedOp.modlist ? <a href={selectedOp.modlist} target="_blank" rel="noreferrer">modlist</a> : '-'}
+                </div>
+                <div>
+                  <strong>TS3:</strong> {selectedOp.tsAddress || '-'}
+                </div>
+              </div>
+              <OrbatScheduler
+                selectedOp={selectedOp}
+                selectedRecurrenceId={selectedRecurrenceId}
+                recurrences={recurrences}
+                goToSchedulerList={goToSchedulerList}
+                getTemplateName={getTemplateName}
+                schedulerLoadTemplateId={schedulerLoadTemplateId}
+                setSchedulerLoadTemplateId={setSchedulerLoadTemplateId}
+                templates={templates}
+                loadTemplateIntoOp={loadTemplateIntoOp}
+                deleteRecurrence={deleteRecurrence}
+                deleteOp={deleteOp}
+                updateOpMeta={updateOpMeta}
+                handleModlistDragOver={handleModlistDragOver}
+                handleModlistDrop={handleModlistDrop}
+                updateOpSectionMeta={updateOpSectionMeta}
+                users={users}
+                updateOpSlot={updateOpSlot}
+                allRoles={allRoles}
+                weekDayLabels={weekDayLabels}
+                toggleRecurrenceWeeklyDay={toggleRecurrenceWeeklyDay}
+                updateRecurrence={updateRecurrence}
+                isMissionmaker={isMissionmaker}
+                uploadCustomMarker={uploadCustomMarker}
+                recurrenceLabel={recurrenceLabel}
+                isAdmin={isAdmin}
+                getCanvasSize={getCanvasSize}
+                getCanvasNode={getCanvasNode}
+                resolveSectionParentId={resolveSectionParentId}
+                getTemplateFlowEdges={getTemplateFlowEdges}
+                nodeHeights={nodeHeights}
+                setNodeHeightRef={setNodeHeightRef}
+                moveCanvasDrag={moveCanvasDrag}
+                stopCanvasDrag={stopCanvasDrag}
+                startCanvasDrag={startCanvasDrag}
+                updateSectionParent={updateSectionParent}
+                sectionStats={sectionStats}
+                auth={auth}
+                joinOpSlot={joinOpSlot}
+                signOffOpSlot={signOffOpSlot}
+                setShowLoginPanel={setShowLoginPanel}
+                flowLinkSource={flowLinkSource}
+                addSectionQuick={addSectionQuick}
+                clearTemplateFlowEdges={clearTemplateFlowEdges}
+                resetTemplateCanvasLayout={resetTemplateCanvasLayout}
+                handleFlowConnectorClick={handleFlowConnectorClick}
+                updateSectionTitleLocal={updateSectionTitleLocal}
+                updateSectionMeta={updateSectionMeta}
+                deleteSection={deleteSection}
+                handleSlotDragOver={handleSlotDragOver}
+                handleSlotDrop={handleSlotDrop}
+                handleSlotDragStart={handleSlotDragStart}
+                setDraggedSlot={setDraggedSlot}
+                updateSlot={updateSlot}
+                flushSlotUpdate={flushSlotUpdate}
+                deleteSlot={deleteSlot}
+                addSlot={addSlot}
+                setTemplateOverride={setTemplateOverride}
+              />
+            </section>
           ) : null}
 
           {isAdmin ? (
@@ -2207,6 +2273,10 @@ function App() {
                           flushSlotUpdate={flushSlotUpdate}
                           deleteSlot={deleteSlot}
                           addSlot={addSlot}
+                          isAdmin={isAdmin}
+                          isMissionmaker={isMissionmaker}
+                          setTemplateOverride={setTemplateOverride}
+                          uploadCustomMarker={uploadCustomMarker}
                         />
                       ))
                     ) : (
@@ -2215,91 +2285,6 @@ function App() {
                   </section>
                 </>
               )}
-
-              {page === 'op-detail' && selectedOp ? (
-                <section className="card">
-                  <div className="builder-toolbar">
-                    <button onClick={goToDashboard} className="secondary small">
-                      Back to overview
-                    </button>
-                    <div>
-                      <h3>{selectedOp.name}</h3>
-                      <p>Template: {getTemplateName(selectedOp.templateId)}</p>
-                      <p>Date: {selectedOp.date} Time: {selectedOp.time}</p>
-                    </div>
-                  </div>
-
-                  {/* Show server info and embed the full OrbatScheduler for this operation */}
-                  <div className="role-add-form" style={{marginBottom:'1rem'}}>
-                    <div style={{marginBottom:'0.5rem'}}>
-                      <strong>Server:</strong> {selectedOp.serverName || '-'}
-                    </div>
-                    <div style={{marginBottom:'0.5rem'}}>
-                      <strong>Modlist:</strong> {selectedOp.modlist ? <a href={selectedOp.modlist} target="_blank" rel="noreferrer">modlist</a> : '-'}
-                    </div>
-                    <div>
-                      <strong>TS3:</strong> {selectedOp.tsAddress || '-'}
-                    </div>
-                  </div>
-
-                  {/* Visual ORBAT (reuse template builder view) */}
-                  <OrbatTemplate
-                    template={{ id: selectedOp.templateId, sections: selectedOp.sections || [] }}
-                    builderFlowMode={true}
-                    builderCompact={false}
-                    allRoles={allRoles}
-                    nodeHeights={nodeHeights}
-                    flowLinkSource={flowLinkSource}
-                    getCanvasSize={getCanvasSize}
-                    getCanvasNode={getCanvasNode}
-                    getTemplateFlowEdges={getTemplateFlowEdges}
-                    addSectionQuick={() => {}}
-                    clearTemplateFlowEdges={() => {}}
-                    resetTemplateCanvasLayout={() => {}}
-                    moveCanvasDrag={moveCanvasDrag}
-                    stopCanvasDrag={stopCanvasDrag}
-                    startCanvasDrag={startCanvasDrag}
-                    setNodeHeightRef={setNodeHeightRef}
-                    handleFlowConnectorClick={() => {}}
-                    updateSectionTitleLocal={() => {}}
-                    updateSectionMeta={(templateId, sectionId, updates) => updateOpSectionMeta(selectedOp.id, sectionId, updates)}
-                    deleteSection={() => {}}
-                    handleSlotDragOver={() => {}}
-                    handleSlotDrop={() => {}}
-                    handleSlotDragStart={() => {}}
-                    setDraggedSlot={() => {}}
-                    updateSlot={(templateId, slotId, updates) => updateOpSlot(selectedOp.id, slotId, updates)}
-                    flushSlotUpdate={() => {}}
-                    deleteSlot={() => {}}
-                    addSlot={() => {}}
-                  />
-
-                  <OrbatScheduler
-                    selectedOp={selectedOp}
-                    selectedRecurrenceId={selectedRecurrenceId}
-                    recurrences={recurrences}
-                    goToSchedulerList={goToSchedulerList}
-                    getTemplateName={getTemplateName}
-                    schedulerLoadTemplateId={schedulerLoadTemplateId}
-                    setSchedulerLoadTemplateId={setSchedulerLoadTemplateId}
-                    templates={templates}
-                    loadTemplateIntoOp={loadTemplateIntoOp}
-                    deleteRecurrence={deleteRecurrence}
-                    deleteOp={deleteOp}
-                    updateOpMeta={updateOpMeta}
-                    handleModlistDragOver={handleModlistDragOver}
-                    handleModlistDrop={handleModlistDrop}
-                    updateOpSectionMeta={updateOpSectionMeta}
-                    users={users}
-                    updateOpSlot={updateOpSlot}
-                    allRoles={allRoles}
-                    weekDayLabels={weekDayLabels}
-                    toggleRecurrenceWeeklyDay={toggleRecurrenceWeeklyDay}
-                    updateRecurrence={updateRecurrence}
-                    recurrenceLabel={recurrenceLabel}
-                  />
-                </section>
-              ) : null}
 
               {auth && page === 'players' && (
                 <section className="card">
