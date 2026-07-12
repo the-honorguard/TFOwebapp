@@ -2139,6 +2139,9 @@ function App() {
                             <button className="secondary" onClick={renameTemplate} disabled={!selectedTemplateId}>
                               Rename
                             </button>
+                            <button className="secondary" onClick={duplicateTemplate} disabled={!selectedTemplateId}>
+                              Duplicate
+                            </button>
                             <button className="secondary" onClick={() => selectedTemplateId && deleteTemplate(selectedTemplateId)} disabled={!selectedTemplateId}>
                               Delete
                             </button>
