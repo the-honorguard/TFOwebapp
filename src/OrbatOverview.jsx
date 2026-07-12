@@ -5,6 +5,7 @@ export default function OrbatOverview({
   users,
   auth,
   isAdmin,
+  isMissionmaker,
   allRoles,
   effectiveOverviewMode,
   getTemplateName,
@@ -41,7 +42,7 @@ export default function OrbatOverview({
           </p>
         </div>
         <div style={{display:'flex',gap:'0.5rem'}}>
-          {isAdmin ? (
+          {(isAdmin || isMissionmaker) ? (
             <button className="secondary small" onClick={() => showOpInScheduler(op.id)}>
               Open in Operation Scheduler
             </button>

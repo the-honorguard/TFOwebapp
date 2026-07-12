@@ -44,6 +44,24 @@ function App() {
   const [flowLinkSource, setFlowLinkSource] = useState(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showLoginPanel, setShowLoginPanel] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
+  const [signupForm, setSignupForm] = useState({
+    username: '',
+    password: '',
+    rank: 'RCT',
+    status: 'Active',
+    // survey/profile fields
+    age: '',
+    availability_sunday: 'Yes',
+    availability_thursday: 'Yes',
+    ok_multiple_modlists: 'Yes',
+    ok_follow_orders: 'No',
+    prev_milsim: 'No',
+    arma_experience: 'None',
+    ptt_ok: 'Yes',
+    found_via: 'Discord'
+  });
+  const [signupErrors, setSignupErrors] = useState({});
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'member', rank: '', status: 'Active' });
   const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', serverName: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' });
   const [defaultOpSettings, setDefaultOpSettings] = useState(() => {
@@ -201,6 +219,63 @@ function App() {
       loadPrivateData();
     } else {
       alert(data.error || 'Login failed');
+    }
+  };
+
+  const signup = async (e) => {
+    e.preventDefault();
+    const ageVal = Number(signupForm.age);
+    const minAge = Number(defaultOpSettings.minSignupAge) || 17;
+    const errors = {};
+    if (!Number.isInteger(ageVal) || ageVal <= minAge - 1) {
+      errors.age = `You must be older than ${minAge - 1}.`;
+    }
+    if (ageVal > 120) {
+      errors.age = 'Enter a realistic age (max 120).';
+    }
+    if (signupForm.ok_multiple_modlists !== 'Yes') {
+      errors.ok_multiple_modlists = 'You must agree to install required modlists.';
+    }
+    if (signupForm.ok_follow_orders !== 'No') {
+      errors.ok_follow_orders = 'You must be willing to follow mission orders to join.';
+    }
+    if (!signupForm.username) errors.username = 'Please provide a username.';
+    if (!signupForm.password || signupForm.password.length < 6) errors.password = 'Password must be at least 6 characters.';
+    if (Object.keys(errors).length > 0) {
+      setSignupErrors(errors);
+      return;
+    }
+    const payload = {
+      username: signupForm.username,
+      password: signupForm.password,
+      rank: signupForm.rank,
+      status: signupForm.status,
+      profile: {
+        age: ageVal,
+        availability_sunday: signupForm.availability_sunday,
+        availability_thursday: signupForm.availability_thursday,
+        ok_multiple_modlists: signupForm.ok_multiple_modlists,
+        ok_follow_orders: signupForm.ok_follow_orders,
+        prev_milsim: signupForm.prev_milsim,
+        arma_experience: signupForm.arma_experience,
+        ptt_ok: signupForm.ptt_ok,
+        found_via: signupForm.found_via
+      }
+    };
+
+    const res = await fetch(`${API}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+      setSignupForm({ username: '', password: '', rank: '', status: 'Active', role: 'member' });
+      setShowSignup(false);
+      loadPrivateData();
+    } else {
+      alert(data.error || 'Signup failed');
     }
   };
 
@@ -944,6 +1019,7 @@ function App() {
   };
 
   const isAdmin = auth?.role === 'admin';
+  const isMissionmaker = auth?.role === 'missionmaker';
   const effectiveOverviewMode = overviewMode === 'orbat' && isNarrowViewport ? 'cards' : overviewMode;
   const isWideCanvasPage = page === 'builder' || (page === 'overview' && effectiveOverviewMode === 'orbat');
 
@@ -1015,6 +1091,8 @@ function App() {
     }
     return recurrence.recurrence;
   };
+
+  const minSignupAge = Number(defaultOpSettings.minSignupAge) || 17;
 
   const sectionStats = (section) => {
     const total = section?.slots?.length || 0;
@@ -1391,7 +1469,14 @@ function App() {
           <button className="theme-toggle" onClick={toggleTheme}>
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </button>
-          {auth ? <button onClick={logout}>Logout</button> : <button onClick={() => setShowLoginPanel((prev) => !prev)}>Login</button>}
+          {!auth ? (
+            <>
+              <button className="secondary" onClick={() => setShowLoginPanel((prev) => !prev)}>Login</button>
+              <button className="secondary" onClick={() => setPage('signup')}>Create account</button>
+            </>
+          ) : (
+            <button onClick={logout}>Logout</button>
+          )}
         </div>
       </header>
 
@@ -1422,11 +1507,120 @@ function App() {
         </div>
       ) : null}
 
+      {page === 'signup' ? (
+        <section className="card">
+          <div className="playerlist-toolbar">
+            <button onClick={goToDashboard} className="secondary small">Back</button>
+            <div>
+              <h3>Create account</h3>
+              <p>Complete the signup form. You must be older than {minSignupAge - 1} to register.</p>
+            </div>
+          </div>
+          <form onSubmit={signup} className="signup-card">
+            <div className="signup-fields-grid">
+              <div className="signup-credentials-row">
+                <div className="signup-field">
+                  <label>Username</label>
+                  <small>Choose a unique username for the unit.</small>
+                  <input placeholder="Username" value={signupForm.username} onChange={(e) => setSignupForm((prev) => ({ ...prev, username: e.target.value }))} />
+                  {signupErrors.username ? <div className="field-error">{signupErrors.username}</div> : null}
+                </div>
+
+                <div className="signup-field">
+                  <label>Password</label>
+                  <small>Pick a secure password (min 8 characters recommended).</small>
+                  <input type="password" placeholder="Password" value={signupForm.password} onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))} />
+                  {signupErrors.password ? <div className="field-error">{signupErrors.password}</div> : null}
+                </div>
+              </div>
+
+              <div className="signup-field">
+                <label>Age</label>
+                <small>Enter your age as a whole number.</small>
+                <input type="number" min="0" max="120" step="1" value={signupForm.age} onChange={(e) => setSignupForm((prev) => ({ ...prev, age: e.target.value }))} />
+                {signupErrors.age ? <div className="field-error">{signupErrors.age}</div> : null}
+              </div>
+
+              <div className="signup-field">
+                <h4>Availability</h4>
+                <small>Select which regular operation times you can usually attend.</small>
+                <label className="checkbox-row"><input type="checkbox" checked={signupForm.availability_sunday === 'Yes'} onChange={(e) => setSignupForm((prev) => ({ ...prev, availability_sunday: e.target.checked ? 'Yes' : 'No' }))} /> Sunday 19:00–22:00</label>
+                <label className="checkbox-row"><input type="checkbox" checked={signupForm.availability_thursday === 'Yes'} onChange={(e) => setSignupForm((prev) => ({ ...prev, availability_thursday: e.target.checked ? 'Yes' : 'No' }))} /> Thursday 19:00–22:00</label>
+              </div>
+
+              <div className="signup-field">
+                <h4>Experience</h4>
+                <small>Help us place you in appropriate training.</small>
+                <label className="radio-row"><input type="radio" name="exp" checked={signupForm.arma_experience === 'None'} onChange={() => setSignupForm((prev) => ({ ...prev, arma_experience: 'None' }))} /> None (new)</label>
+                <label className="radio-row"><input type="radio" name="exp" checked={signupForm.arma_experience === 'Basic'} onChange={() => setSignupForm((prev) => ({ ...prev, arma_experience: 'Basic' }))} /> Basic (played vanilla)</label>
+                <label className="radio-row"><input type="radio" name="exp" checked={signupForm.arma_experience === 'Experienced'} onChange={() => setSignupForm((prev) => ({ ...prev, arma_experience: 'Experienced' }))} /> Experienced (mods/ACE)</label>
+              </div>
+
+              <div className="signup-field">
+                <label>Previous milsim unit?</label>
+                <small>Optional: helps tailor training.</small>
+                <select value={signupForm.prev_milsim} onChange={(e) => setSignupForm((prev) => ({ ...prev, prev_milsim: e.target.value }))}>
+                  <option>No</option>
+                  <option>Yes</option>
+                </select>
+              </div>
+
+              <div className="signup-field">
+                <label>PTT (TeamSpeak)</label>
+                <small>Do you have problems with push-to-talk?</small>
+                <select value={signupForm.ptt_ok} onChange={(e) => setSignupForm((prev) => ({ ...prev, ptt_ok: e.target.value }))}>
+                  <option>Yes</option>
+                  <option>No</option>
+                </select>
+              </div>
+
+              <div className="signup-field">
+                <label>Where did you find our unit?</label>
+                <small>Optional.</small>
+                <select value={signupForm.found_via} onChange={(e) => setSignupForm((prev) => ({ ...prev, found_via: e.target.value }))}>
+                  <option>Discord</option>
+                  <option>Reddit</option>
+                  <option>Steam</option>
+                  <option>Youtube</option>
+                </select>
+              </div>
+
+              <div className="signup-field">
+                <h4>Mods (Requirement)</h4>
+                <small>You must be willing to install multiple modlists to join.</small>
+                <select value={signupForm.ok_multiple_modlists} onChange={(e) => setSignupForm((prev) => ({ ...prev, ok_multiple_modlists: e.target.value }))}>
+                  <option>Yes</option>
+                  <option>No</option>
+                </select>
+                {signupErrors.ok_multiple_modlists ? <div className="field-error">{signupErrors.ok_multiple_modlists}</div> : null}
+              </div>
+
+              <div className="signup-field">
+                <h4>Orders (Requirement)</h4>
+                <small>Members must follow mission orders and instructions.</small>
+                <select value={signupForm.ok_follow_orders} onChange={(e) => setSignupForm((prev) => ({ ...prev, ok_follow_orders: e.target.value }))}>
+                  <option>No</option>
+                  <option>Yes</option>
+                </select>
+                {signupErrors.ok_follow_orders ? <div className="field-error">{signupErrors.ok_follow_orders}</div> : null}
+              </div>
+
+              <div className="signup-actions">
+                <button type="button" className="secondary" onClick={() => setPage('overview')}>Cancel</button>
+                <button type="submit">Create account</button>
+              </div>
+            </div>
+          </form>
+        </section>
+      ) : null}
+
       <div className="dashboard">
         <section className="card header-card">
           <div>
-            <h2>{auth ? `Welcome, ${auth.username}` : 'TFO Overview'}</h2>
-            <p>{auth ? `Role: ${auth.role}` : 'View the next operation now. Login when you want to claim a slot.'}</p>
+            <h2>{auth ? `Welcome, ${auth.username}` : (page === 'signup' ? 'Create account' : 'TFO Overview')}</h2>
+            {!(page === 'signup') && (
+              <p>{auth ? `Role: ${auth.role}` : 'View the next operation now. Login when you want to claim a slot.'}</p>
+            )}
           </div>
           {isAdmin ? (
             <div className="top-tabs">
@@ -1494,6 +1688,7 @@ function App() {
                   users={users}
                   auth={auth}
                   isAdmin={isAdmin}
+                  isMissionmaker={isMissionmaker}
                   allRoles={allRoles}
                   effectiveOverviewMode={effectiveOverviewMode}
                   getTemplateName={getTemplateName}
@@ -1915,6 +2110,7 @@ function App() {
                         <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
                           <option value="member">Member</option>
                           <option value="admin">Admin</option>
+                          <option value="missionmaker">Missionmaker</option>
                         </select>
                       </label>
                       <button type="submit">Save</button>
@@ -1951,6 +2147,7 @@ function App() {
                                   >
                                     <option value="member">Member</option>
                                     <option value="admin">Admin</option>
+                                    <option value="missionmaker">Missionmaker</option>
                                   </select>
                                 </td>
                                 <td>

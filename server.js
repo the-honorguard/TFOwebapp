@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const SECRET = 'tfo-secret';
 const DATA_FILE = path.join(process.cwd(), 'data', 'app-data.json');
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
@@ -317,6 +317,30 @@ app.post('/api/login', async (req, res) => {
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET, { expiresIn: '8h' });
   res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+});
+
+app.post('/api/signup', (req, res) => {
+  const data = readData();
+  const username = (req.body.username || '').trim();
+  if (!username) return res.status(400).json({ error: 'Username required' });
+  if (data.users.find((u) => u.username === username)) return res.status(409).json({ error: 'User already exists' });
+  // Signup always creates a 'member' account; missionmaker must be assigned by an admin
+  const role = 'member';
+  const user = {
+    id: Date.now(),
+    username,
+    password: bcrypt.hashSync(req.body.password || 'changeme', 10),
+    role,
+    rank: req.body.rank || '',
+    status: req.body.status || 'Active',
+    permissions: {},
+    profile: req.body.profile || {}
+  };
+  data.users.push(user);
+  writeData(data);
+  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET, { expiresIn: '8h' });
+  const { password: _, ...safeUser } = user;
+  res.json({ token, user: safeUser });
 });
 
 app.get('/api/public-data', (req, res) => {

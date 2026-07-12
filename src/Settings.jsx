@@ -7,7 +7,8 @@ export default function Settings({ defaultOpSettings, setDefaultOpSettings, temp
     serverName: defaultOpSettings.serverName || '',
     modlist: defaultOpSettings.modlist || '',
     tsAddress: defaultOpSettings.tsAddress || '',
-    recurrence: defaultOpSettings.recurrence || 'none'
+    recurrence: defaultOpSettings.recurrence || 'none',
+    minSignupAge: defaultOpSettings.minSignupAge ?? 17
   });
 
   const save = (e) => {
@@ -18,30 +19,31 @@ export default function Settings({ defaultOpSettings, setDefaultOpSettings, temp
       serverName: local.serverName || '',
       modlist: local.modlist || '',
       tsAddress: local.tsAddress || '',
-      recurrence: local.recurrence || 'none'
+      recurrence: local.recurrence || 'none',
+      minSignupAge: Number(local.minSignupAge) || 17
     });
-    alert('Standaardwaarden opgeslagen');
+    alert('Default settings saved');
   };
 
   return (
     <section className="card">
-      <h3>Standaardwaarden voor nieuwe operatie</h3>
+      <h3>Default values for new operations</h3>
       <form onSubmit={save}>
         <div className="form-row">
           <label>Template</label>
           <select value={local.templateId || ''} onChange={(e) => setLocal((s) => ({ ...s, templateId: e.target.value }))}>
-            <option value="">-- Geen --</option>
+            <option value="">-- None --</option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
         </div>
         <div className="form-row">
-          <label>Tijd</label>
+          <label>Time</label>
           <input value={local.time} onChange={(e) => setLocal((s) => ({ ...s, time: e.target.value }))} />
         </div>
         <div className="form-row">
-          <label>Server naam</label>
+          <label>Server name</label>
           <input value={local.serverName} onChange={(e) => setLocal((s) => ({ ...s, serverName: e.target.value }))} />
         </div>
         <div className="form-row">
@@ -49,7 +51,7 @@ export default function Settings({ defaultOpSettings, setDefaultOpSettings, temp
           <input value={local.modlist} onChange={(e) => setLocal((s) => ({ ...s, modlist: e.target.value }))} />
         </div>
         <div className="form-row">
-          <label>TS adres</label>
+          <label>TS address</label>
           <input value={local.tsAddress} onChange={(e) => setLocal((s) => ({ ...s, tsAddress: e.target.value }))} />
         </div>
         <div className="form-row">
@@ -63,7 +65,14 @@ export default function Settings({ defaultOpSettings, setDefaultOpSettings, temp
           </select>
         </div>
         <div className="form-row">
-          <button type="submit">Opslaan</button>
+          <label>Minimum signup age</label>
+          <input type="number" min="13" max="120" value={local.minSignupAge} onChange={(e) => setLocal((s) => ({ ...s, minSignupAge: e.target.value }))} />
+        </div>
+        <div className="form-row">
+          <small>Users must be older than this age to complete signup; signup will validate integer age and reject younger users.</small>
+        </div>
+        <div className="form-row">
+          <button type="submit">Save</button>
         </div>
       </form>
     </section>
