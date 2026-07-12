@@ -426,6 +426,46 @@ app.post('/api/templates', authMiddleware, requireAdmin, (req, res) => {
   res.json({ template });
 });
 
+app.put('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const template = findTemplate(data, req.params.id);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+  if (typeof req.body.name === 'string') template.name = req.body.name;
+  writeData(data);
+  res.json({ template });
+});
+
+app.post('/api/templates/:id/duplicate', authMiddleware, requireAdmin, (req, res) => {
+  const data = readData();
+  const source = findTemplate(data, req.params.id);
+  if (!source) return res.status(404).json({ error: 'Template not found' });
+
+  const nextId = () => Date.now() + Math.floor(Math.random() * 10000);
+
+  const newTemplate = {
+    id: nextId(),
+    name: typeof req.body.name === 'string' && req.body.name.trim() ? req.body.name.trim() : `Copy of ${source.name}`,
+    sections: (source.sections || []).map((section) => ({
+      id: nextId(),
+      title: section.title,
+      lrChannel: section.lrChannel || 1,
+      srChannel: section.srChannel || 1,
+      slots: (section.slots || []).map((slot) => ({
+        id: nextId(),
+        name: slot.name,
+        role: slot.role,
+        allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
+        notes: slot.notes || '',
+        assignedUserId: null
+      }))
+    }))
+  };
+
+  data.templates.push(newTemplate);
+  writeData(data);
+  res.json({ template: newTemplate });
+});
+
 app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
   const data = normalizeStorage(readData());
   const template = findTemplate(data, req.body.templateId);
