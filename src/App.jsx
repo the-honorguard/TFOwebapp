@@ -121,17 +121,25 @@ function App() {
     return data.url;
   };
   const setTemplateOverride = async (templateId, enabled) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${templateId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ allowMissionmakerOverrides: Boolean(enabled) })
-    });
-    const data = await res.json();
-    if (data.template) {
-      setTemplates((prev) => prev.map((t) => (t.id === data.template.id ? data.template : t)));
-    } else {
-      alert(data.error || 'Could not update template');
+    // optimistic: update locally first, then persist; revert on error
+    setTemplates((prev) => prev.map((t) => (t.id === templateId ? { ...t, allowMissionmakerOverrides: Boolean(enabled) } : t)));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${templateId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ allowMissionmakerOverrides: Boolean(enabled) })
+      });
+      const data = await res.json();
+      if (data.template) {
+        setTemplates((prev) => prev.map((t) => (t.id === data.template.id ? data.template : t)));
+      } else {
+        throw new Error(data.error || 'Could not update template');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not update template');
+      // revert: reload from server to get canonical state
+      loadPrivateData();
     }
   };
 
@@ -394,19 +402,33 @@ function App() {
     const token = localStorage.getItem('token');
     const name = prompt('Template name');
     if (!name) return;
-    const res = await fetch(`${API}/templates`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ name })
-    });
-    const data = await res.json();
-    if (data.template) {
-      setTemplates((prev) => [...prev, data.template]);
-      setSelectedTemplateId(data.template.id);
-      setOpForm((prev) => ({ ...prev, templateId: data.template.id }));
+    const tempId = `tmp-tpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempTemplate = { id: tempId, name, sections: [], _pendingCreate: true };
+    setTemplates((prev) => [...prev, tempTemplate]);
+    setSelectedTemplateId(tempId);
+    setOpForm((prev) => ({ ...prev, templateId: tempId }));
+
+    try {
+      const res = await fetch(`${API}/templates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ name })
+      });
+      const data = await res.json();
+      if (data.template) {
+        setTemplates((prev) => prev.map((t) => (t.id === tempId ? data.template : t)));
+        setSelectedTemplateId(data.template.id);
+        setOpForm((prev) => ({ ...prev, templateId: data.template.id }));
+      } else {
+        throw new Error(data.error || 'Could not create template');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not create template');
+      setTemplates((prev) => prev.filter((t) => t.id !== tempId));
+      setSelectedTemplateId((prev) => (templates?.[0]?.id || null));
     }
   };
 
@@ -415,20 +437,28 @@ function App() {
     const current = templates.find((t) => t.id === selectedTemplateId);
     const name = prompt('New template name', current?.name || '');
     if (!name || name === current?.name) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${selectedTemplateId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ name })
-    });
-    const data = await res.json();
-    if (data.template) {
-      setTemplates((prev) => prev.map((t) => (t.id === data.template.id ? data.template : t)));
-    } else {
-      alert(data.error || 'Could not rename template');
+    const prevName = current?.name;
+    // optimistic
+    setTemplates((prev) => prev.map((t) => (t.id === selectedTemplateId ? { ...t, name } : t)));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${selectedTemplateId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ name })
+      });
+      const data = await res.json();
+      if (data.template) {
+        setTemplates((prev) => prev.map((t) => (t.id === data.template.id ? data.template : t)));
+      } else {
+        throw new Error(data.error || 'Could not rename template');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not rename template');
+      setTemplates((prev) => prev.map((t) => (t.id === selectedTemplateId ? { ...t, name: prevName } : t)));
     }
   };
 
@@ -438,21 +468,31 @@ function App() {
     const defaultName = `Copy of ${current?.name || ''}`;
     const name = prompt('Name for duplicated template', defaultName);
     if (!name) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${selectedTemplateId}/duplicate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ name })
-    });
-    const data = await res.json();
-    if (data.template) {
-      setTemplates((prev) => [...prev, data.template]);
-      setSelectedTemplateId(data.template.id);
-    } else {
-      alert(data.error || 'Could not duplicate template');
+    const tempId = `tmp-tpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempTemplate = { id: tempId, name, sections: [], _pendingCreate: true };
+    setTemplates((prev) => [...prev, tempTemplate]);
+    setSelectedTemplateId(tempId);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${selectedTemplateId}/duplicate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ name })
+      });
+      const data = await res.json();
+      if (data.template) {
+        setTemplates((prev) => prev.map((t) => (t.id === tempId ? data.template : t)));
+        setSelectedTemplateId(data.template.id);
+      } else {
+        throw new Error(data.error || 'Could not duplicate template');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not duplicate template');
+      setTemplates((prev) => prev.filter((t) => t.id !== tempId));
+      setSelectedTemplateId((prev) => (templates?.[0]?.id || null));
     }
   };
 
@@ -715,88 +755,123 @@ function App() {
   };
 
   const addSection = async (templateId) => {
-    const token = localStorage.getItem('token');
     const title = prompt('Section title');
     if (!title) return;
-    const res = await fetch(`${API}/templates/${templateId}/sections`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ title })
-    });
-    const data = await res.json();
-    if (data.section) {
+    const tempId = `tmp-sec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempSection = { id: tempId, title, slots: [], _pendingCreate: true };
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return { ...template, sections: [...template.sections, tempSection] };
+    }));
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${templateId}/sections`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ title })
+      });
+      const data = await res.json();
+      if (data.section) {
+        setTemplates((prev) => prev.map((template) => {
+          if (template.id !== templateId) return template;
+          return { ...template, sections: template.sections.map((s) => (s.id === tempId ? data.section : s)) };
+        }));
+      } else {
+        throw new Error(data.error || 'Could not add section');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not add section');
       setTemplates((prev) => prev.map((template) => {
         if (template.id !== templateId) return template;
-        return { ...template, sections: [...template.sections, data.section] };
+        return { ...template, sections: template.sections.filter((s) => s.id !== tempId) };
       }));
     }
   };
 
   const addSectionQuick = async (templateId, currentSectionCount) => {
-    const token = localStorage.getItem('token');
     const title = `Section ${currentSectionCount + 1}`;
-    const res = await fetch(`${API}/templates/${templateId}/sections`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ title })
-    });
-    const data = await res.json();
-    if (data.section) {
+    const tempId = `tmp-sec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempSection = { id: tempId, title, slots: [], _pendingCreate: true };
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return { ...template, sections: [...template.sections, tempSection] };
+    }));
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${templateId}/sections`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ title })
+      });
+      const data = await res.json();
+      if (data.section) {
+        setTemplates((prev) => prev.map((template) => {
+          if (template.id !== templateId) return template;
+          return { ...template, sections: template.sections.map((s) => (s.id === tempId ? data.section : s)) };
+        }));
+      } else {
+        throw new Error(data.error || 'Could not add section');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not add section');
       setTemplates((prev) => prev.map((template) => {
         if (template.id !== templateId) return template;
-        return { ...template, sections: [...template.sections, data.section] };
+        return { ...template, sections: template.sections.filter((s) => s.id !== tempId) };
       }));
     }
   };
 
   const renameSection = async (templateId, sectionId, currentTitle) => {
-    const token = localStorage.getItem('token');
     const title = prompt('Section title', currentTitle);
     if (!title || title === currentTitle) return;
+    // optimistic local update
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return { ...template, sections: template.sections.map((section) => (section.id === sectionId ? { ...section, title } : section)) };
+    }));
+    setOps((prev) => prev.map((op) => {
+      if (Number(op.templateId) !== Number(templateId)) return op;
+      return { ...op, sections: (op.sections || []).map((section) => (section.id === sectionId ? { ...section, title } : section)) };
+    }));
+    setRecurrences((prev) => prev.map((recurrence) => {
+      if (Number(recurrence.templateId) !== Number(templateId)) return recurrence;
+      return { ...recurrence, sections: (recurrence.sections || []).map((section) => (section.id === sectionId ? { ...section, title } : section)) };
+    }));
 
-    const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ title })
-    });
-    const data = await res.json();
-    if (data.section) {
-      setTemplates((prev) => prev.map((template) => {
-        if (template.id !== templateId) return template;
-        return {
-          ...template,
-          sections: template.sections.map((section) => (section.id === data.section.id ? data.section : section))
-        };
-      }));
-      setOps((prev) => prev.map((op) => {
-        if (Number(op.templateId) !== Number(templateId)) return op;
-        return {
-          ...op,
-          sections: (op.sections || []).map((section) => (
-            section.id === data.section.id ? { ...section, title: data.section.title } : section
-          ))
-        };
-      }));
-      setRecurrences((prev) => prev.map((recurrence) => {
-        if (Number(recurrence.templateId) !== Number(templateId)) return recurrence;
-        return {
-          ...recurrence,
-          sections: (recurrence.sections || []).map((section) => (
-            section.id === data.section.id ? { ...section, title: data.section.title } : section
-          ))
-        };
-      }));
-    } else {
-      alert(data.error || 'Could not rename section');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ title })
+      });
+      const data = await res.json();
+      if (data.section) {
+        setTemplates((prev) => prev.map((template) => {
+          if (template.id !== templateId) return template;
+          return {
+            ...template,
+            sections: template.sections.map((section) => (section.id === data.section.id ? data.section : section))
+          };
+        }));
+      } else {
+        throw new Error(data.error || 'Could not rename section');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not rename section');
+      // revert by reloading authoritative data
+      loadPrivateData();
     }
   };
 
@@ -836,25 +911,26 @@ function App() {
 
   const deleteSection = async (templateId, sectionId) => {
     if (!window.confirm('Are you sure you want to delete this section?')) return;
+    // optimistic: remove locally first
+    const prevTemplates = templates;
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return { ...template, sections: template.sections.filter((section) => section.id !== sectionId) };
+    }));
 
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-
-    if (res.ok) {
-      setTemplates((prev) => prev.map((template) => {
-        if (template.id !== templateId) return template;
-        return {
-          ...template,
-          sections: template.sections.filter((section) => section.id !== sectionId)
-        };
-      }));
-    } else {
-      alert('Could not delete section');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error('Could not delete section');
+    } catch (err) {
+      alert(err.message || 'Could not delete section');
+      // revert
+      setTemplates(prevTemplates);
     }
   };
 
@@ -1018,6 +1094,8 @@ function App() {
       return;
     }
 
+    // optimistic remove
+    const prevTemplates = templates;
     const key = `${templateId}:${slotId}`;
     if (slotSaveTimersRef.current[key]) {
       clearTimeout(slotSaveTimersRef.current[key]);
@@ -1025,26 +1103,29 @@ function App() {
     }
     delete pendingSlotUpdatesRef.current[key];
 
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${templateId}/slots/${slotId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    if (res.ok) {
-      setTemplates((prev) => prev.map((template) => {
-        if (template.id !== templateId) return template;
-        return {
-          ...template,
-          sections: template.sections.map((section) => ({
-            ...section,
-            slots: section.slots.filter((slot) => slot.id !== slotId)
-          }))
-        };
-      }));
-    } else {
-      alert('Could not delete slot');
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return {
+        ...template,
+        sections: template.sections.map((section) => ({
+          ...section,
+          slots: section.slots.filter((slot) => slot.id !== slotId)
+        }))
+      };
+    }));
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${templateId}/slots/${slotId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error('Could not delete slot');
+    } catch (err) {
+      alert(err.message || 'Could not delete slot');
+      setTemplates(prevTemplates);
     }
   };
 
@@ -1123,29 +1204,48 @@ function App() {
   };
 
   const joinSlot = async (templateId, slotId) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${templateId}/join`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ slotId })
-    });
-    const data = await res.json();
-    if (data.slot) {
-      setTemplates((prev) => prev.map((template) => {
-        if (template.id !== templateId) return template;
-        return {
-          ...template,
-          sections: template.sections.map((section) => ({
-            ...section,
-            slots: section.slots.map((slot) => (slot.id === data.slot.id ? data.slot : slot))
-          }))
-        };
-      }));
-    } else {
-      alert(data.error || 'Could not update slot');
+    // optimistic: assign locally first
+    if (!auth) return; // can't join without auth
+    const prevTemplates = templates;
+    setTemplates((prev) => prev.map((template) => {
+      if (template.id !== templateId) return template;
+      return {
+        ...template,
+        sections: template.sections.map((section) => ({
+          ...section,
+          slots: section.slots.map((slot) => (slot.id === slotId ? { ...slot, assignedUserId: auth.id, _pendingUpdate: true } : slot))
+        }))
+      };
+    }));
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${templateId}/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ slotId })
+      });
+      const data = await res.json();
+      if (data.slot) {
+        setTemplates((prev) => prev.map((template) => {
+          if (template.id !== templateId) return template;
+          return {
+            ...template,
+            sections: template.sections.map((section) => ({
+              ...section,
+              slots: section.slots.map((slot) => (slot.id === data.slot.id ? data.slot : slot))
+            }))
+          };
+        }));
+      } else {
+        throw new Error(data.error || 'Could not update slot');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not update slot');
+      setTemplates(prevTemplates);
     }
   };
 
@@ -1567,23 +1667,27 @@ function App() {
 
   const deleteTemplate = async (templateId) => {
     if (!window.confirm('Are you sure you want to delete this template?')) return;
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${templateId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    if (res.ok) {
-      setTemplates((prev) => prev.filter((template) => template.id !== templateId));
-      if (selectedTemplateId === templateId) {
-        setSelectedTemplateId((prev) => {
-          const nextTemplates = templates.filter((template) => template.id !== templateId);
-          return nextTemplates?.[0]?.id || null;
-        });
-      }
-    } else {
-      alert('Could not delete template');
+    // optimistic remove
+    const prevTemplates = templates;
+    setTemplates((prev) => prev.filter((template) => template.id !== templateId));
+    if (selectedTemplateId === templateId) {
+      setSelectedTemplateId((prev) => {
+        const nextTemplates = templates.filter((template) => template.id !== templateId);
+        return nextTemplates?.[0]?.id || null;
+      });
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/templates/${templateId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error('Could not delete template');
+    } catch (err) {
+      alert(err.message || 'Could not delete template');
+      setTemplates(prevTemplates);
     }
   };
 
