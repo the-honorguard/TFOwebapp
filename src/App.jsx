@@ -382,6 +382,52 @@ function App() {
     }
   };
 
+  const renameTemplate = async () => {
+    if (!selectedTemplateId) return;
+    const current = templates.find((t) => t.id === selectedTemplateId);
+    const name = prompt('New template name', current?.name || '');
+    if (!name || name === current?.name) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/templates/${selectedTemplateId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (data.template) {
+      setTemplates((prev) => prev.map((t) => (t.id === data.template.id ? data.template : t)));
+    } else {
+      alert(data.error || 'Could not rename template');
+    }
+  };
+
+  const duplicateTemplate = async () => {
+    if (!selectedTemplateId) return;
+    const current = templates.find((t) => t.id === selectedTemplateId);
+    const defaultName = `Copy of ${current?.name || ''}`;
+    const name = prompt('Name for duplicated template', defaultName);
+    if (!name) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/templates/${selectedTemplateId}/duplicate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (data.template) {
+      setTemplates((prev) => [...prev, data.template]);
+      setSelectedTemplateId(data.template.id);
+    } else {
+      alert(data.error || 'Could not duplicate template');
+    }
+  };
+
   const createOp = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -2076,22 +2122,28 @@ function App() {
 
                     <div className="template-builder-top">
                       <div className="template-list-builder">
-                        {templates.map((template) => (
-                          <div key={template.id} className="template-list-item">
-                            <button
-                              className={selectedTemplateId === template.id ? 'selected' : ''}
-                              onClick={() => setSelectedTemplateId(template.id)}
-                            >
-                              {template.name}
+                        <div className="template-builder-select" style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                          <select
+                            value={selectedTemplateId ?? ''}
+                            onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}
+                            style={{padding:'0.6rem',borderRadius:8,border:'1px solid var(--border)',background:'var(--panel)',color:'var(--text)'}}
+                          >
+                            <option value="">Choose template</option>
+                            {templates.map((template) => (
+                              <option key={template.id} value={template.id}>{template.name}</option>
+                            ))}
+                          </select>
+
+                          <div style={{display:'flex',gap:'0.5rem'}}>
+                            <button onClick={createTemplate}>New template</button>
+                            <button className="secondary" onClick={renameTemplate} disabled={!selectedTemplateId}>
+                              Rename
                             </button>
-                            <button className="secondary small" onClick={() => deleteTemplate(template.id)}>
+                            <button className="secondary" onClick={() => selectedTemplateId && deleteTemplate(selectedTemplateId)} disabled={!selectedTemplateId}>
                               Delete
                             </button>
                           </div>
-                        ))}
-                      </div>
-                      <div className="builder-actions">
-                        <button onClick={createTemplate}>New template</button>
+                        </div>
                       </div>
                     </div>
                   </section>
