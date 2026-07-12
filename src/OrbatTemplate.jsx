@@ -137,19 +137,41 @@ export default function OrbatTemplate({
                               onChange={(event) => updateSectionTitleLocal(template.id, node.section.id, event.target.value)}
                               onBlur={(event) => updateSectionMeta(template.id, node.section.id, { title: event.target.value })}
                             />
-                          </div>
-                        </div>
-                        <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
-                          <div className="slot-actions">
                             <button
                               type="button"
                               className="danger-x-button"
-                              onClick={() => deleteSection(template.id, node.section.id)}
+                              onClick={(e) => { e.stopPropagation(); deleteSection(template.id, node.section.id); }}
                               aria-label="Delete section"
                             >
                               ✕
                             </button>
                           </div>
+                          <div style={{display:'flex',gap:'0.5rem',marginTop:6}} onMouseDown={(e) => e.stopPropagation()}>
+                            <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
+                              LR
+                              <input
+                                type="number"
+                                min="0"
+                                max="99"
+                                className="lr-sr-input"
+                                value={node.section.lrChannel ?? 1}
+                                onChange={(e) => updateSectionMeta(template.id, node.section.id, { lrChannel: Number(e.target.value) })}
+                              />
+                            </label>
+                            <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
+                              SR
+                              <input
+                                type="number"
+                                min="0"
+                                max="99"
+                                className="lr-sr-input"
+                                value={node.section.srChannel ?? 1}
+                                onChange={(e) => updateSectionMeta(template.id, node.section.id, { srChannel: Number(e.target.value) })}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                        <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
                           <div className="flow-slot-list">
                             {node.section.slots.length === 0 ? (
                               <p className="panel-empty">No slots yet.</p>
@@ -278,13 +300,6 @@ export default function OrbatTemplate({
                   <div className="slot-actions">
                     <button onClick={() => addSlot(template.id, section.id)} className="secondary small">
                       Add slot
-                    </button>
-                    <button
-                      onClick={() => deleteSection(template.id, section.id)}
-                      className="danger-x-button"
-                      aria-label="Delete section"
-                    >
-                      ✕
                     </button>
                   </div>
                 </div>
