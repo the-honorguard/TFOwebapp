@@ -612,57 +612,114 @@ function App() {
   };
 
   const joinOpSlot = async (opId, slotId, userId = null) => {
-    const token = localStorage.getItem('token');
-    const body = userId && auth?.role === 'admin' ? { slotId, userId } : { slotId };
-    const res = await fetch(`${API}/ops/${opId}/join`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
-    if (data.op) {
-      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
-    } else {
-      alert(data.error || 'Could not update slot');
+    if (!auth && !userId) return;
+    const prevOps = ops;
+    // optimistic local update: assign slot
+    setOps((prev) => prev.map((op) => {
+      if (op.id !== opId) return op;
+      return {
+        ...op,
+        sections: (op.sections || []).map((section) => ({
+          ...section,
+          slots: section.slots.map((slot) => (slot.id === slotId ? { ...slot, assignedUserId: userId || auth.id, _pendingUpdate: true } : slot))
+        }))
+      };
+    }));
+
+    try {
+      const token = localStorage.getItem('token');
+      const body = userId && auth?.role === 'admin' ? { slotId, userId } : { slotId };
+      const res = await fetch(`${API}/ops/${opId}/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.op) {
+        setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+      } else {
+        throw new Error(data.error || 'Could not update slot');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not update slot');
+      setOps(prevOps);
     }
   };
 
   const signOffOpSlot = async (opId, slotId) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/ops/${opId}/signoff`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ slotId })
-    });
-    const data = await res.json();
-    if (data.op) {
-      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
-    } else {
-      alert(data.error || 'Could not sign off');
+    if (!auth) return;
+    const prevOps = ops;
+    // optimistic local update: clear assignment
+    setOps((prev) => prev.map((op) => {
+      if (op.id !== opId) return op;
+      return {
+        ...op,
+        sections: (op.sections || []).map((section) => ({
+          ...section,
+          slots: section.slots.map((slot) => (slot.id === slotId ? { ...slot, assignedUserId: null, _pendingUpdate: true } : slot))
+        }))
+      };
+    }));
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/ops/${opId}/signoff`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ slotId })
+      });
+      const data = await res.json();
+      if (data.op) {
+        setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+      } else {
+        throw new Error(data.error || 'Could not sign off');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not sign off');
+      setOps(prevOps);
     }
   };
 
   const updateOpSlot = async (opId, slotId, updates) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/ops/${opId}/slots/${slotId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(updates)
-    });
-    const data = await res.json();
-    if (data.op) {
-      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
-    } else {
-      alert(data.error || 'Could not update operation slot');
+    // optimistic local update
+    const prevOps = ops;
+    setOps((prev) => prev.map((op) => {
+      if (op.id !== opId) return op;
+      return {
+        ...op,
+        sections: (op.sections || []).map((section) => ({
+          ...section,
+          slots: section.slots.map((slot) => (slot.id === slotId ? { ...slot, ...updates, _pendingUpdate: true } : slot))
+        }))
+      };
+    }));
+
+    // persist
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/ops/${opId}/slots/${slotId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      if (data.op) {
+        setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+      } else {
+        throw new Error(data.error || 'Could not update operation slot');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not update operation slot');
+      setOps(prevOps);
     }
   };
 

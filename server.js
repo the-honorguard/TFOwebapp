@@ -54,7 +54,7 @@ function ensureDataFile() {
       templates: [
         {
           id: 1,
-          name: 'Voorbeeld missie',
+          name: 'Example mission',
           sections: [
             {
               id: 101,
@@ -478,11 +478,11 @@ app.post('/api/templates/:id/duplicate', authMiddleware, requireAdmin, (req, res
 app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
   const data = normalizeStorage(readData());
   const template = findTemplate(data, req.body.templateId);
-  if (!template) return res.status(404).json({ error: 'Template niet gevonden' });
+  if (!template) return res.status(404).json({ error: 'Template not found' });
   const recurrence = req.body.recurrence || 'none';
   const op = {
     id: Date.now(),
-    name: req.body.name || 'Nieuwe operatie',
+    name: req.body.name || 'New operation',
     templateId: Number(req.body.templateId),
     date: req.body.date || '',
     time: req.body.time || '',
@@ -522,18 +522,18 @@ app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
 app.post('/api/ops/:id/join', authMiddleware, (req, res) => {
   const data = readData();
   const op = findOp(data, req.params.id);
-  if (!op) return res.status(404).json({ error: 'Op niet gevonden' });
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
   const slot = op.sections.flatMap((section) => section.slots).find((slotItem) => slotItem.id === Number(req.body.slotId));
-  if (!slot) return res.status(404).json({ error: 'Slot niet gevonden' });
+  if (!slot) return res.status(404).json({ error: 'Slot not found' });
   if (!slot.allowedRoles.includes(req.user.role) && req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Geen permissie voor deze slot' });
+    return res.status(403).json({ error: 'No permission for this slot' });
   }
   const existingSlot = op.sections.flatMap((section) => section.slots).find((other) => other.assignedUserId === req.user.id);
   if (existingSlot && existingSlot.id !== slot.id) {
-    return res.status(409).json({ error: 'Je bent al ingeschreven in een andere slot van deze operatie' });
+    return res.status(409).json({ error: 'You are already signed up to another slot for this operation' });
   }
   if (slot.assignedUserId && slot.assignedUserId !== req.user.id) {
-    return res.status(409).json({ error: 'Deze slot is al ingenomen' });
+    return res.status(409).json({ error: 'This slot is already taken' });
   }
   slot.assignedUserId = req.user.id;
   writeData(data);
@@ -747,7 +747,7 @@ app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (r
 
   const section = {
     id: Date.now(),
-    title: req.body.title || 'Nieuwe sectie',
+    title: req.body.title || 'New section',
     lrChannel: 1,
     srChannel: template.sections.length + 1,
     marker: req.body.marker || null,
@@ -879,7 +879,7 @@ app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, (req, res) =>
   if (!section) return res.status(404).json({ error: 'Section not found' });
   const slot = {
     id: Date.now(),
-    name: req.body.name || 'Nieuwe rol',
+    name: req.body.name || 'New role',
     role: req.body.role || 'Rifleman',
     allowedRoles: Array.isArray(req.body.allowedRoles) ? req.body.allowedRoles : [],
     notes: req.body.notes || '',
@@ -928,14 +928,14 @@ app.post('/api/templates/:templateId/join', authMiddleware, (req, res) => {
   const slot = findSlot(template, req.body.slotId);
   if (!slot) return res.status(404).json({ error: 'Slot not found' });
   if (!slot.allowedRoles.includes(req.user.role) && req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Geen permissie voor deze slot' });
+    return res.status(403).json({ error: 'No permission for this slot' });
   }
   const existingSlot = template.sections.flatMap((section) => section.slots).find((other) => other.assignedUserId === req.user.id);
   if (existingSlot && existingSlot.id !== slot.id) {
-    return res.status(409).json({ error: 'Je bent al ingeschreven in een andere slot van deze template' });
+    return res.status(409).json({ error: 'You are already signed up to another slot for this template' });
   }
   if (slot.assignedUserId && slot.assignedUserId !== req.user.id) {
-    return res.status(409).json({ error: 'Deze slot is al ingenomen' });
+    return res.status(409).json({ error: 'This slot is already taken' });
   }
   slot.assignedUserId = req.user.id;
   writeData(data);
