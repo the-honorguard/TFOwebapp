@@ -45,6 +45,12 @@ function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showLoginPanel, setShowLoginPanel] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [changePasswordForm, setChangePasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   const [signupForm, setSignupForm] = useState({
     username: '',
     password: '',
@@ -71,7 +77,36 @@ function App() {
       return {};
     }
   });
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
 
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+          ? await res.json()
+          : { error: await res.text() };
+
+      if (res.ok) {
+        alert('Password changed');
+        return true;
+      }
+
+      alert(data.error || 'Could not change password');
+      return false;
+    } catch (error) {
+      alert('Could not change password');
+      return false;
+    }
+  };
+  
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
@@ -111,14 +146,15 @@ function App() {
 
   const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
 
+  // weekDayLabels
   const weekDayLabels = [
-    { label: 'Ma', value: 1 },
-    { label: 'Di', value: 2 },
-    { label: 'Wo', value: 3 },
-    { label: 'Do', value: 4 },
-    { label: 'Vr', value: 5 },
-    { label: 'Za', value: 6 },
-    { label: 'Zo', value: 0 }
+    { label: 'Mon', value: 1 },
+    { label: 'Tue', value: 2 },
+    { label: 'Wed', value: 3 },
+    { label: 'Thu', value: 4 },
+    { label: 'Fri', value: 5 },
+    { label: 'Sat', value: 6 },
+    { label: 'Sun', value: 0 },
   ];
 
   const toggleWeeklyDay = (day) => {
@@ -219,6 +255,52 @@ function App() {
       loadPrivateData();
     } else {
       alert(data.error || 'Login failed');
+    }
+  };
+
+  const submitChangePassword = async (e) => {
+    e.preventDefault();
+
+    if (!changePasswordForm.currentPassword || !changePasswordForm.newPassword) {
+      alert('Fill in both passwords.');
+      return;
+    }
+
+    if (changePasswordForm.newPassword.length < 6) {
+      alert('New password must be at least 6 characters.');
+      return;
+    }
+
+    if (changePasswordForm.newPassword !== changePasswordForm.confirmPassword) {
+      alert('Passwords do not match.');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        currentPassword: changePasswordForm.currentPassword,
+        newPassword: changePasswordForm.newPassword
+      })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      alert('Password updated successfully');
+      setChangePasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setShowChangePassword(false);
+    } else {
+      alert(data.error || 'Could not change password');
     }
   };
 
@@ -430,7 +512,7 @@ function App() {
     if (data.op) {
       setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
     } else {
-      alert(data.error || 'Kon slot niet bijwerken');
+      alert(data.error || 'Could not update slot');
     }
   };
 
@@ -448,7 +530,7 @@ function App() {
     if (data.op) {
       setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
     } else {
-      alert(data.error || 'Kon niet uitschrijven');
+      alert(data.error || 'Could not sign off');
     }
   };
 
@@ -707,7 +789,7 @@ function App() {
     const tempSlot = {
       id: tempId,
       sectionId,
-      name: 'Nieuwe slot',
+      name: 'New slot',
       role: 'Rifleman',
       allowedRoles: [],
       notes: '',
@@ -735,7 +817,7 @@ function App() {
       },
       body: JSON.stringify({
         sectionId,
-        name: 'Nieuwe slot',
+        name: 'New slot',
         role: 'Rifleman',
         allowedRoles: [],
         notes: ''
@@ -989,7 +1071,7 @@ function App() {
         };
       }));
     } else {
-      alert(data.error || 'Kon slot niet bijwerken');
+      alert(data.error || 'Could not update slot');
     }
   };
 
@@ -1015,6 +1097,7 @@ function App() {
     localStorage.removeItem('token');
     setAuth(null);
     setShowLoginPanel(false);
+    setShowChangePassword(false);
     loadPublicData();
   };
 
@@ -1024,18 +1107,6 @@ function App() {
   const isWideCanvasPage = page === 'builder' || (page === 'overview' && effectiveOverviewMode === 'orbat');
 
   const normalizeRoleKey = (role) => role?.trim().toLowerCase();
-
-  const permissionColumns = useMemo(() => {
-    const cols = new Set();
-    templates.forEach((template) => {
-      template.sections?.forEach((section) => {
-        section.slots?.forEach((slot) => {
-          if (slot.role && !['member', 'admin'].includes(normalizeRoleKey(slot.role))) cols.add(slot.role);
-        });
-      });
-    });
-    return Array.from(cols);
-  }, [templates]);
 
   const selectedOp = useMemo(() => ops.find((op) => op.id === selectedOpId), [ops, selectedOpId]);
   const getTemplateName = (templateId) => templates.find((template) => template.id === Number(templateId))?.name || 'Unknown template';
@@ -1263,10 +1334,35 @@ function App() {
 
   const [extraRoles, setExtraRoles] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('extraRoles') || '[]');
+      const stored = JSON.parse(localStorage.getItem('extraRoles'));
+      if (stored && stored.length > 0) return stored;
     } catch (error) {
-      return [];
+      // ignore parse errors, fall through to defaults
     }
+    return [
+      'PLT leader',
+      'Medic',
+      'SQL',
+      'AR',
+      'Marksman',
+      'Rifleman',
+      'Anti-tank',
+      'Engineer',
+      'Grenadier',
+      'JTAC/FO',
+      'Sniper',
+      'Spotter',
+      'Heli pilot',
+      'Jet pilot',
+      'Commander',
+      'Driver',
+      'Ground vehicle gunner',
+      'Fire support gunner',
+      'FS TL',
+      'Zeus',
+      'Anti air',
+      'Drone Operator'
+    ];
   });
   const [newRoleName, setNewRoleName] = useState('');
   const [renamingRole, setRenamingRole] = useState(null);
@@ -1298,13 +1394,17 @@ function App() {
     return Array.from(roleMap.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }, [templates, extraRoles]);
 
+  const permissionColumns = useMemo(() => {
+    return allRoles.filter((role) => !['member', 'admin'].includes(normalizeRoleKey(role)));
+  }, [allRoles]);
+
   const addRole = (e) => {
     e.preventDefault();
     const name = newRoleName.trim();
     if (!name) return;
     const key = normalizeRoleKey(name);
     if (allRoles.some((existing) => normalizeRoleKey(existing) === key)) {
-      alert('Deze rol bestaat al.');
+      alert('Role aldready exist');
       return;
     }
     setExtraRoles((prev) => [...prev, name]);
@@ -1373,6 +1473,23 @@ function App() {
       alert('Could not delete user');
     }
   };
+
+  {/*const changePassword = async (currentPassword, newPassword) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/users/me/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      alert('Password changed successfully');
+      return true;
+    } else {
+      alert(data.error || 'Could not change password');
+      return false;
+    }
+  };*/}
 
   const deleteTemplate = async (templateId) => {
     if (!window.confirm('Are you sure you want to delete this template?')) return;
@@ -1469,13 +1586,25 @@ function App() {
           <button className="theme-toggle" onClick={toggleTheme}>
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </button>
+
           {!auth ? (
-            <>
-              <button className="secondary" onClick={() => setShowLoginPanel((prev) => !prev)}>Login</button>
-              <button className="secondary" onClick={() => setPage('signup')}>Create account</button>
-            </>
+              <>
+                <button className="secondary" onClick={() => setShowLoginPanel((prev) => !prev)}>
+                  Login
+                </button>
+                <button className="secondary" onClick={() => setPage('signup')}>
+                  Create account
+                </button>
+              </>
           ) : (
-            <button onClick={logout}>Logout</button>
+              <>
+                <button className="secondary" onClick={() => setShowChangePassword(true)}>
+                  Change password
+                </button>
+                <button onClick={logout}>
+                  Logout
+                </button>
+              </>
           )}
         </div>
       </header>
@@ -1505,6 +1634,48 @@ function App() {
             </form>
           </div>
         </div>
+      ) : null}
+
+      {auth && showChangePassword ? (
+          <div className="login-popover" role="dialog" aria-modal="true">
+            <div className="login-modal">
+              <form onSubmit={submitChangePassword}>
+              <h2>Change password</h2>
+
+                <input
+                    type="password"
+                    placeholder="Current password"
+                    value={changePasswordForm.currentPassword}
+                    onChange={(e) => setChangePasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                />
+
+                <input
+                    type="password"
+                    placeholder="New password"
+                    value={changePasswordForm.newPassword}
+                    onChange={(e) => setChangePasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                />
+
+                <input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={changePasswordForm.confirmPassword}
+                    onChange={(e) => setChangePasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                />
+
+                <div className="login-panel-actions">
+                  <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => setShowChangePassword(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit">Save</button>
+                </div>
+              </form>
+            </div>
+          </div>
       ) : null}
 
       {page === 'signup' ? (
@@ -1712,9 +1883,15 @@ function App() {
             </section>
           ) : null}
           {page === 'settings' ? (
-            <Settings defaultOpSettings={defaultOpSettings} setDefaultOpSettings={setDefaultOpSettings} templates={templates} />
+              <Settings
+                  defaultOpSettings={defaultOpSettings}
+                  setDefaultOpSettings={setDefaultOpSettings}
+                  templates={templates}
+                  changePassword={changePassword}
+                  changePasswordForm={changePasswordForm}
+                  setChangePasswordForm={setChangePasswordForm}
+              />
           ) : null}
-
           {auth && isAdmin && page === 'scheduler' ? (
             <section className="card">
               <div className="builder-toolbar">
@@ -2151,9 +2328,28 @@ function App() {
                                   </select>
                                 </td>
                                 <td>
-                                  <button className="secondary small" onClick={() => openRoleModal(user)}>
-                                    Roles
-                                  </button>
+                                  <div className="roles-cell">
+                                    <button className="secondary small" onClick={() => openRoleModal(user)}>
+                                      Roles
+                                    </button>
+
+                                    <div className="user-role-badges">
+                                      {Object.entries(user.permissions || {})
+                                          .filter(([, value]) => value)
+                                          .slice(0, 2)
+                                          .map(([role]) => (
+                                              <span key={role} className="role-badge">
+                                                {role}
+                                              </span>
+                                          ))}
+
+                                      {Object.entries(user.permissions || {}).filter(([, value]) => value).length > 2 ? (
+                                          <span className="role-badge role-badge-more">
+                                            +{Object.entries(user.permissions || {}).filter(([, value]) => value).length - 2}
+                                          </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
                                 </td>
                                 <td>
                                   <button className="secondary small" onClick={() => deleteUser(user.id)}>
@@ -2271,16 +2467,16 @@ function App() {
             <div className="modal-backdrop" role="dialog" aria-modal="true">
               <div className="role-modal">
                 <h3>Manage roles for {roleModalUser.username}</h3>
-                <div className="role-list">
+                <div className="role-list" style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '0.5rem' }}>
                   {permissionColumns.map((permission) => (
-                    <label key={permission}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(roleModalPermissions[permission])}
-                        onChange={() => toggleRoleModalPermission(permission)}
-                      />
-                      {permission}
-                    </label>
+                      <label key={permission} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input
+                            type="checkbox"
+                            checked={Boolean(roleModalPermissions[permission])}
+                            onChange={() => toggleRoleModalPermission(permission)}
+                        />
+                        {permission}
+                      </label>
                   ))}
                 </div>
                 <div className="role-modal-buttons">

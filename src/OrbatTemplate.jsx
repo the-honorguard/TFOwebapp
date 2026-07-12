@@ -227,10 +227,10 @@ export default function OrbatTemplate({
               </div>
               {selectedFlowSection ? (
                 <p className="flow-help">
-                  Link source: <strong>{selectedFlowSection.title}</strong>. Klik nu op een bolletje van een tweede sectie.
+                  Link source: <strong>{selectedFlowSection.title}</strong>. Now click a connector on a second section..
                 </p>
               ) : (
-                <p className="flow-help">Klik op een top/bottom bolletje en daarna op een bolletje van een tweede sectie.</p>
+                <p className="flow-help">Click a top/bottom connector, then click a connector on a second section.</p>
               )}
             </div>
           );

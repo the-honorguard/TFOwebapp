@@ -1,0 +1,499 @@
+/* ================================================================
+   TFOwebapp - Task Force Omega theme adapter (v8)
+   Import this file AFTER styles.css in main.jsx / App entry point
+   Dark mode  -> red accent
+   Light mode -> green accent (muted, no pure white)
+   ================================================================ */
+
+/* ----------------------------------------------------------------
+   Global scrollbar styling
+   Keeps a stable gutter so pages don't shift horizontally when a
+   vertical scrollbar appears/disappears, and forces a neutral
+   (non-blue) scrollbar color on both Firefox and WebKit browsers.
+   ---------------------------------------------------------------- */
+html {
+    scrollbar-gutter: stable;
+    scrollbar-color: var(--border) var(--bg-alt);
+    scrollbar-width: thin;
+}
+
+/* ----------------------------------------------------------------
+   Theme variables - Dark mode (default)
+   ---------------------------------------------------------------- */
+:root {
+    font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
+
+    --bg: #0f0c0c;
+    --bg-alt: #171313;
+    --panel: #1c1616;
+    --text: #f1f5f9;
+    --text-dim: #94a3b8;
+    --border: rgba(255, 255, 255, 0.08);
+    --panel-border: rgba(255, 255, 255, 0.12);
+
+    /* Accent = red in dark mode */
+    --accent: #862021;
+    --accent-hover: #a12729;
+    --accent-text: #f1f5f9;
+    --accent-bg: rgba(134, 32, 33, 0.12);
+
+    --button: var(--accent);
+    --button-hover: var(--accent-hover);
+    --button-secondary: #2a2222;
+    --button-text: var(--accent-text);
+
+    --card-bg: #17131a;
+    --card-bg-alt: #1a1414;
+    --success: #22c55e;
+    --danger: #ef4444;
+
+    /* Top navigation tabs (Overview / Scheduler / Builder / ...) */
+    --tab-bg: transparent;
+    --tab-border: var(--border);
+    --tab-text: var(--text-dim);
+    --tab-active-bg: var(--panel);
+    --tab-active-border: var(--accent);
+    --tab-active-text: var(--text);
+
+    /* Neutral hover used for list rows (e.g. operation list items) */
+    --row-hover-bg: rgba(255, 255, 255, 0.06);
+}
+
+/* ----------------------------------------------------------------
+   Theme variables - Light mode
+   Colors are intentionally muted/desaturated (no pure white bg,
+   no bright saturated green) to avoid a harsh "flashbang" look.
+   ---------------------------------------------------------------- */
+[data-theme='light'] {
+    --bg: #dde3de;
+    --bg-alt: #e7ece7;
+    --panel: #eaefe9;
+    --text: #1b241d;
+    --text-dim: #55635a;
+    --border: #c2ccc3;
+    --panel-border: #b3bfb4;
+
+    /* Accent = green in light mode */
+    --accent: #2f6b45;
+    --accent-hover: #255837;
+    --accent-text: #eef4ee;
+    --accent-bg: rgba(47, 107, 69, 0.14);
+
+    --button: var(--accent);
+    --button-hover: var(--accent-hover);
+    --button-secondary: #d7ded6;
+    --button-text: var(--accent-text);
+
+    --card-bg: #e7ece5;
+    --card-bg-alt: #dfe6dd;
+    --success: #2f6b45;
+    --danger: #a4433a;
+
+    --tab-bg: transparent;
+    --tab-border: var(--border);
+    --tab-text: var(--text-dim);
+    --tab-active-bg: var(--panel);
+    --tab-active-border: var(--accent);
+    --tab-active-text: var(--text);
+
+    --row-hover-bg: rgba(0, 0, 0, 0.04);
+}
+
+/* ----------------------------------------------------------------
+   Base page background + font
+   ---------------------------------------------------------------- */
+body {
+    font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+[data-theme='dark'] body {
+    background:
+            radial-gradient(circle at 15% 0%, rgba(134, 32, 33, 0.08), transparent 45%),
+            var(--bg);
+}
+
+[data-theme='light'] body {
+    background:
+            radial-gradient(circle at 15% 0%, rgba(47, 107, 69, 0.05), transparent 45%),
+            var(--bg);
+}
+
+/* ----------------------------------------------------------------
+   Layout: force the SAME max width, centering and top padding on
+   every page. Some pages ("builder" / "overview" in orbat mode)
+   get an extra class from React (.app-shell-builder) that used to
+   make them wider than the rest - !important guarantees this rule
+   wins regardless of the base stylesheet's specificity.
+   ---------------------------------------------------------------- */
+.app-shell {
+    max-width: 1600px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+    padding-top: 2rem !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    min-height: 100vh;
+}
+
+/* ----------------------------------------------------------------
+   Card / panel backgrounds
+   ---------------------------------------------------------------- */
+.card,
+.section-card,
+.slot-card,
+.builder-panel,
+.orbat-node,
+.role-card,
+.signup-card,
+.login-modal,
+.role-modal {
+    background: var(--card-bg);
+    border-color: var(--panel-border);
+}
+
+.section-card,
+.builder-panel {
+    background: var(--card-bg-alt);
+}
+
+/* ----------------------------------------------------------------
+   Force the same font family on every interactive element so
+   buttons/inputs never fall back to a different typeface than
+   the rest of the app.
+   ---------------------------------------------------------------- */
+button,
+.tab,
+.template-list button,
+input,
+select,
+textarea {
+    font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
+}
+
+/* ----------------------------------------------------------------
+   Generic form field spacing (fixes cramped checkboxes/labels,
+   e.g. on the Settings page where inputs were touching the text)
+   ---------------------------------------------------------------- */
+input,
+select,
+textarea {
+    padding: 0.5rem 0.7rem;
+    border-radius: 5px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+    margin-right: 0.5rem;
+    transform: scale(1.05);
+}
+
+label.checkbox-row,
+label.radio-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+}
+
+/* Settings page: add breathing room around form rows/sections */
+.settings-card,
+.settings-section,
+.settings-field,
+.settings-row {
+    padding: 0.6rem 0;
+}
+
+.settings-card label,
+.settings-section label {
+    margin-bottom: 0.3rem;
+    display: inline-block;
+}
+
+/* ----------------------------------------------------------------
+   Buttons: square corners (not pills), solid colors (no gradient),
+   readable text at all times (color forced with !important because
+   the base stylesheet has stronger/undetermined specificity here).
+   ---------------------------------------------------------------- */
+button {
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 0.01em;
+    border-radius: 6px;
+    background: var(--button) !important;
+    color: var(--button-text) !important;
+    border: 1px solid var(--button) !important;
+    padding: 0.65rem 1.1rem;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+    background: var(--button-hover) !important;
+    border-color: var(--button-hover) !important;
+    color: #ffffff !important;
+}
+
+/* Failsafe: some buttons render inner text via a nested span/icon
+   that could otherwise inherit a dimmed gray color from the base
+   stylesheet - force it white on hover too. */
+button:hover:not(:disabled) * {
+    color: #ffffff !important;
+}
+
+/* Secondary / outline buttons (Login, Cancel, theme toggle, ...) */
+button.secondary,
+.theme-toggle {
+    background: transparent !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border) !important;
+}
+
+button.secondary:hover:not(:disabled),
+.theme-toggle:hover:not(:disabled) {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: var(--accent-text) !important;
+}
+
+button.small {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.82rem;
+    border-radius: 5px;
+}
+
+button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* Destructive action button (delete slot/section/etc.) */
+.danger-x-button {
+    border-radius: 5px;
+    background: transparent !important;
+    border: 1px solid var(--danger) !important;
+    color: var(--danger) !important;
+}
+.danger-x-button:hover {
+    background: var(--danger) !important;
+    color: #fff !important;
+}
+
+/* ----------------------------------------------------------------
+   Top navigation tabs (Overview / Scheduler / Builder / Roles / ...)
+   Rectangular, full border on every state, accent-colored bottom
+   indicator only on the active tab.
+   ---------------------------------------------------------------- */
+.tab {
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 0.6rem 1rem;
+    background: var(--tab-bg) !important;
+    border: 1px solid var(--tab-border) !important;
+    color: var(--tab-text) !important;
+    box-shadow: inset 0 -2px 0 transparent;
+}
+
+.tab.active {
+    background: var(--tab-active-bg) !important;
+    border-color: var(--tab-active-border) !important;
+    box-shadow: inset 0 -2px 0 var(--tab-active-border);
+    color: var(--tab-active-text) !important;
+}
+
+.tab:hover:not(.active) {
+    color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+/* ----------------------------------------------------------------
+   Operation list rows.
+   Two different components use these list-row buttons:
+   - .template-list (Overview page, short list of upcoming ops)
+   - .op-list-row (Op Scheduler page, full vertical list of ops
+     and recurring operations)
+   Both must stay in the neutral theme color at rest (no accent
+   border/text), and only use a plain gray highlight on hover -
+   never the accent color.
+   ---------------------------------------------------------------- */
+.template-list button,
+.op-list-row {
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 0.6rem 1rem;
+    background: var(--tab-bg) !important;
+    border: 1px solid var(--border) !important;
+}
+
+.template-list button.selected {
+    background: var(--panel) !important;
+    border-color: var(--border) !important;
+    font-weight: 700;
+}
+
+/* Hover uses a plain neutral gray, explicitly NOT the accent
+   color (red/green), so this list stays visually calm. */
+.template-list button:hover:not(.selected),
+.op-list-row:hover {
+    background: var(--row-hover-bg) !important;
+    border-color: var(--border) !important;
+}
+
+/* Force full-strength readable text color on the row and every
+   child element (name, date/time meta, badge) both at rest and
+   on hover - avoids inheriting a dimmed/gray color from the base
+   stylesheet. .op-list-name is the primary label, .op-list-meta
+   the secondary date/time line, .op-list-badge the "Recurring" tag. */
+.op-list-row,
+.op-list-row .op-list-name,
+.op-list-row .op-list-meta,
+.op-list-row:hover,
+.op-list-row:hover .op-list-name,
+.op-list-row:hover .op-list-meta {
+    color: var(--text) !important;
+}
+
+.template-list button,
+.template-list button:hover {
+    color: var(--text) !important;
+}
+
+.op-list-badge {
+    border-radius: 4px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.create-op-button {
+    border-radius: 6px;
+}
+
+/* ----------------------------------------------------------------
+   Slot status badges (occupied / free)
+   ---------------------------------------------------------------- */
+.slot-badge {
+    border-radius: 4px;
+    font-weight: 700;
+}
+.slot-badge.occupied {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+.slot-badge.free {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: var(--success);
+    color: var(--success);
+}
+[data-theme='light'] .slot-badge.occupied {
+    background: rgba(164, 67, 58, 0.1);
+    color: var(--danger);
+}
+[data-theme='light'] .slot-badge.free {
+    background: rgba(47, 107, 69, 0.1);
+    color: var(--success);
+}
+
+/* ----------------------------------------------------------------
+   Links & small accent-colored text elements
+   ---------------------------------------------------------------- */
+a { color: var(--accent); }
+
+.form-section-title,
+.section-count {
+    color: var(--accent);
+}
+
+.orbat-connector { border-color: var(--accent); }
+.orbat-connector.clickable.active {
+    border-color: var(--success);
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+/* ----------------------------------------------------------------
+   WebKit scrollbar fallback (Chrome/Edge/Safari)
+   Firefox uses the scrollbar-color rule defined on html above.
+   ---------------------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-track { background: var(--bg-alt); }
+
+/* ================================================================
+   TFO logo block, used in the app header
+   ================================================================ */
+.app-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.app-logo img {
+    height: 42px;
+    width: 42px;
+    object-fit: contain;
+    transition: filter 0.3s ease;
+}
+
+[data-theme='dark'] .app-logo img:hover {
+    filter: drop-shadow(0 0 8px rgba(134, 32, 33, 0.6));
+}
+[data-theme='light'] .app-logo img:hover {
+    filter: drop-shadow(0 0 8px rgba(47, 107, 69, 0.45));
+}
+
+.app-logo-text {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--text);
+}
+
+.roles-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.user-role-badges {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    line-height: 1;
+    background: rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+}
+
+.role-badge-more {
+    opacity: 0.8;
+}
+
+/* ----------------------------------------------------------------
+   Final override (kept at the very end of the file on purpose):
+   guarantees white hover text on every "primary" button, even if
+   an earlier rule with equal CSS specificity (e.g. list-row text
+   color rules) would otherwise win the cascade due to source order.
+   Secondary/outline, theme-toggle and danger buttons are excluded
+   since they already define their own correct hover text color.
+   ---------------------------------------------------------------- */
+button:not(.secondary):not(.theme-toggle):not(.danger-x-button):hover:not(:disabled),
+button:not(.secondary):not(.theme-toggle):not(.danger-x-button):hover:not(:disabled) * {
+    color: #ffffff !important;
+}
