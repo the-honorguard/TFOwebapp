@@ -32,6 +32,41 @@
 
 ---
 
+## UI / UX
+
+### Branding
+
+- [ ] **Favicon** — add `tfo-emoji.png` (or a trimmed variant) as favicon in `index.html`; set a meaningful `<title>` tag
+- [ ] **Logo on pages** — display the TFO logo in the login screen, top header/nav, and empty states
+- [ ] **Align with taskforceomega.eu design language** — reuse the color palette, typography, and visual style already established on the main site; the app should feel like a natural extension of it
+
+### CSS & Spacing
+
+- [ ] **Define a spacing scale** — standardize on a consistent set of spacing values (e.g. 4 / 8 / 12 / 16 / 24 / 32 px) and apply them across all pages; mixed ad-hoc spacing is usually the main reason an interface feels unfinished
+- [ ] **Standardize components** — normalize button heights, input field styles, card padding, border radius, and modal layout across Overview, Scheduler, Builder, and Settings
+- [ ] **CSS audit pass** — go page by page and clean up one-off margins, padding hacks, and duplicate rules that accumulate over time
+- [ ] **Typography hierarchy** — define clear roles for page title, section title, card title, label, helper text, and metadata; apply consistently
+
+### Mobile
+
+- [ ] **Responsive pass on Scheduler and Builder** — Overview already has a cards fallback for narrow viewports; apply the same care to the other main views
+- [ ] **Touch-friendly targets** — ensure buttons and interactive slot elements are large enough to tap comfortably on mobile
+
+### Interaction & Feedback
+
+- [ ] **Toast notifications** — add success/error toasts for create, update, and delete actions instead of silent state changes
+- [ ] **Confirmation modals** — prompt before destructive actions (delete op, delete template, delete section, delete recurrence, delete user)
+- [ ] **Loading states** — add spinners or skeleton placeholders while data is being fetched
+- [ ] **Empty states** — add a styled empty state (icon + message + primary action) for: no ops, no templates, no campaigns, no ranks, no users
+- [ ] **Hover / focus / disabled states** — audit interactive elements and ensure all states are visually distinct, especially on slot join/signoff buttons and admin controls
+
+### Navigation
+
+- [ ] **Persistent header** — add a top bar with logo, current page name, and logged-in user summary (rank + avatar)
+- [ ] **Back navigation** — clarify the path between Overview → Op detail → Scheduler so users always know where they are and how to go back
+
+---
+
 ## Features
 
 ### Short term
