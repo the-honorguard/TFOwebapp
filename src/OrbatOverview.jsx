@@ -29,11 +29,17 @@ export default function OrbatOverview({
   signOffOpSlot,
   updateOpSlot,
   setShowLoginPanel,
-  showOpInScheduler
+  showOpInScheduler,
+  campaignImage
 }) {
   return (
     <section className="card">
       <div className="builder-toolbar">
+        {campaignImage ? (
+          <div style={{marginBottom:'0.5rem'}}>
+            <img src={campaignImage} alt="Campaign" style={{maxWidth:280,maxHeight:120,objectFit:'cover',borderRadius:6}} />
+          </div>
+        ) : null}
         <div>
           <h4>{op.serverName || op.name}</h4>
           <p>{op.date} at {op.time} using {getTemplateName(op.templateId)}.</p>

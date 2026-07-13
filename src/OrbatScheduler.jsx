@@ -23,6 +23,7 @@ export default function OrbatScheduler({
   handleModlistDragOver,
   handleModlistDrop,
   updateOpSectionMeta,
+  campaigns,
   users,
   updateOpSlot,
   allRoles,
@@ -192,6 +193,12 @@ export default function OrbatScheduler({
           value={selectedOp.tsAddress || ''}
           onChange={(e) => updateOpMeta(selectedOp.id, { tsAddress: e.target.value })}
         />
+        <select value={selectedOp.campaignId || ''} onChange={(e) => updateOpMeta(selectedOp.id, { campaignId: e.target.value ? Number(e.target.value) : null })}>
+          <option value="">No campaign</option>
+          {(campaigns || []).map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
       </div>
       <div className="modlist-dropzone-row">
         <div

@@ -9,6 +9,7 @@ import OrbatTemplate from './OrbatTemplate';
 import Settings from './Settings';
 import Ranks from './Ranks';
 import Profile from './Profile';
+import Campaigns from './Campaigns';
 
 const API = '/api';
 
@@ -16,6 +17,7 @@ function App() {
   const [auth, setAuth] = useState(null);
   const [users, setUsers] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
   const [ops, setOps] = useState([]);
   const [recurrences, setRecurrences] = useState([]);
   const [ranks, setRanks] = useState([]);
@@ -222,12 +224,23 @@ function App() {
     setTemplates(templateList);
     setOps(data.ops || []);
     setRecurrences(data.recurrences || []);
+    setCampaigns(data.campaigns || []);
     setAuth(nextAuth);
     setSelectedTemplateId(templateList?.[0]?.id || null);
     setSelectedOpId(null);
     setOpForm((prev) => ({ ...prev, templateId: templateList?.[0]?.id || null }));
     setPage('overview');
   };
+
+  const loadCampaigns = async () => {
+    try {
+      const res = await fetch(`${API}/campaigns`);
+      const data = await res.json();
+      if (data.campaigns) setCampaigns(data.campaigns);
+    } catch (e) {}
+  };
+
+  useEffect(() => { loadCampaigns(); }, []);
 
   const loadPrivateData = async () => {
     const token = localStorage.getItem('token');
@@ -264,6 +277,7 @@ function App() {
   const goToRanks = () => setPage('ranks');
   const goToDashboard = () => setPage('overview');
   const goToSettings = () => setPage('settings');
+  const goToCampaigns = () => setPage('campaigns');
   const showOpOnDashboard = (opId) => {
     setSelectedOpId(opId);
     setPage('overview');
@@ -760,6 +774,71 @@ function App() {
       return null;
     }
     return data.url;
+  };
+
+  const createCampaign = async (payload) => {
+    const token = localStorage.getItem('token');
+    if (!token) return { success: false, error: 'Login required' };
+    try {
+      const res = await fetch(`${API}/campaigns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (err) {
+        data = null;
+      }
+
+      if (res.ok && data && data.campaign) {
+        setCampaigns((prev) => [...prev, data.campaign]);
+        return { success: true, campaign: data.campaign };
+      }
+
+      const serverMessage = data && data.error ? data.error : (text || `Server responded ${res.status}`);
+      return { success: false, error: serverMessage };
+    } catch (e) {
+      return { success: false, error: e.message || 'Could not create campaign' };
+    }
+  };
+
+  const updateCampaign = async (id, updates) => {
+    const token = localStorage.getItem('token');
+    if (!token) return { success: false, error: 'Login required' };
+    try {
+      const res = await fetch(`${API}/campaigns/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updates)
+      });
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (err) {
+        data = null;
+      }
+
+      if (res.ok && data && data.campaign) {
+        setCampaigns((prev) => prev.map((c) => (c.id === data.campaign.id ? data.campaign : c)));
+        return { success: true, campaign: data.campaign };
+      }
+      const serverMessage = data && data.error ? data.error : (text || `Server responded ${res.status}`);
+      return { success: false, error: serverMessage };
+    } catch (e) {
+      return { success: false, error: e.message || 'Could not update campaign' };
+    }
+  };
+
+  const deleteCampaign = async (id) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API}/campaigns/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setCampaigns((prev) => prev.filter((c) => c.id !== id));
+    } catch (e) { alert('Could not delete campaign'); }
   };
 
   const handleModlistDrop = async (opId, type, event) => {
@@ -1968,6 +2047,9 @@ function App() {
               <button className={page === 'dashboard' ? 'tab active' : 'tab'} onClick={goToDashboard}>
                 Overview
               </button>
+              <button className={page === 'campaigns' ? 'tab active' : 'tab'} onClick={goToCampaigns}>
+                Campaigns
+              </button>
               <button className={(page === 'scheduler' || page === 'scheduler-detail') ? 'tab active' : 'tab'} onClick={goToSchedulerList}>
                 Operation scheduler
               </button>
@@ -2058,6 +2140,7 @@ function App() {
                   updateOpSlot={updateOpSlot}
                     setShowLoginPanel={setShowLoginPanel}
                     showOpInScheduler={showOpInScheduler}
+                    campaignImage={campaigns?.[0]?.image}
                 />
               ))}
             </section>
@@ -2130,6 +2213,20 @@ function App() {
             </section>
           ) : null}
 
+          {auth && (isAdmin || isMissionmaker) && page === 'campaigns' ? (
+            <section className="card">
+              <Campaigns
+                campaigns={campaigns}
+                templates={templates}
+                users={users}
+                uploadFile={uploadFile}
+                createCampaign={createCampaign}
+                updateCampaign={updateCampaign}
+                deleteCampaign={deleteCampaign}
+              />
+            </section>
+          ) : null}
+
           {auth && (isAdmin || isMissionmaker) && page === 'op-detail' && selectedOp ? (
             <section className="card">
               <div className="role-add-form" style={{marginBottom:'1rem'}}>
@@ -2152,6 +2249,7 @@ function App() {
                 schedulerLoadTemplateId={schedulerLoadTemplateId}
                 setSchedulerLoadTemplateId={setSchedulerLoadTemplateId}
                 templates={templates}
+                campaigns={campaigns}
                 loadTemplateIntoOp={loadTemplateIntoOp}
                 deleteRecurrence={deleteRecurrence}
                 deleteOp={deleteOp}

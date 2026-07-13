@@ -93,7 +93,8 @@ function ensureDataFile() {
           ]
         }
       ],
-      ops: [],
+        ops: [],
+        campaigns: [],
       recurrences: []
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
@@ -232,6 +233,15 @@ function normalizeStorage(data) {
     }))
   }));
   data.recurrences = data.recurrences || [];
+  data.campaigns = (data.campaigns || []).map((c) => ({
+    id: c.id,
+    name: c.name || '',
+    image: c.image || '',
+    modlistPlayer: c.modlistPlayer || '',
+    modlistServer: c.modlistServer || '',
+    defaultTemplateId: c.defaultTemplateId ?? null,
+    missionmakerUserId: c.missionmakerUserId ?? null
+  }));
   return data;
 }
 
@@ -383,14 +393,14 @@ app.get('/api/public-data', (req, res) => {
   const data = normalizeStorage(readData());
   generateRecurringOps(data);
   const safeUsers = data.users.map(({ password, ...rest }) => rest);
-  res.json({ users: safeUsers, templates: data.templates, ops: data.ops || [] });
+  res.json({ users: safeUsers, templates: data.templates, ops: data.ops || [], campaigns: data.campaigns || [] });
 });
 
 app.get('/api/data', authMiddleware, (req, res) => {
   const data = normalizeStorage(readData());
   generateRecurringOps(data);
   const safeUsers = data.users.map(({ password, ...rest }) => rest);
-  res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role }, users: safeUsers, templates: data.templates, ops: data.ops || [], recurrences: data.recurrences || [] });
+  res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role }, users: safeUsers, templates: data.templates, ops: data.ops || [], recurrences: data.recurrences || [], campaigns: data.campaigns || [] });
 });
 
 app.post('/api/users', authMiddleware, requireAdmin, (req, res) => {
@@ -502,6 +512,64 @@ app.post('/api/templates/:id/duplicate', authMiddleware, requireAdmin, (req, res
   data.templates.push(newTemplate);
   writeData(data);
   res.json({ template: newTemplate });
+});
+
+// Campaigns API
+app.get('/api/campaigns', (req, res) => {
+  const data = normalizeStorage(readData());
+  res.json({ campaigns: data.campaigns || [] });
+});
+
+app.post('/api/campaigns', authMiddleware, (req, res) => {
+  const data = normalizeStorage(readData());
+  const name = (req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const missionmakerUserId = Number(req.body.missionmakerUserId) || null;
+  if (!missionmakerUserId) return res.status(400).json({ error: 'missionmakerUserId required' });
+
+  const campaign = {
+    id: Date.now(),
+    name,
+    image: req.body.image || '',
+    modlistPlayer: req.body.modlistPlayer || '',
+    modlistServer: req.body.modlistServer || '',
+    defaultTemplateId: req.body.defaultTemplateId ? Number(req.body.defaultTemplateId) : null,
+    missionmakerUserId
+  };
+  data.campaigns = data.campaigns || [];
+  data.campaigns.push(campaign);
+  writeData(data);
+  res.json({ campaign });
+});
+
+app.put('/api/campaigns/:id', authMiddleware, (req, res) => {
+  const data = normalizeStorage(readData());
+  const campaign = (data.campaigns || []).find((c) => c.id === Number(req.params.id));
+  if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+  // allow admin or the assigned missionmaker to update
+  if (!(req.user?.role === 'admin' || req.user?.id === campaign.missionmakerUserId)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  if (typeof req.body.name === 'string') campaign.name = req.body.name.trim();
+  if ('image' in req.body) campaign.image = req.body.image || '';
+  if ('modlistPlayer' in req.body) campaign.modlistPlayer = req.body.modlistPlayer || '';
+  if ('modlistServer' in req.body) campaign.modlistServer = req.body.modlistServer || '';
+  if ('defaultTemplateId' in req.body) campaign.defaultTemplateId = req.body.defaultTemplateId ? Number(req.body.defaultTemplateId) : null;
+  if ('missionmakerUserId' in req.body) campaign.missionmakerUserId = req.body.missionmakerUserId ? Number(req.body.missionmakerUserId) : null;
+
+  writeData(data);
+  res.json({ campaign });
+});
+
+app.delete('/api/campaigns/:id', authMiddleware, requireAdmin, (req, res) => {
+  const data = normalizeStorage(readData());
+  const idx = (data.campaigns || []).findIndex((c) => c.id === Number(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: 'Campaign not found' });
+  data.campaigns.splice(idx, 1);
+  writeData(data);
+  res.status(204).end();
 });
 
 app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
