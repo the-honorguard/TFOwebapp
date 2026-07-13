@@ -6,6 +6,21 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import multer from 'multer';
+import dotenv from 'dotenv';
+import pool from './db.js';
+
+dotenv.config();
+
+async function testDb() {
+  try {
+    const [rows] = await pool.query('SELECT 1 AS ok');
+    console.log('DB connected:', rows);
+  } catch (err) {
+    console.error('DB connection error:', err.message);
+  }
+}
+
+testDb();
 
 /*
  * server.js - minimal backend for development and local storage
