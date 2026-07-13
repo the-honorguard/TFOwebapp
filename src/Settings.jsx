@@ -1,16 +1,32 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 
-// Settings page
-// - Edit default operation settings and manage squad types
-// - Uses `uploadCustomMarker` when uploading icons; changes are stored via `setDefaultOpSettings`.
+const SECTION_LABELS = {
+  users: 'Users',
+  templates: 'Templates',
+  ops: 'Operations',
+  recurrences: 'Recurrences',
+  ranks: 'Ranks',
+  campaigns: 'Campaigns',
+  slots: 'Template slots'
+};
+
+const getSectionLabel = (key) => SECTION_LABELS[key] || key;
+const getSectionSummary = (value) => {
+  if (Array.isArray(value)) return `${value.length} items`;
+  if (value && typeof value === 'object') return Object.keys(value).length > 0 ? `${Object.keys(value).length} fields` : '1 item';
+  return 'available';
+};
+
 export default function Settings({
-                                   defaultOpSettings,
-                                   setDefaultOpSettings,
-                                   templates,
-                                   changePassword,
-                                   uploadCustomMarker,
-                                   allRoles
-                                 }) {
+  defaultOpSettings,
+  setDefaultOpSettings,
+  templates,
+  changePassword,
+  uploadCustomMarker,
+  allRoles,
+  exportBackup,
+  importBackup
+}) {
   const [local, setLocal] = useState({
     templateId: defaultOpSettings.templateId || '',
     time: defaultOpSettings.time || '',
@@ -22,6 +38,11 @@ export default function Settings({
     squadTypes: defaultOpSettings.squadTypes || [],
     defaultSlotRole: defaultOpSettings.defaultSlotRole || ''
   });
+  const [backupFileName, setBackupFileName] = useState('');
+  const [backupData, setBackupData] = useState(null);
+  const [selectedSections, setSelectedSections] = useState([]);
+  const [restoreUploads, setRestoreUploads] = useState(false);
+  const [backupError, setBackupError] = useState('');
 
   useEffect(() => {
     setLocal({
@@ -100,162 +121,213 @@ export default function Settings({
     }
   };
 
+  const sectionKeys = backupData ? Object.keys(backupData.data || {}).filter((key) => key !== 'uploads') : [];
+
+  const handleBackupFile = async (file) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || !parsed.data) {
+        throw new Error('Invalid backup file format');
+      }
+      setBackupFileName(file.name);
+      setBackupData(parsed);
+      setBackupError('');
+      setSelectedSections(Object.keys(parsed.data).filter((key) => key !== 'uploads'));
+      setRestoreUploads(Array.isArray(parsed.uploads) && parsed.uploads.length > 0);
+    } catch (err) {
+      setBackupError(err.message || 'Could not read backup file');
+      setBackupFileName('');
+      setBackupData(null);
+      setSelectedSections([]);
+      setRestoreUploads(false);
+    }
+  };
+
+  const toggleSection = (section) => {
+    setSelectedSections((prev) => prev.includes(section) ? prev.filter((item) => item !== section) : [...prev, section]);
+  };
+
+  const handleRestore = async () => {
+    if (!backupData) return;
+    if (!importBackup) { alert('Import not available'); return; }
+    if (!selectedSections.length && !restoreUploads) {
+      alert('Select at least one section or uploaded files to restore.');
+      return;
+    }
+    await importBackup(backupData, selectedSections, restoreUploads);
+  };
+
+  const clearBackupSelection = () => {
+    setBackupFileName('');
+    setBackupData(null);
+    setSelectedSections([]);
+    setRestoreUploads(false);
+    setBackupError('');
+  };
+
   return (
-      <section className="card">
-        <h3>Default values for new operations</h3>
+    <section className="card">
+      <h3>Default values for new operations</h3>
 
-        <form onSubmit={save}>
-          <div className="form-row">
-            <label>Template</label>
-            <select
-                value={local.templateId || ''}
-                onChange={(e) => setLocal((s) => ({ ...s, templateId: e.target.value }))}
-            >
-              <option value="">-- None --</option>
-              {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-              ))}
-            </select>
-          </div>
+      <form onSubmit={save}>
+        <div className="form-row">
+          <label>Template</label>
+          <select
+            value={local.templateId || ''}
+            onChange={(e) => setLocal((s) => ({ ...s, templateId: e.target.value }))}
+          >
+            <option value="">-- None --</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
 
-          <div className="form-row">
-            <label>Time</label>
-            <input
-                value={local.time}
-                onChange={(e) => setLocal((s) => ({ ...s, time: e.target.value }))}
-            />
-          </div>
+        <div className="form-row">
+          <label>Time</label>
+          <input value={local.time} onChange={(e) => setLocal((s) => ({ ...s, time: e.target.value }))} />
+        </div>
 
-          <div className="form-row">
-            <label>Server name</label>
-            <input
-                value={local.serverName}
-                onChange={(e) => setLocal((s) => ({ ...s, serverName: e.target.value }))}
-            />
-          </div>
+        <div className="form-row">
+          <label>Server name</label>
+          <input value={local.serverName} onChange={(e) => setLocal((s) => ({ ...s, serverName: e.target.value }))} />
+        </div>
 
-          <div className="form-row">
-            <label>Modlist</label>
-            <input
-                value={local.modlist}
-                onChange={(e) => setLocal((s) => ({ ...s, modlist: e.target.value }))}
-            />
-          </div>
+        <div className="form-row">
+          <label>Modlist</label>
+          <input value={local.modlist} onChange={(e) => setLocal((s) => ({ ...s, modlist: e.target.value }))} />
+        </div>
 
-          <div className="form-row">
-            <label>TS address</label>
-            <input
-                value={local.tsAddress}
-                onChange={(e) => setLocal((s) => ({ ...s, tsAddress: e.target.value }))}
-            />
-          </div>
+        <div className="form-row">
+          <label>TS address</label>
+          <input value={local.tsAddress} onChange={(e) => setLocal((s) => ({ ...s, tsAddress: e.target.value }))} />
+        </div>
 
-          <div className="form-row">
-            <label>Recurrence</label>
-            <select
-                value={local.recurrence}
-                onChange={(e) => setLocal((s) => ({ ...s, recurrence: e.target.value }))}
-            >
-              <option value="none">None</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Biweekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
+        <div className="form-row">
+          <label>Recurrence</label>
+          <select value={local.recurrence} onChange={(e) => setLocal((s) => ({ ...s, recurrence: e.target.value }))}>
+            <option value="none">None</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Biweekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
 
-          <div className="form-row">
-            <label>Minimum signup age</label>
-            <input
-                type="number"
-                min="13"
-                max="120"
-                value={local.minSignupAge}
-                onChange={(e) => setLocal((s) => ({ ...s, minSignupAge: e.target.value }))}
-            />
-          </div>
+        <div className="form-row">
+          <label>Minimum signup age</label>
+          <input type="number" min="13" max="120" value={local.minSignupAge} onChange={(e) => setLocal((s) => ({ ...s, minSignupAge: e.target.value }))} />
+        </div>
 
-          <div className="form-row">
-            <small>
-              Users must be older than this age to complete signup; signup will validate integer age
-              and reject younger users.
-            </small>
-          </div>
+        <div className="form-row">
+          <small>Users must be older than this age to complete signup; signup will validate integer age and reject younger users.</small>
+        </div>
 
-          <div className="form-row">
-            <label>Default role for new slots</label>
-            <select
-                value={local.defaultSlotRole || ''}
-                onChange={(e) => setLocal((s) => ({ ...s, defaultSlotRole: e.target.value }))}
-            >
-              <option value="">-- None --</option>
-              {(allRoles || []).map((r) => (
-                  <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
+        <div className="form-row">
+          <label>Default role for new slots</label>
+          <select value={local.defaultSlotRole || ''} onChange={(e) => setLocal((s) => ({ ...s, defaultSlotRole: e.target.value }))}>
+            <option value="">-- None --</option>
+            {(allRoles || []).map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
 
-          <div className="form-row">
-            <button type="submit">Save</button>
-          </div>
-        </form>
+        <div className="form-row">
+          <button type="submit">Save</button>
+        </div>
+      </form>
 
-        <section className="card" style={{ marginTop: '1rem' }}>
-          <h3>Squad types</h3>
+      <section className="card" style={{ marginTop: '1rem' }}>
+        <h3>Squad types</h3>
 
-          <div className="form-row">
-            <button type="button" onClick={addSquadType}>Add squad type</button>
-          </div>
+        <div className="form-row">
+          <button type="button" onClick={addSquadType}>Add squad type</button>
+        </div>
 
-          {(local.squadTypes || []).map((st, idx) => {
-            const inputId = `squad-icon-${st.id || idx}`;
-            const src = st.icon ? (st.icon.startsWith('/') ? st.icon : `/markers/${st.icon}`) : null;
-            return (
-              <div key={st.id || idx} className="form-row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <label style={{ minWidth: 38 }}>Type</label>
-                <input
-                    value={st.name}
-                    onChange={(e) => updateSquadType(idx, { name: e.target.value })}
-                    placeholder="Name"
-                    style={{ flex: '1 1 200px', maxWidth: 320 }}
-                />
-
-                <div
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const f = e.dataTransfer.files && e.dataTransfer.files[0];
-                      if (f) uploadForSquadType(idx, f);
-                    }}
-                    style={{ width: 56, height: 56, border: '2px dashed #666', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}
-                    title="Drop an image file here or click to choose"
-                    onClick={() => document.getElementById(inputId)?.click()}
-                >
-                  {src ? (
-                      <img src={src} alt="icon" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                      <div style={{ width: 28, height: 28, background: '#333', borderRadius: 4 }} />
-                  )}
-                </div>
-                <input id={inputId} type="file" accept=".svg,.png,.jpg,.jpeg,.gif" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) uploadForSquadType(idx, f); }} />
-
-                <button type="button" onClick={() => removeSquadType(idx)} style={{ marginLeft: 8 }}>Remove</button>
+        {(local.squadTypes || []).map((st, idx) => {
+          const inputId = `squad-icon-${st.id || idx}`;
+          const src = st.icon ? (st.icon.startsWith('/') ? st.icon : `/markers/${st.icon}`) : null;
+          return (
+            <div key={st.id || idx} className="form-row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <label style={{ minWidth: 38 }}>Type</label>
+              <input value={st.name} onChange={(e) => updateSquadType(idx, { name: e.target.value })} placeholder="Name" style={{ flex: '1 1 200px', maxWidth: 320 }} />
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+                  if (f) uploadForSquadType(idx, f);
+                }}
+                style={{ width: 56, height: 56, border: '2px dashed #666', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}
+                title="Drop an image file here or click to choose"
+                onClick={() => document.getElementById(inputId)?.click()}
+              >
+                {src ? (
+                  <img src={src} alt="icon" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: 28, height: 28, background: '#333', borderRadius: 4 }} />
+                )}
               </div>
-            );
-          })}
+              <input id={inputId} type="file" accept=".svg,.png,.jpg,.jpeg,.gif" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) uploadForSquadType(idx, f); }} />
+              <button type="button" onClick={() => removeSquadType(idx)} style={{ marginLeft: 8 }}>Remove</button>
+            </div>
+          );
+        })}
 
-          <div className="form-row">
-            <small>Define squad type names and their default map icon. These values will be used as defaults for new operations.</small>
-          </div>
-        </section>
-
-        <section className="card" style={{ marginTop: '1.5rem' }}>
-          <h3>Change password</h3>
-          <ChangePasswordForm changePassword={changePassword} />
-        </section>
+        <div className="form-row">
+          <small>Define squad type names and their default map icon. These values will be used as defaults for new operations.</small>
+        </div>
       </section>
+
+      <section className="card" style={{ marginTop: '1.5rem' }}>
+        <h3>Change password</h3>
+        <ChangePasswordForm changePassword={changePassword} />
+      </section>
+
+      <section className="card" style={{ marginTop: '1.5rem' }}>
+        <h3>Backup / Restore</h3>
+        <div className="form-row" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => { if (exportBackup) exportBackup(); else alert('Export not available'); }}>Export backup</button>
+          <button type="button" onClick={() => { const el = document.getElementById('import-backup-file'); if (el) el.click(); }}>Load backup file</button>
+          <input id="import-backup-file" type="file" accept="application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) { handleBackupFile(f); e.target.value = ''; } }} />
+        </div>
+        <div className="form-row">
+          <small>Exported backup includes application data and uploaded files. Load a backup first, then choose which sections to restore.</small>
+        </div>
+        {backupError ? (
+          <div className="form-row" style={{ color: 'var(--danger)' }}>{backupError}</div>
+        ) : null}
+        {backupData ? (
+          <div className="form-row" style={{ flexDirection: 'column', gap: '0.75rem', padding: '0.5rem 0' }}>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <strong>Loaded file:</strong> {backupFileName}
+              <strong>Top-level keys:</strong> {Object.keys(backupData.data).join(', ')}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+              {sectionKeys.map((key) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input type="checkbox" checked={selectedSections.includes(key)} onChange={() => toggleSection(key)} />
+                  <span>{getSectionLabel(key)} ({getSectionSummary(backupData.data[key])})</span>
+                </label>
+              ))}
+              {Array.isArray(backupData.uploads) && backupData.uploads.length > 0 ? (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input type="checkbox" checked={restoreUploads} onChange={() => setRestoreUploads((prev) => !prev)} />
+                  <span>Uploaded files ({backupData.uploads.length})</span>
+                </label>
+              ) : null}
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button type="button" onClick={handleRestore}>Restore selected data</button>
+              <button type="button" className="secondary" onClick={clearBackupSelection}>Clear loaded file</button>
+            </div>
+          </div>
+        ) : null}
+      </section>
+    </section>
   );
 }
 
@@ -272,17 +344,14 @@ function ChangePasswordForm({ changePassword }) {
 
   const submit = async (e) => {
     e.preventDefault();
-
     if (!changePassword) {
       alert('Password change is not available');
       return;
     }
-
     if (newPassword !== confirmPassword) {
       alert('New passwords do not match');
       return;
     }
-
     const success = await changePassword(currentPassword, newPassword);
     if (success) {
       setCurrentPassword('');
@@ -292,37 +361,22 @@ function ChangePasswordForm({ changePassword }) {
   };
 
   return (
-      <form onSubmit={submit}>
-        <div className="form-row">
-          <label>Current password</label>
-          <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-          />
-        </div>
-
-        <div className="form-row">
-          <label>New password</label>
-          <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Confirm new password</label>
-          <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        </div>
-
-        <div className="form-row">
-          <button type="submit">Save password</button>
-        </div>
-      </form>
+    <form onSubmit={submit}>
+      <div className="form-row">
+        <label>Current password</label>
+        <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+      </div>
+      <div className="form-row">
+        <label>New password</label>
+        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+      </div>
+      <div className="form-row">
+        <label>Confirm new password</label>
+        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+      </div>
+      <div className="form-row">
+        <button type="submit">Save password</button>
+      </div>
+    </form>
   );
 }

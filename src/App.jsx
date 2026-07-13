@@ -73,7 +73,7 @@ function App() {
   });
   const [signupErrors, setSignupErrors] = useState({});
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'member', rank: '', status: 'Active' });
-  const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', serverName: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '' });
+  const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', serverName: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '', campaignId: null });
   const [defaultOpSettings, setDefaultOpSettings] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('defaultOpSettings') || '{}');
@@ -228,7 +228,7 @@ function App() {
     setAuth(nextAuth);
     setSelectedTemplateId(templateList?.[0]?.id || null);
     setSelectedOpId(null);
-    setOpForm((prev) => ({ ...prev, templateId: templateList?.[0]?.id || null }));
+    setOpForm((prev) => ({ ...prev, templateId: templateList?.[0]?.id || null, campaignId: defaultOpSettings.campaignId || (data.campaigns && data.campaigns[0] ? data.campaigns[0].id : null) }));
     setPage('overview');
   };
 
@@ -521,6 +521,7 @@ function App() {
         time: defaultOpSettings.time || '',
         serverName: defaultOpSettings.serverName || '',
         tsAddress: defaultOpSettings.tsAddress || '',
+        campaignId: defaultOpSettings.campaignId || null,
         recurrence: defaultOpSettings.recurrence || 'none',
         weeklyDays: [],
         monthlyDay: null
@@ -774,6 +775,72 @@ function App() {
       return null;
     }
     return data.url;
+  };
+
+  const exportBackup = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) { alert('Login required'); return; }
+    try {
+      const res = await fetch(`${API}/backup`, { headers: { Authorization: `Bearer ${token}` } });
+      const responseText = await res.text();
+      let data;
+      try {
+        data = responseText ? JSON.parse(responseText) : null;
+      } catch (parseErr) {
+        throw new Error(`Server returned invalid JSON (${res.status}): ${responseText.slice(0, 200) || 'empty response'}`);
+      }
+      if (!res.ok) throw new Error(data?.error || `Could not export backup (HTTP ${res.status})`);
+      if (!data || typeof data !== 'object') throw new Error('Backup response was empty');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tfo-backup-${new Date().toISOString().replace(/[:]/g, '-')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Export failed: ' + (e.message || e));
+    }
+  };
+
+  const importBackup = async (backupPayload, selectedSections = [], restoreUploads = false) => {
+    const token = localStorage.getItem('token');
+    if (!token) { alert('Login required'); return; }
+    try {
+      let payload;
+      if (backupPayload instanceof File) {
+        const text = await backupPayload.text();
+        payload = JSON.parse(text);
+      } else {
+        payload = backupPayload;
+      }
+      if (!payload || typeof payload !== 'object' || !payload.data) {
+        throw new Error('Invalid backup payload');
+      }
+
+      const body = {
+        data: payload.data,
+        selectedSections: Array.isArray(selectedSections) ? selectedSections : [],
+        restoreUploads: Boolean(restoreUploads)
+      };
+      if (restoreUploads) {
+        body.uploads = Array.isArray(payload.uploads) ? payload.uploads : [];
+      }
+
+      const res = await fetch(`${API}/backup/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Import failed');
+      alert('Import successful');
+      loadPrivateData();
+    } catch (e) {
+      alert('Import failed: ' + (e.message || e));
+    }
   };
 
   const createCampaign = async (payload) => {
@@ -2155,6 +2222,8 @@ function App() {
                   allRoles={allRoles}
                   changePasswordForm={changePasswordForm}
                   setChangePasswordForm={setChangePasswordForm}
+                  exportBackup={exportBackup}
+                  importBackup={importBackup}
               />
           ) : null}
           {auth && page === 'profile' ? (

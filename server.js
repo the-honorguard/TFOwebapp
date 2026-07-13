@@ -1115,6 +1115,89 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
   });
 });
 
+  // Export full application data and included uploads as a single JSON payload
+  app.get('/api/backup', authMiddleware, requireAdmin, (req, res) => {
+    try {
+      const data = normalizeStorage(readData());
+      generateRecurringOps(data);
+
+      const uploads = [];
+      if (fs.existsSync(UPLOADS_DIR)) {
+        const files = fs.readdirSync(UPLOADS_DIR);
+        for (const fname of files) {
+          const full = path.join(UPLOADS_DIR, fname);
+          try {
+            const stat = fs.statSync(full);
+            if (!stat.isFile()) continue;
+            const ext = path.extname(fname).toLowerCase();
+            if (!ALLOWED_UPLOAD_EXTENSIONS.has(ext)) continue;
+            const content = fs.readFileSync(full);
+            uploads.push({ filename: fname, content: content.toString('base64') });
+          } catch (e) {
+            // ignore individual file errors
+          }
+        }
+      }
+
+      res.json({ data, uploads });
+    } catch (e) {
+      res.status(500).json({ error: 'Could not prepare backup' });
+    }
+  });
+
+  // Import application backup (JSON payload with `data` and optional `uploads` array)
+  app.post('/api/backup/import', authMiddleware, requireAdmin, (req, res) => {
+    try {
+      const payload = req.body;
+      if (!payload || typeof payload !== 'object' || !payload.data) {
+        return res.status(400).json({ error: 'Invalid payload' });
+      }
+
+      const selectedSections = Array.isArray(payload.selectedSections) ? payload.selectedSections : [];
+      const restoreUploads = Boolean(payload.restoreUploads);
+      const backupData = normalizeStorage(payload.data);
+      const currentData = normalizeStorage(readData());
+
+      if (!selectedSections.length && !restoreUploads) {
+        return res.status(400).json({ error: 'No sections selected for restore' });
+      }
+
+      // create uploads dir if missing
+      if (restoreUploads && !fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+      // restore uploads (safe filenames only)
+      if (restoreUploads && Array.isArray(payload.uploads)) {
+        for (const item of payload.uploads) {
+          try {
+            const name = path.basename(String(item.filename || ''));
+            const ext = path.extname(name).toLowerCase();
+            if (!name || !ALLOWED_UPLOAD_EXTENSIONS.has(ext) || typeof item.content !== 'string') continue;
+            const dest = path.join(UPLOADS_DIR, name);
+            fs.writeFileSync(dest, Buffer.from(item.content, 'base64'));
+          } catch (e) {
+            // ignore individual file write errors
+          }
+        }
+      }
+
+      const allowedKeys = new Set(['users', 'templates', 'ops', 'recurrences', 'ranks', 'campaigns', 'slots']);
+      const nextData = { ...currentData };
+
+      for (const key of selectedSections) {
+        if (!allowedKeys.has(key)) continue;
+        if (key in backupData) {
+          nextData[key] = backupData[key];
+        }
+      }
+
+      // Always keep current uploads unless restoreUploads is true
+      writeData(nextData);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Import failed' });
+    }
+  });
+
 // Return full current user object (safe)
 app.get('/api/users/me', authMiddleware, (req, res) => {
   const data = normalizeStorage(readData());
