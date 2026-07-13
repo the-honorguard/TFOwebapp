@@ -1,47 +1,91 @@
 <div align="center">
 
-# TFO Web App
+<img src="tfo-emoji.png" alt="TFO" width="80" />
 
-**ORBAT viewer · Operation scheduler · Template builder**
+<h1>TFO Web App</h1>
 
-![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![React](https://img.shields.io/badge/React-18.x-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![Express](https://img.shields.io/badge/Express-4.x-000000?style=for-the-badge&logo=express&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?style=for-the-badge&logo=node.js&logoColor=white)
+<p>Internal web platform for Task Force Omega — operation planning, ORBAT management, and attendance tracking.</p>
+
+<p>
+  <img src="https://img.shields.io/badge/React-18-20232A?style=flat-square&logo=react&logoColor=61DAFB" />
+  <img src="https://img.shields.io/badge/Vite-5-646CFF?style=flat-square&logo=vite&logoColor=white" />
+  <img src="https://img.shields.io/badge/Express-4-000000?style=flat-square&logo=express&logoColor=white" />
+  <img src="https://img.shields.io/badge/Node.js-20-339933?style=flat-square&logo=node.js&logoColor=white" />
+  <img src="https://img.shields.io/badge/JWT-auth-black?style=flat-square&logo=jsonwebtokens&logoColor=white" />
+  <img src="https://img.shields.io/badge/status-private-lightgrey?style=flat-square" />
+</p>
+
+<p>
+  <a href="#deployment"><strong>Deployment</strong></a>
+  &nbsp;&middot;&nbsp;
+  <a href="#api-reference"><strong>API Reference</strong></a>
+  &nbsp;&middot;&nbsp;
+  <a href="#getting-started"><strong>Getting Started</strong></a>
+</p>
 
 </div>
 
 ---
 
-## Overview
-
-TFO Web App is a full-stack internal tool for managing operations, templates, user roles, slot sign-ups, campaigns, and related assets.  
-The frontend is a React/Vite SPA; the backend is a single Express process that serves both the API and the built client.
-
----
-
 ## Features
 
-- **ORBAT Overview** — public read-only canvas viewer; players can join slots (login required)
-- **Scheduler** — create, edit, and manage scheduled operations and recurrences (admin/missionmaker)
-- **Template Builder** — design reusable section/slot presets to load into operations
-- **User management** — roles (`admin`, `missionmaker`, `member`), permissions, rank, status, avatar
-- **File uploads** — marker icons, avatars and admin assets; validated by extension, capped at 5 MB
-- **Recurring operations** — daily / weekly / biweekly / monthly generation with optional end date
-- **Local persistence** — lightweight JSON file store, zero external database required
+<table>
+<tr>
+<td width="50%">
+
+**ORBAT Overview**\
+Public canvas-style ORBAT viewer. Supports node/link layout and a compact card grid for narrow viewports. Players can join available slots (login required).
+
+</td>
+<td width="50%">
+
+**Operation Scheduler**\
+Create, edit, and manage scheduled operations with full recurrence support — daily, weekly, biweekly, and monthly. Admin and missionmaker only.
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Template Builder**\
+Design and manage reusable section/slot presets. Templates define structure and default markers — they load into operations via the scheduler.
+
+</td>
+<td width="50%">
+
+**User Management**\
+Role-based access (`admin`, `missionmaker`, `member`), per-user permissions, rank, status, and avatar uploads.
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**File Uploads**\
+Supports marker icons, avatars, and admin assets. Extension-validated, 5 MB cap, UUID-named storage under `uploads/`.
+
+</td>
+<td width="50%">
+
+**Campaigns**\
+Link operations to named campaigns with player/server modlists, default templates, and assigned missionmakers.
+
+</td>
+</tr>
+</table>
 
 ---
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 18, Vite 5 |
-| Backend | Node.js 20, Express 4 |
-| Auth | JWT (`jsonwebtoken`), bcrypt (`bcryptjs`) |
-| Uploads | Multer |
-| Persistence | Local JSON (`data/app-data.json`) |
-| Dev tooling | Vite, `concurrently`, `@vitejs/plugin-react` |
+| Layer | Technology | Notes |
+|---|---|---|
+| Frontend | React 18, Vite 5 | SPA, entry `src/main.jsx` |
+| Backend | Node.js 20, Express 4 | Single process, serves API + `dist/` |
+| Auth | `jsonwebtoken`, `bcryptjs` | JWT, Bearer token |
+| Uploads | `multer` | Disk storage, UUID filenames |
+| Persistence | JSON file `data/app-data.json` | Auto-created, seeded on first run |
+| Dev tooling | `concurrently`, `@vitejs/plugin-react` | Parallel dev server |
 
 ---
 
@@ -49,16 +93,16 @@ The frontend is a React/Vite SPA; the backend is a single Express process that s
 
 ```
 .
-├── dist/                   # Production frontend build (generated)
-├── public/                 # Static public assets
+├── dist/                     # Production build (generated)
+├── public/                   # Static assets
 ├── src/
-│   ├── main.jsx            # React entry point
-│   ├── App.jsx             # Routing, global state, API calls
-│   ├── OrbatOverview.jsx   # Public ORBAT/cards viewer
-│   ├── OrbatScheduler.jsx  # Operation detail + sign-up viewer
-│   ├── OrbatTemplate.jsx   # Template editor
-│   └── Settings.jsx        # Admin settings page
-├── server.js               # Express server (API + static serving)
+│   ├── main.jsx              # React entry
+│   ├── App.jsx               # Routing, global state, API calls
+│   ├── OrbatOverview.jsx     # Public ORBAT / cards viewer
+│   ├── OrbatScheduler.jsx    # Operation detail + sign-up editor
+│   ├── OrbatTemplate.jsx     # Template builder
+│   └── Settings.jsx          # Admin settings
+├── server.js                 # Express app — API + static serving
 ├── vite.config.js
 └── package.json
 ```
@@ -67,174 +111,164 @@ The frontend is a React/Vite SPA; the backend is a single Express process that s
 
 ## Getting Started
 
-### Install dependencies
-
 ```bash
+# Install dependencies
 npm install
-```
 
-### Development — frontend + backend together
-
-```bash
+# Development — frontend + backend in parallel
 npm run dev
-```
 
-### Run individually
+# Build for production
+npm run build
 
-```bash
-npm run server   # Express API only (port 3001 by default)
-npm run client   # Vite dev server only
-```
+# Run API server only
+npm run server
 
-### Production build
-
-```bash
-npm run build    # outputs to dist/
+# Run Vite client only
+npm run client
 ```
 
 ---
 
 ## Architecture
 
-### Frontend
+### Runtime model
 
-- Entry: `src/main.jsx`
-- Routing and UI state: `src/App.jsx` — conditional page rendering, global state (users, templates, ops, recurrences, auth)
-- Auth token stored in `localStorage.token`
-- `defaultOpSettings` persisted to `localStorage` (includes `minSignupAge` and other defaults)
+In production, one Node.js process handles everything:
 
-### Backend
+```
+client request
+      │
+      ▼
+  server.js (Express)
+      ├── /api/*          → REST API handlers
+      ├── /uploads/*      → static file serving
+      └── *               → dist/index.html (SPA fallback)
+```
 
-- Entry: `server.js` — Express application
-- Default port: `3001` (override with `PORT` env var)
-- Serves API routes under `/api/*`
-- Serves the production build from `dist/` via `express.static`
-- Serves uploaded files under `/uploads`
-- Applies a catch-all `GET *` → `dist/index.html` for SPA routing
+### State and data flow
 
-### Persistence
-
-- `data/app-data.json` — created and seeded automatically on first start (default `admin` user included)
-- `uploads/` — created automatically; files stored with UUID filenames
+- App loads public data when no token is present (`/api/public-data`)
+- App loads private data when a valid JWT is in `localStorage.token` (`/api/data`)
+- Most write actions call the API and update local React state on response
+- `defaultOpSettings` (incl. `minSignupAge`) is persisted to `localStorage`
 
 ---
 
 ## API Reference
 
-### Authentication
-
-Protected endpoints require an `Authorization: Bearer <token>` header.  
-Tokens are JWTs signed by the server (`SECRET` in `server.js`).
-
-### Core endpoints
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST | `/api/login` | — | Authenticate; returns `{ token, user }` |
-| POST | `/api/signup` | — | Create account; returns `{ token, user }` |
-| GET | `/api/public-data` | — | Public payload: `{ users, templates, ops, campaigns }` |
-| GET | `/api/data` | ✓ | Private payload: `{ user, users, templates, ops, recurrences }` |
-| GET | `/api/users/me` | ✓ | Current user object |
-| PUT | `/api/users/me` | ✓ | Update profile |
-| PUT | `/api/users/me/password` | ✓ | Change password |
-
-### Templates (admin)
+### Auth
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/templates` | Create template |
-| PUT | `/api/templates/:id` | Update template |
-| DELETE | `/api/templates/:id` | Delete template |
-| POST | `/api/templates/:id/duplicate` | Duplicate template |
-| POST/PUT/DELETE | `/api/templates/:id/sections/...` | Section management |
-| POST/PUT/DELETE | `/api/templates/:id/slots/...` | Slot management |
+| `POST` | `/api/login` | Authenticate — returns `{ token, user }` |
+| `POST` | `/api/signup` | Register — returns `{ token, user }` |
+
+Protected routes require `Authorization: Bearer <token>`.
+
+### Data
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/public-data` | — | `{ users, templates, ops, campaigns }` |
+| `GET` | `/api/data` | required | `{ user, users, templates, ops, recurrences }` |
+| `GET` | `/api/users/me` | required | Current user |
+| `PUT` | `/api/users/me` | required | Update profile |
+| `PUT` | `/api/users/me/password` | required | Change password |
+
+### Templates (admin)
+
+```
+POST    /api/templates
+PUT     /api/templates/:id
+DELETE  /api/templates/:id
+POST    /api/templates/:id/duplicate
+POST    /api/templates/:id/sections
+PUT     /api/templates/:templateId/sections/:sectionId
+DELETE  /api/templates/:templateId/sections/:sectionId
+POST    /api/templates/:id/slots
+PUT     /api/templates/:templateId/slots/:slotId
+DELETE  /api/templates/:templateId/slots/:slotId
+PUT     /api/templates/:templateId/sections/:sectionId/slots/reorder
+```
 
 ### Operations
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/api/ops` | admin | Create operation or recurrence |
-| PUT | `/api/ops/:id` | admin/missionmaker | Update operation |
-| DELETE | `/api/ops/:id` | admin | Delete operation |
-| POST | `/api/ops/:id/join` | ✓ | Sign up to a slot |
-| POST | `/api/ops/:id/signoff` | ✓ | Sign off from a slot |
-| PUT | `/api/ops/:id/slots/:slotId` | admin/missionmaker | Update slot metadata |
+| `POST` | `/api/ops` | admin | Create op or recurrence |
+| `PUT` | `/api/ops/:id` | admin/missionmaker | Update op |
+| `DELETE` | `/api/ops/:id` | admin | Delete op |
+| `POST` | `/api/ops/:id/join` | required | Sign up to a slot |
+| `POST` | `/api/ops/:id/signoff` | required | Sign off from a slot |
+| `PUT` | `/api/ops/:opId/slots/:slotId` | admin/missionmaker | Update slot metadata |
+| `PUT` | `/api/ops/:opId/sections/:sectionId` | admin/missionmaker | Update section metadata |
 
 ### Uploads
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/api/upload` | admin | General file upload |
-| POST | `/api/upload/custom-marker` | admin/missionmaker | Marker icon upload |
-| POST | `/api/upload/avatar` | ✓ | User avatar upload |
-
----
-
-## Views
-
-| Page key | Component | Role | Description |
-|---|---|---|---|
-| `overview` | `OrbatOverview` | Public | Canvas ORBAT + cards fallback; slot join |
-| `scheduler` | `OrbatScheduler` | admin/missionmaker | Schedule and manage operations |
-| `scheduler-detail` / `op-detail` | `OrbatScheduler` | admin/missionmaker | Full operation view with sign-up state |
-| `builder` | `OrbatTemplate` | admin/missionmaker | Template editor |
-| `signup` | `App.jsx` | Public | Registration form with age validation |
-| `players` / `roles` / `settings` | Admin pages | admin | User and configuration management |
+| `POST` | `/api/upload` | admin | General upload |
+| `POST` | `/api/upload/custom-marker` | admin/missionmaker | Marker icon |
+| `POST` | `/api/upload/avatar` | required | User avatar |
 
 ---
 
 ## Deployment
 
-The app is designed to run as a **single Node.js process** — one command starts both the API and the static file server.
-
-### Production setup
-
-```bash
-npm run build       # Generate dist/
-node server.js      # Serve API + frontend
-```
+This app is designed to run as a **single Node.js process** on a cPanel-compatible shared hosting environment.
 
 ### Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `3001` | HTTP port |
-| `NODE_ENV` | — | Set to `production` for production mode |
+| `PORT` | `3001` | HTTP port (injected automatically by cPanel) |
+| `NODE_ENV` | — | Set to `production` |
+| `JWT_SECRET` | — | Secret used to sign tokens — see security note below |
 
-> ⚠️ The JWT secret is currently hardcoded in `server.js` as `tfo-secret`.  
-> Replace it with `process.env.JWT_SECRET` and inject a strong secret before exposing this app publicly.
+> **Security note:** ensure `JWT_SECRET` is set via environment variable and never hardcoded before exposing this app publicly.
 
-### cPanel / shared hosting (Node.js App)
+### cPanel Node.js App configuration
 
-This app has been validated on a cPanel-based Node.js deployment (o2Switch):
+| Field | Value |
+|---|---|
+| Node.js version | `20.x` |
+| Application mode | `Production` |
+| Startup file | `server.js` |
 
-- Upload project files (including `dist/`) to the application root
-- Set startup file to `server.js`
-- Run in `Production` mode with `NODE_ENV=production`
-- Install dependencies via the cPanel NPM installer
-- Point a subdomain to the application root
-- Enable HTTPS via Let's Encrypt (add a CAA DNS record on the subdomain first if using an `odns.fr`-style shared domain)
+**First deployment:**
+
+1. Build locally with `npm run build`
+2. Upload all project files including `dist/` via FTP to the application root
+3. Run NPM Install from the cPanel Node.js App interface
+4. Start the application
 
 ### Update workflow
 
 ```bash
-# Local
+# 1. Rebuild
 npm run build
-# Upload new dist/ via FTP
-# Restart the Node.js App in cPanel
+
+# 2. Upload new dist/ via FTP to the application root
+
+# 3. Restart — cPanel > Node.js App > Restart
 ```
 
 ---
 
 ## Notes
 
-- `data/` and `uploads/` are created automatically on first run — do not need to exist before deployment
-- Signup minimum age is controlled via `defaultOpSettings.minSignupAge` in `Settings` (stored in `localStorage`)
-- Auth token is stored in `localStorage.token` — cleared on logout
-- For scaling or concurrent write-heavy workloads, consider replacing the JSON file store with a database
+- `data/` and `uploads/` are created automatically on first run — no manual setup required
+- A default admin account is seeded on first start — update credentials immediately via Settings
+- Signup minimum age is driven by `defaultOpSettings.minSignupAge` (set in Settings, persisted to `localStorage`)
+- File-based storage is not suited for concurrent heavy writes — consider a database for scale
 
 ---
 
-## Files to review
+<div align="center">
 
-[`src/App.jsx`](src/App.jsx) · [`src/OrbatOverview.jsx`](src/OrbatOverview.jsx) · [`src/OrbatScheduler.jsx`](src/OrbatScheduler.jsx) · [`src/OrbatTemplate.jsx`](src/OrbatTemplate.jsx) · [`src/Settings.jsx`](src/Settings.jsx) · [`server.js`](server.js)
+**Files to review**
+
+[`App.jsx`](src/App.jsx) &middot; [`OrbatOverview.jsx`](src/OrbatOverview.jsx) &middot; [`OrbatScheduler.jsx`](src/OrbatScheduler.jsx) &middot; [`OrbatTemplate.jsx`](src/OrbatTemplate.jsx) &middot; [`Settings.jsx`](src/Settings.jsx) &middot; [`server.js`](server.js)
+
+</div>
