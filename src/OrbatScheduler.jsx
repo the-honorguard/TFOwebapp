@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 
-// Editable ORBAT view for a single scheduled operation (admin scheduler detail page).
-// The canvas/grid below is an exact code copy of OrbatTemplate.jsx's render output (flow mode +
-// form mode), not a reused/simplified version. It is wired to the same template-level handlers
-// (bound to selectedOp.templateId) so behavior is identical to the Template Builder for now.
+/**
+ * OrbatScheduler
+ * - Editable ORBAT view for one scheduled operation (scheduler detail page).
+ * - Reuses the same canvas/form rendering logic as the Template Builder.
+ * - Receives a large set of handlers and helpers from `App` so the scheduler
+ *   can operate on the selected operation's template sections and slots.
+ */
 export default function OrbatScheduler({
   selectedOp,
   selectedRecurrenceId,

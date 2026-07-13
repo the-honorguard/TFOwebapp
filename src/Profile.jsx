@@ -1,5 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 
+// Profile component
+// - Loads the current user's full profile (via `/api/users/me`) and allows
+//   editing profile fields, uploading avatar and changing password.
+// - Falls back to provided `auth` + `users` props if the API does not return data.
 export default function Profile({ auth, users = [], ops = [], changePassword, uploadAvatar, updateMyProfile }) {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);

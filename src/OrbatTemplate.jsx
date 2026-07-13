@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 
-// Template builder ORBAT view (flow mode canvas + form mode grid), no occupant info.
-// Extracted 1:1 from App.jsx's "Configure template" render block; rendered once per selected template.
+/**
+ * OrbatTemplate
+ * - Template builder view: renders template sections in a flow/canvas layout or grid form
+ * - No occupant information is present here; this view is used for editing template structure
+ * - Expects a set of handler functions from the parent to perform mutations (add/delete/update)
+ */
 export default function OrbatTemplate({
   template,
   builderFlowMode,

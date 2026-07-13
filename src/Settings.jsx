@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 
+// Settings page
+// - Edit default operation settings and manage squad types
+// - Uses `uploadCustomMarker` when uploading icons; changes are stored via `setDefaultOpSettings`.
 export default function Settings({
                                    defaultOpSettings,
                                    setDefaultOpSettings,

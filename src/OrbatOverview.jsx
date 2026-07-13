@@ -1,5 +1,11 @@
-// Read-only ORBAT view used on the public/overview page for the next upcoming operations.
-// Extracted 1:1 from App.jsx's overview render block; props are the exact values/helpers it used before.
+/**
+ * Read-only ORBAT view used on the public/overview page for upcoming operations.
+ * This component is a presentational view: it receives operation data and a set
+ * of helper callbacks from the parent `App` component and renders the ORBAT canvas
+ * or grid depending on `effectiveOverviewMode`.
+ *
+ * Props: see parameter list below (kept explicit for clarity).
+ */
 export default function OrbatOverview({
   op,
   users,

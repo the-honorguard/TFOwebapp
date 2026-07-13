@@ -1,8 +1,13 @@
+// App.jsx: central application component
+// - Maintains top-level state (auth, templates, ops, users, UI state)
+// - Provides most data-loading and mutation functions used across the child components
+// - Keep heavy UI rendering in child components (OrbatOverview/OrbatScheduler/OrbatTemplate)
 import { useEffect, useMemo, useRef, useState } from 'react';
 import OrbatOverview from './OrbatOverview';
 import OrbatScheduler from './OrbatScheduler';
 import OrbatTemplate from './OrbatTemplate';
 import Settings from './Settings';
+import Ranks from './Ranks';
 import Profile from './Profile';
 
 const API = '/api';
@@ -13,6 +18,7 @@ function App() {
   const [templates, setTemplates] = useState([]);
   const [ops, setOps] = useState([]);
   const [recurrences, setRecurrences] = useState([]);
+  const [ranks, setRanks] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [schedulerLoadTemplateId, setSchedulerLoadTemplateId] = useState('');
   const [selectedOpId, setSelectedOpId] = useState(null);
@@ -258,11 +264,23 @@ function App() {
     applyLoadedData(data, null);
   };
 
+  const loadRanks = async () => {
+    try {
+      const res = await fetch(`${API}/ranks`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setRanks(data.ranks || []);
+    } catch (e) {
+      // ignore
+    }
+  };
+
   const goToOverview = () => setPage('overview');
   const goToScheduler = () => setPage('scheduler');
   const goToBuilder = () => setPage('builder');
   const goToRoles = () => setPage('roles');
   const goToPlayers = () => setPage('players');
+  const goToRanks = () => setPage('ranks');
   const goToDashboard = () => setPage('overview');
   const goToSettings = () => setPage('settings');
   const showOpOnDashboard = (opId) => {
@@ -287,6 +305,7 @@ function App() {
     } else {
       loadPublicData();
     }
+    loadRanks();
   }, []);
 
   useEffect(() => {
@@ -1326,6 +1345,12 @@ function App() {
 
   const selectedOp = useMemo(() => ops.find((op) => op.id === selectedOpId), [ops, selectedOpId]);
   const getTemplateName = (templateId) => templates.find((template) => template.id === Number(templateId))?.name || 'Unknown template';
+  const getRankLabel = (rankVal) => {
+    if (!rankVal && rankVal !== 0) return '-';
+    const found = ranks.find((r) => r.id === Number(rankVal) || r.name === rankVal || r.short === rankVal);
+    if (found) return `${found.name}${found.short ? ` (${found.short})` : ''}`;
+    return String(rankVal);
+  };
   const sortedOps = useMemo(() => {
     return [...ops].sort((a, b) => {
       if (a.date === b.date) return a.time.localeCompare(b.time);
@@ -1620,7 +1645,7 @@ function App() {
     if (!name) return;
     const key = normalizeRoleKey(name);
     if (allRoles.some((existing) => normalizeRoleKey(existing) === key)) {
-      alert('Role aldready exist');
+      alert('Role already exists');
       return;
     }
     setExtraRoles((prev) => [...prev, name]);
@@ -1690,22 +1715,7 @@ function App() {
     }
   };
 
-  {/*const changePassword = async (currentPassword, newPassword) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/users/me/password`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ currentPassword, newPassword })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert('Password changed successfully');
-      return true;
-    } else {
-      alert(data.error || 'Could not change password');
-      return false;
-    }
-  };*/}
+  
 
   const deleteTemplate = async (templateId) => {
     if (!window.confirm('Are you sure you want to delete this template?')) return;
@@ -1984,6 +1994,9 @@ function App() {
               </button>
               <button className={page === 'roles' ? 'tab active' : 'tab'} onClick={goToRoles}>
                 Roles
+              </button>
+              <button className={page === 'ranks' ? 'tab active' : 'tab'} onClick={goToRanks}>
+                Ranks
               </button>
               <button className={page === 'players' ? 'tab active' : 'tab'} onClick={goToPlayers}>
                 Player List
@@ -2436,11 +2449,12 @@ function App() {
                         value={userForm.password}
                         onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
                       />
-                      <input
-                        placeholder="Rank"
-                        value={userForm.rank}
-                        onChange={(e) => setUserForm({ ...userForm, rank: e.target.value })}
-                      />
+                      <select value={userForm.rank} onChange={(e) => setUserForm({ ...userForm, rank: e.target.value ? Number(e.target.value) : '' })}>
+                        <option value="">Select rank</option>
+                        {ranks.map((r) => (
+                          <option key={r.id} value={r.id}>{r.name}{r.short ? ` (${r.short})` : ''}</option>
+                        ))}
+                      </select>
                       <select value={userForm.status} onChange={(e) => setUserForm({ ...userForm, status: e.target.value })}>
                         <option value="Active">Active</option>
                         <option value="Inactive">Inactive</option>
@@ -2479,7 +2493,7 @@ function App() {
                             {users.map((user) => (
                               <tr key={user.id} className={user.status !== 'Active' ? 'inactive-row' : ''}>
                                 <td>{user.username}</td>
-                                <td>{user.rank || '-'}</td>
+                                <td>{getRankLabel(user.rank)}</td>
                                 <td>{user.status || 'Active'}</td>
                                 <td>
                                   <select
@@ -2528,6 +2542,12 @@ function App() {
                     )}
                     <p>Use the Roles button to manage role permissions for each player.</p>
                   </section>
+                </section>
+              )}
+
+              {page === 'ranks' && (
+                <section className="card">
+                  <Ranks ranks={ranks} reloadRanks={loadRanks} setRanks={setRanks} users={users} setUsers={setUsers} uploadFile={uploadFile} />
                 </section>
               )}
 

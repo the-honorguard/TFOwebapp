@@ -7,6 +7,12 @@ import path from 'path';
 import crypto from 'crypto';
 import multer from 'multer';
 
+/*
+ * server.js - minimal backend for development and local storage
+ * - Provides basic REST endpoints under `/api/*` for users, templates, ops and recurrences
+ * - Stores data in `data/app-data.json` (created automatically on first run)
+ * - Simple token-based auth (JWT) and role checks are implemented for admin/missionmaker paths
+ */
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const SECRET = 'tfo-secret';
@@ -42,6 +48,9 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+/** Ensure the data file and containing directory exist.
+ * If the data file is missing it will be initialized with a small example dataset.
+ */
 function ensureDataFile() {
   if (!fs.existsSync(path.dirname(DATA_FILE))) {
     fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
@@ -91,15 +100,18 @@ function ensureDataFile() {
   }
 }
 
+/** Read and normalize the stored data from disk. Always calls `ensureDataFile`. */
 function readData() {
   ensureDataFile();
   return normalizeStorage(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')));
 }
 
+/** Write the provided data object back to the JSON storage file. */
 function writeData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
+/** Middleware: verify JWT token from `Authorization` header and attach `req.user`. */
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.replace('Bearer ', '');
@@ -113,6 +125,7 @@ function authMiddleware(req, res, next) {
   }
 }
 
+/** Middleware: ensure the current user is an admin. */
 function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   next();
@@ -142,7 +155,14 @@ function findOpSlot(op, slotId) {
   return null;
 }
 
+// Helper: build operation sections by copying template section/slot structure
+
+/**
+ * Create a copy of the template sections suitable for an operation instance.
+ * Existing section data (like assignedUserId) can be preserved when provided.
+ */
 function buildOpSectionsFromTemplate(template, existingSections = []) {
+  // Map each template section into an op section, keeping lr/sr/marker defaults
   return (template.sections || []).map((section, index) => {
     const existingSection = existingSections.find((item) => item.id === section.id);
 
@@ -169,6 +189,10 @@ function buildOpSectionsFromTemplate(template, existingSections = []) {
   });
 }
 
+/**
+ * Ensure stored data shape is consistent and fill missing defaults.
+ * Normalizes users, templates, ops and recurrences to expected shapes.
+ */
 function normalizeStorage(data) {
   data.users = (data.users || []).map((user) => ({
     ...user,
@@ -216,6 +240,7 @@ function normalizeDays(days) {
   return [...new Set(days.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))].sort((a, b) => a - b);
 }
 
+// Advance a base ISO datetime by the given recurrence interval.
 function addInterval(dateTime, recurrence) {
   const date = new Date(dateTime);
   if (recurrence === 'daily') {
@@ -228,6 +253,7 @@ function addInterval(dateTime, recurrence) {
   return date.toISOString();
 }
 
+// Compute the next occurrence for weekly/biweekly recurrences based on selected weekdays.
 function getNextWeeklyDate(dateTime, recurrence) {
   const current = new Date(dateTime);
   const selectedDays = normalizeDays(recurrence.weeklyDays);
@@ -248,6 +274,7 @@ function getNextWeeklyDate(dateTime, recurrence) {
   return next.toISOString();
 }
 
+// Compute the next occurrence for monthly recurrences, adjusting for month lengths.
 function getNextMonthlyDate(dateTime, recurrence) {
   const current = new Date(dateTime);
   const monthlyDay = Number(recurrence.monthlyDay);
@@ -267,6 +294,7 @@ function getNextMonthlyDate(dateTime, recurrence) {
   return next.toISOString();
 }
 
+// Delegates to the correct recurrence computation based on recurrence type.
 function getNextRecurrenceDate(dateTime, recurrence) {
   if (recurrence.recurrence === 'daily') return addInterval(dateTime, 'daily');
   if (recurrence.recurrence === 'weekly' || recurrence.recurrence === 'biweekly') return getNextWeeklyDate(dateTime, recurrence);
@@ -274,6 +302,8 @@ function getNextRecurrenceDate(dateTime, recurrence) {
   return null;
 }
 
+// Generate any operations that are due according to recurrence entries.
+// This is called on data load to materialize scheduled occurrences up to now.
 function generateRecurringOps(data) {
   normalizeStorage(data);
   const now = new Date();
@@ -695,6 +725,55 @@ app.put('/api/roles/rename', authMiddleware, requireAdmin, (req, res) => {
 
   writeData(data);
   res.json({ ok: true });
+});
+
+// Ranks API: simple CRUD for rank management
+app.get('/api/ranks', (req, res) => {
+  const data = normalizeStorage(readData());
+  const ranks = (data.ranks || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  res.json({ ranks });
+});
+
+app.post('/api/ranks', authMiddleware, requireAdmin, (req, res) => {
+  const data = normalizeStorage(readData());
+  const name = (req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const rank = {
+    id: Date.now(),
+    name,
+    short: (req.body.short || '').trim(),
+    icon: typeof req.body.icon === 'string' ? req.body.icon : null,
+    order: Number(req.body.order) || ((data.ranks || []).length + 1)
+  };
+  data.ranks = data.ranks || [];
+  data.ranks.push(rank);
+  writeData(data);
+  res.json({ rank });
+});
+
+app.put('/api/ranks/:id', authMiddleware, requireAdmin, (req, res) => {
+  const data = normalizeStorage(readData());
+  const rank = (data.ranks || []).find((r) => r.id === Number(req.params.id));
+  if (!rank) return res.status(404).json({ error: 'Rank not found' });
+  if (typeof req.body.name === 'string') rank.name = req.body.name.trim();
+  if (typeof req.body.short === 'string') rank.short = req.body.short.trim();
+  if ('icon' in req.body) rank.icon = req.body.icon || null;
+  if ('order' in req.body) rank.order = Number(req.body.order) || rank.order;
+  writeData(data);
+  res.json({ rank });
+});
+
+app.delete('/api/ranks/:id', authMiddleware, requireAdmin, (req, res) => {
+  const data = normalizeStorage(readData());
+  const idx = (data.ranks || []).findIndex((r) => r.id === Number(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: 'Rank not found' });
+  const removed = data.ranks.splice(idx, 1)[0];
+  // Clean up user references (if users stored rank by id or by name)
+  data.users.forEach((u) => {
+    if (u.rank === removed.id || u.rank === removed.name) u.rank = '';
+  });
+  writeData(data);
+  res.status(204).end();
 });
 
 app.delete('/api/recurrences/:id', authMiddleware, requireAdmin, (req, res) => {
