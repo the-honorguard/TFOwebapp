@@ -2032,7 +2032,7 @@ function App() {
                 )}
               </div>
 
-              {overviewOps.map((op) => (
+              {(selectedOpId !== null && selectedOp ? [selectedOp] : overviewOps).map((op) => (
                 <OrbatOverview
                   key={op.id}
                   op={op}
