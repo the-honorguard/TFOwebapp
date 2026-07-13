@@ -37,7 +37,7 @@ export default function OrbatTemplate({
   addSlot,
   isAdmin,
   isMissionmaker,
-  setTemplateOverride,
+  
   uploadCustomMarker
   
 }) {
@@ -57,7 +57,7 @@ export default function OrbatTemplate({
     }
   };
 
-  const canUpload = Boolean(isAdmin || (isMissionmaker && template?.allowMissionmakerOverrides));
+  const canUpload = Boolean(isAdmin || isMissionmaker);
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
   const builtins = [
     { label: 'Infantry', value: 'Infantry', file: 'infantry' },
@@ -71,13 +71,7 @@ export default function OrbatTemplate({
   ];
   return (
     <div>
-      {isAdmin ? (
-        <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'0.5rem'}}>
-          <button className={template.allowMissionmakerOverrides ? '' : 'secondary'} onClick={() => setTemplateOverride(template.id, !template.allowMissionmakerOverrides)}>
-            {template.allowMissionmakerOverrides ? 'Missionmaker overrides: ON' : 'Enable missionmaker overrides'}
-          </button>
-        </div>
-      ) : null}
+      {/* template-level override UI removed */}
       {builderFlowMode ? (
         (() => {
           const canvasSize = getCanvasSize(template);

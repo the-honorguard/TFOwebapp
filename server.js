@@ -467,7 +467,6 @@ app.put('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
   const template = findTemplate(data, req.params.id);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   if (typeof req.body.name === 'string') template.name = req.body.name;
-  if ('allowMissionmakerOverrides' in req.body) template.allowMissionmakerOverrides = Boolean(req.body.allowMissionmakerOverrides);
   writeData(data);
   res.json({ template });
 });
@@ -598,26 +597,21 @@ app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, (req, res) => {
   const isMissionmaker = req.user?.role === 'missionmaker';
 
   if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
-  const allowMm = Boolean(op.allowMissionmakerOverrides);
 
   if ('lrChannel' in req.body) {
-    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
     if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' });
     section.lrChannel = Number(req.body.lrChannel);
   }
   if ('srChannel' in req.body) {
-    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
     if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
     section.srChannel = Number(req.body.srChannel);
   }
   if ('marker' in req.body) {
-    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
     if (req.body.marker === null) section.marker = null;
     else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim();
     else return res.status(400).json({ error: 'marker must be a string or null' });
   }
   if ('markerIconUrl' in req.body) {
-    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
     if (req.body.markerIconUrl === null) section.markerIconUrl = null;
     else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim();
     else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
@@ -637,14 +631,13 @@ app.put('/api/ops/:opId/slots/:slotId', authMiddleware, (req, res) => {
 
   const isAdminUser = req.user?.role === 'admin';
   const isMissionmaker = req.user?.role === 'missionmaker';
-  const allowMm = Boolean(op.allowMissionmakerOverrides);
+
+  if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
 
   if (typeof req.body.name === 'string') {
-    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
     slot.name = req.body.name;
   }
   if (typeof req.body.role === 'string') {
-    if (!isAdminUser && !allowMm) return res.status(403).json({ error: 'Forbidden' });
     slot.role = req.body.role;
   }
   if (typeof req.body.notes === 'string') slot.notes = req.body.notes;
@@ -662,23 +655,16 @@ app.put('/api/ops/:id', authMiddleware, (req, res) => {
   const isAdminUser = req.user?.role === 'admin';
   const isMissionmaker = req.user?.role === 'missionmaker';
 
-  // Admins can update all fields. Missionmakers may only toggle allowMissionmakerOverrides.
-  if (isAdminUser) {
-    if (typeof req.body.name === 'string') op.name = req.body.name;
-    if (typeof req.body.date === 'string') op.date = req.body.date;
-    if (typeof req.body.time === 'string') op.time = req.body.time;
-    if (typeof req.body.serverName === 'string') op.serverName = req.body.serverName;
-    if (typeof req.body.modlist === 'string') op.modlist = req.body.modlist;
-    if (typeof req.body.modlistPlayer === 'string') op.modlistPlayer = req.body.modlistPlayer;
-    if (typeof req.body.modlistServer === 'string') op.modlistServer = req.body.modlistServer;
-    if (typeof req.body.tsAddress === 'string') op.tsAddress = req.body.tsAddress;
-    if ('allowMissionmakerOverrides' in req.body) op.allowMissionmakerOverrides = Boolean(req.body.allowMissionmakerOverrides);
-  } else if (isMissionmaker) {
-    if ('allowMissionmakerOverrides' in req.body) op.allowMissionmakerOverrides = Boolean(req.body.allowMissionmakerOverrides);
-    else return res.status(403).json({ error: 'Forbidden' });
-  } else {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
+  if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
+
+  if (typeof req.body.name === 'string') op.name = req.body.name;
+  if (typeof req.body.date === 'string') op.date = req.body.date;
+  if (typeof req.body.time === 'string') op.time = req.body.time;
+  if (typeof req.body.serverName === 'string') op.serverName = req.body.serverName;
+  if (typeof req.body.modlist === 'string') op.modlist = req.body.modlist;
+  if (typeof req.body.modlistPlayer === 'string') op.modlistPlayer = req.body.modlistPlayer;
+  if (typeof req.body.modlistServer === 'string') op.modlistServer = req.body.modlistServer;
+  if (typeof req.body.tsAddress === 'string') op.tsAddress = req.body.tsAddress;
 
   writeData(data);
   res.json({ op });

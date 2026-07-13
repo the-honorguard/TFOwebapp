@@ -61,6 +61,8 @@ input, select { padding: 0.75rem; border-radius: 8px; border: 1px solid var(--bo
 button { padding: 0.75rem; border-radius: 8px; border: 1px solid transparent; background: var(--button); color: var(--button-text); }
 button.secondary { background: var(--button-secondary); color: var(--text); border-color: var(--border); }
 button.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
+button.btn-danger { background: #b91c1c; border-color: #ef4444; color: #fee2e2; }
+button.btn-danger:hover { background: #991b1b; }
 .template-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
 .template-list button { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 0.75rem 1rem; transition: background 0.2s ease; }
 .template-list button.selected { background: var(--button); color: var(--button-text); }
@@ -76,6 +78,12 @@ button.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
 .orbat-canvas { position: relative; min-height: 680px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 24px 24px; overflow: auto; }
 .orbat-links { position: absolute; inset: 0; pointer-events: none; }
 .orbat-link { stroke: #94a3b8; stroke-width: 1.5; stroke-linecap: round; }
+.orbat-blueprint { position: absolute; left: 12px; top: 12px; z-index: 6; pointer-events: none; width: 280px; padding: 0.6rem; border-radius: 8px; border: 1px dashed rgba(148,163,184,0.12); background: linear-gradient(180deg, rgba(2,6,23,0.6), rgba(3,7,18,0.45)); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; font-size: 0.9rem; color: #a5f3fc; box-shadow: 0 8px 20px rgba(0,0,0,0.35); }
+.orbat-blueprint h5 { margin: 0 0 0.25rem; font-size: 0.95rem; font-weight: 700; color: #e6f7ff; }
+.orbat-blueprint .blueprint-line { display: flex; gap: 0.5rem; align-items: center; opacity: 0.95; }
+@media (max-width: 720px) {
+  .orbat-blueprint { display: none; }
+}
 .orbat-node { position: absolute; width: 280px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }
 .orbat-node-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.2rem; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); background: rgba(148,163,184,0.08); cursor: grab; }
 .orbat-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.45rem; min-width: 0; }

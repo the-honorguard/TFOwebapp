@@ -125,7 +125,7 @@ The server exposes REST endpoints under the `/api` prefix. Key endpoints the cli
   - `DELETE /api/ops/:id` — delete operation (admin)
   - `POST /api/ops/:id/join` — sign up to a slot (authenticated)
   - `POST /api/ops/:id/signoff` — sign off from a slot
-  - `PUT /api/ops/:opId/slots/:slotId` — update slot metadata (admin/missionmaker depending on `allowMissionmakerOverrides`)
+  - `PUT /api/ops/:opId/slots/:slotId` — update slot metadata (admin/missionmaker)
 
 - Recurrences (admin): `POST/PUT/DELETE /api/recurrences` and helpers to generate operations from recurrences.
 

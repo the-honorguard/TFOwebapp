@@ -65,7 +65,7 @@ export default function OrbatScheduler({
   flushSlotUpdate,
   deleteSlot,
   addSlot,
-  setTemplateOverride
+  
 }) {
   const [builderFlowMode, setBuilderFlowMode] = useState(true); // exact copy of OrbatTemplate's own Flow/Form toggle, local to the scheduler
   const builderCompact = false;
@@ -73,7 +73,7 @@ export default function OrbatScheduler({
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
   // Pseudo-template object so the copied Template Builder code can operate on this operation's
   // current sections (which come from selectedOp.templateId).
-  const template = { id: selectedOp.templateId, sections: selectedOp.sections || [], allowMissionmakerOverrides: selectedOp.allowMissionmakerOverrides };
+  const template = { id: selectedOp.templateId, sections: selectedOp.sections || [] };
   const fileInputs = {};
   const triggerFileInput = (sectionId) => {
     const el = document.getElementById(`scheduler-marker-upload-${sectionId}`);
@@ -89,7 +89,7 @@ export default function OrbatScheduler({
       alert(err.message || 'Upload failed');
     }
   };
-  const canUpload = Boolean(isAdmin || (isMissionmaker && template?.allowMissionmakerOverrides));
+  const canUpload = Boolean(isAdmin || isMissionmaker);
   const builtins = [
     { label: 'Infantry', value: 'Infantry', file: 'infantry' },
     { label: 'Armor', value: 'Armor', file: 'armor' },
@@ -173,11 +173,7 @@ export default function OrbatScheduler({
             ? <button className="secondary small" onClick={() => { deleteRecurrence(selectedRecurrence.id); goToSchedulerList(); }}>Delete</button>
             : <button className="secondary small" onClick={() => deleteOp(selectedOp.id)}>Delete</button>
           }
-          {(isAdmin || isMissionmaker) ? (
-            <button className={selectedOp.allowMissionmakerOverrides ? '' : 'secondary small'} onClick={() => updateOpMeta(selectedOp.id, { allowMissionmakerOverrides: !selectedOp.allowMissionmakerOverrides })}>
-              {selectedOp.allowMissionmakerOverrides ? 'Overrides: ON' : 'Toggle missionmaker overrides'}
-            </button>
-          ) : null}
+          {/* per-op override toggle removed */}
           <div style={{display:'flex',gap:'0.5rem',marginLeft:8}}>
             <button type="button" className={builderFlowMode ? '' : 'secondary small'} onClick={() => setBuilderFlowMode(true)}>Flow mode</button>
             <button type="button" className={!builderFlowMode ? '' : 'secondary small'} onClick={() => setBuilderFlowMode(false)}>Form mode</button>
@@ -214,13 +210,7 @@ export default function OrbatScheduler({
         </div>
       </div>
 
-      {isAdmin ? (
-        <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'0.5rem'}}>
-          <button className={template.allowMissionmakerOverrides ? '' : 'secondary'} onClick={() => setTemplateOverride(template.id, !template.allowMissionmakerOverrides)}>
-            {template.allowMissionmakerOverrides ? 'Missionmaker overrides: ON' : 'Enable missionmaker overrides'}
-          </button>
-        </div>
-      ) : null}
+      {/* template-level override UI removed */}
       {builderFlowMode ? (
         <div className="flow-layout flow-fullscreen">
           <div className="orbat-wrapper flow-fullscreen-wrapper">

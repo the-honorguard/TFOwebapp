@@ -79,6 +79,7 @@ function App() {
       return {};
     }
   });
+  const [creatingDefaultOp, setCreatingDefaultOp] = useState(false);
   const changePassword = async (currentPassword, newPassword) => {
     try {
       const token = localStorage.getItem('token');
@@ -150,28 +151,8 @@ function App() {
     setUsers((prev) => prev.map((u) => (u.id === data.user.id ? data.user : u)));
     return data.user;
   };
-  const setTemplateOverride = async (templateId, enabled) => {
-    // optimistic: update locally first, then persist; revert on error
-    setTemplates((prev) => prev.map((t) => (t.id === templateId ? { ...t, allowMissionmakerOverrides: Boolean(enabled) } : t)));
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API}/templates/${templateId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ allowMissionmakerOverrides: Boolean(enabled) })
-      });
-      const data = await res.json();
-      if (data.template) {
-        setTemplates((prev) => prev.map((t) => (t.id === data.template.id ? data.template : t)));
-      } else {
-        throw new Error(data.error || 'Could not update template');
-      }
-    } catch (err) {
-      alert(err.message || 'Could not update template');
-      // revert: reload from server to get canonical state
-      loadPrivateData();
-    }
-  };
+  
+
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -500,58 +481,59 @@ function App() {
     }
   };
 
-  const createOp = async (e) => {
-    e.preventDefault();
+  
+
+  const createAndOpenDefaultOp = async () => {
     const token = localStorage.getItem('token');
-    if (!opForm.name || !opForm.templateId || !opForm.date || !opForm.time) {
-      alert('Fill in name, template, date and time.');
+    if (!token) {
+      alert('Login required to create operation');
       return;
     }
-    if ((opForm.recurrence === 'weekly' || opForm.recurrence === 'biweekly') && opForm.weeklyDays.length === 0) {
-      alert('Select at least one weekday for recurring operations.');
-      return;
+    if (creatingDefaultOp) return;
+    setCreatingDefaultOp(true);
+    try {
+      const tplId = defaultOpSettings.templateId || templates?.[0]?.id || null;
+      const date = (() => {
+        const d = new Date();
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      })();
+      const payload = {
+        name: `Nieuwe operatie ${Date.now()}`,
+        templateId: tplId,
+        date,
+        time: defaultOpSettings.time || '',
+        serverName: defaultOpSettings.serverName || '',
+        tsAddress: defaultOpSettings.tsAddress || '',
+        recurrence: defaultOpSettings.recurrence || 'none',
+        weeklyDays: [],
+        monthlyDay: null
+      };
+
+      const res = await fetch(`${API}/ops`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.op) {
+        setOps((prev) => [...prev, data.op]);
+        if (data.recurrence) setRecurrences((prev) => [...prev, data.recurrence]);
+        // open the newly created op in the scheduler/detail view
+        showOpInScheduler(data.op.id, data.recurrence ? data.recurrence.id : null);
+      } else {
+        throw new Error(data.error || 'Could not create operation');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not create operation');
+    } finally {
+      setCreatingDefaultOp(false);
     }
-    if (opForm.recurrence === 'monthly' && (!opForm.monthlyDay || opForm.monthlyDay < 1 || opForm.monthlyDay > 31)) {
-      alert('Enter a valid day of the month.');
-      return;
-    }
-    const res = await fetch(`${API}/ops`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        name: opForm.name,
-        templateId: opForm.templateId,
-        date: opForm.date,
-        time: opForm.time,
-        serverName: opForm.serverName,
-        tsAddress: opForm.tsAddress,
-        recurrence: opForm.recurrence,
-        weeklyDays: opForm.weeklyDays,
-        monthlyDay: opForm.monthlyDay || null
-      })
-    });
-    const data = await res.json();
-    if (data.op) {
-      setOps((prev) => [...prev, data.op]);
-    }
-    if (data.recurrence) {
-      setRecurrences((prev) => [...prev, data.recurrence]);
-    }
-    setOpForm((prev) => ({
-      ...prev,
-      name: '',
-      date: '',
-      time: defaultOpSettings.time || '',
-      serverName: defaultOpSettings.serverName || '',
-      modlist: defaultOpSettings.modlist || '',
-      tsAddress: defaultOpSettings.tsAddress || '',
-      recurrence: defaultOpSettings.recurrence || 'none',
-      weeklyDays: [],
-      monthlyDay: ''
-    }));
   };
 
   const deleteOp = async (opId) => {
@@ -2111,96 +2093,12 @@ function App() {
                   <h3>Operation scheduler</h3>
                   <p>Create and manage scheduled and recurring operations.</p>
                 </div>
+                <div className="builder-actions">
+                  <button type="button" className="small btn-danger" onClick={createAndOpenDefaultOp} disabled={creatingDefaultOp}>
+                    {creatingDefaultOp ? 'Creating...' : 'New'}
+                  </button>
+                </div>
               </div>
-
-              <section className="card role-add-section">
-                <h4>Schedule new operation</h4>
-                <form className="role-add-form" onSubmit={createOp}>
-                  <input
-                    placeholder="Operation name"
-                    value={opForm.name}
-                    onChange={(e) => setOpForm((prev) => ({ ...prev, name: e.target.value }))}
-                  />
-                  <select
-                    value={opForm.templateId || ''}
-                    onChange={(e) => setOpForm((prev) => ({ ...prev, templateId: Number(e.target.value) }))}
-                  >
-                    <option value="">Choose template</option>
-                    {templates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="date"
-                    value={opForm.date}
-                    onChange={(e) => setOpForm((prev) => ({ ...prev, date: e.target.value }))}
-                  />
-                  <input
-                    type="time"
-                    value={opForm.time}
-                    onChange={(e) => setOpForm((prev) => ({ ...prev, time: e.target.value }))}
-                  />
-                  <input
-                    placeholder="Server name (optional)"
-                    value={opForm.serverName}
-                    onChange={(e) => setOpForm((prev) => ({ ...prev, serverName: e.target.value }))}
-                  />
-                  <input
-                    placeholder="Modlist URL (optional)"
-                    value={opForm.modlist}
-                    onChange={(e) => setOpForm((prev) => ({ ...prev, modlist: e.target.value }))}
-                  />
-                  <input
-                    placeholder="TS3 address (optional)"
-                    value={opForm.tsAddress}
-                    onChange={(e) => setOpForm((prev) => ({ ...prev, tsAddress: e.target.value }))}
-                  />
-                  <select
-                    value={opForm.recurrence}
-                    onChange={(e) => setOpForm((prev) => ({ ...prev, recurrence: e.target.value }))}
-                  >
-                    <option value="none">No recurrence</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="biweekly">Every 2 weeks</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-
-                  {(opForm.recurrence === 'weekly' || opForm.recurrence === 'biweekly') && (
-                    <div className="weekly-days">
-                      <label>Choose days:</label>
-                      <div className="weekday-grid">
-                        {weekDayLabels.map((dayOption) => (
-                          <label key={dayOption.value}>
-                            <input
-                              type="checkbox"
-                              checked={opForm.weeklyDays.includes(dayOption.value)}
-                              onChange={() => toggleWeeklyDay(dayOption.value)}
-                            />
-                            {dayOption.label}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {opForm.recurrence === 'monthly' ? (
-                    <input
-                      type="number"
-                      min="1"
-                      max="31"
-                      value={opForm.monthlyDay}
-                      onChange={(e) => setOpForm((prev) => ({ ...prev, monthlyDay: Number(e.target.value) }))}
-                      placeholder="Day of month"
-                    />
-                  ) : null}
-                  <div className="role-add-submit-row">
-                    <button type="submit" className="small create-op-button">Create operation</button>
-                  </div>
-                </form>
-              </section>
 
               <div className="op-vertical-list">
                 {sortedOps.length === 0 && recurrences.length === 0 ? (
@@ -2302,7 +2200,6 @@ function App() {
                 flushSlotUpdate={flushSlotUpdate}
                 deleteSlot={deleteSlot}
                 addSlot={addSlot}
-                setTemplateOverride={setTemplateOverride}
               />
             </section>
           ) : null}
@@ -2412,7 +2309,6 @@ function App() {
                           addSlot={addSlot}
                           isAdmin={isAdmin}
                           isMissionmaker={isMissionmaker}
-                          setTemplateOverride={setTemplateOverride}
                           uploadCustomMarker={uploadCustomMarker}
                         />
                       ))

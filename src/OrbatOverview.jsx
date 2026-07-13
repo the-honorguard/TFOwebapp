@@ -109,6 +109,14 @@ export default function OrbatOverview({
                   ))}
                 </svg>
 
+                {/* Blueprint-style server info overlay */}
+                <div className="orbat-blueprint" aria-hidden="true">
+                  <h5>Server</h5>
+                  <div className="blueprint-line"><strong>Name:</strong> {op.serverName || '-'}</div>
+                  <div className="blueprint-line"><strong>Address:</strong> {op.tsAddress || '-'}</div>
+                  {op.modlist ? <div className="blueprint-line"><strong>Modlist:</strong> {op.modlist}</div> : null}
+                  {op.modlistServer ? <div className="blueprint-line"><strong>Server Mods:</strong> {op.modlistServer}</div> : null}
+                </div>
                 {nodes.map((node) => (
                   <div
                     key={node.section.id}
