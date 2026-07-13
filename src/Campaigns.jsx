@@ -10,6 +10,7 @@ export default function Campaigns({
   deleteCampaign
 }) {
   const [editingId, setEditingId] = useState(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState(null);
   const [form, setForm] = useState({ name: '', image: '', modlistPlayer: '', modlistServer: '', defaultTemplateId: null, missionmakerUserId: null });
   const [error, setError] = useState(null);
 
@@ -25,6 +26,40 @@ export default function Campaigns({
   const startCreate = () => setEditingId('new');
   const startEdit = (id) => setEditingId(id);
   const cancel = () => setEditingId(null);
+
+  const renameCampaign = async () => {
+    if (!selectedCampaignId) return;
+    const c = campaigns.find((x) => x.id === selectedCampaignId);
+    if (!c) return;
+    const newName = prompt('New campaign name', c.name || '');
+    if (!newName) return;
+    const res = await updateCampaign(selectedCampaignId, { name: newName });
+    if (!res || !res.success) setError(res?.error || 'Could not rename campaign');
+  };
+
+  const duplicateCampaign = async () => {
+    if (!selectedCampaignId) return;
+    const c = campaigns.find((x) => x.id === selectedCampaignId);
+    if (!c) return;
+    const payload = {
+      name: (c.name || 'Untitled') + ' (copy)',
+      missionmakerUserId: c.missionmakerUserId || null
+    };
+    if (c.image) payload.image = c.image;
+    if (c.modlistPlayer) payload.modlistPlayer = c.modlistPlayer;
+    if (c.modlistServer) payload.modlistServer = c.modlistServer;
+    if (c.defaultTemplateId) payload.defaultTemplateId = c.defaultTemplateId;
+    const res = await createCampaign(payload);
+    if (!res || !res.success) setError(res?.error || 'Could not duplicate campaign');
+  };
+
+  const deleteSelected = async () => {
+    if (!selectedCampaignId) return;
+    if (!confirm('Delete selected campaign?')) return;
+    await deleteCampaign(selectedCampaignId);
+    setSelectedCampaignId(null);
+    if (editingId === selectedCampaignId) setEditingId(null);
+  };
 
   const handleSave = async () => {
     setError(null);
@@ -72,37 +107,55 @@ export default function Campaigns({
   };
 
   return (
-    <section>
-      <div className="builder-toolbar">
-        <div>
-          <h3>Campaigns</h3>
-          <p>Create and manage campaigns. Assign a missionmaker, default template and assets.</p>
+    <>
+      <section className="card">
+        <div className="builder-toolbar">
+          <div>
+            <h3>Campaign selection</h3>
+            <p>Choose a campaign to edit and create new campaigns.</p>
+          </div>
         </div>
-        <div className="builder-actions">
-          <button onClick={startCreate}>New campaign</button>
-        </div>
-      </div>
 
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ flex: '0 0 320px' }}>
-          <div className="template-list">
-            {campaigns.length === 0 ? (
-              <div className="empty-state">No campaigns yet.</div>
-            ) : (
-              campaigns.map((c) => (
-                <div key={c.id} className="template-list-item">
-                  <button onClick={() => startEdit(c.id)} className={editingId === c.id ? 'selected' : ''}>
-                    {c.name}
-                  </button>
-                </div>
-              ))
-            )}
+        <div className="template-builder-top">
+          <div className="template-list-builder">
+            <div className="template-builder-select" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <select
+                value={selectedCampaignId ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value ? Number(e.target.value) : null;
+                  setSelectedCampaignId(v);
+                  if (v) startEdit(v);
+                }}
+                style={{ padding: '0.6rem', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--panel)', color: 'var(--text)' }}
+              >
+                <option value="">Choose campaign</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => { startCreate(); setSelectedCampaignId(null); }}>New campaign</button>
+                <button className="secondary" onClick={renameCampaign} disabled={!selectedCampaignId}>Rename</button>
+                <button className="secondary" onClick={duplicateCampaign} disabled={!selectedCampaignId}>Duplicate</button>
+                <button className="secondary" onClick={() => selectedCampaignId && deleteSelected()} disabled={!selectedCampaignId}>Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="builder-toolbar">
+          <div>
+            <h3>Configure campaign</h3>
+            <p>Edit the selected campaign. Assign a missionmaker, default template and assets.</p>
           </div>
         </div>
 
         <div style={{ flex: 1 }}>
           {editingId ? (
-            <div className="card" style={{ padding: 12 }}>
+            <div style={{ padding: 0 }}>
               {error ? (
                 <div className="error-panel" style={{background:'#fee',border:'1px solid #f99',padding:8,borderRadius:6,marginBottom:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -155,7 +208,7 @@ export default function Campaigns({
             <div className="empty-state">Select or create a campaign to edit.</div>
           )}
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }

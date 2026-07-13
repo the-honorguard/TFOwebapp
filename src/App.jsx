@@ -2283,17 +2283,15 @@ function App() {
           ) : null}
 
           {auth && (isAdmin || isMissionmaker) && page === 'campaigns' ? (
-            <section className="card">
-              <Campaigns
-                campaigns={campaigns}
-                templates={templates}
-                users={users}
-                uploadFile={uploadFile}
-                createCampaign={createCampaign}
-                updateCampaign={updateCampaign}
-                deleteCampaign={deleteCampaign}
-              />
-            </section>
+            <Campaigns
+              campaigns={campaigns}
+              templates={templates}
+              users={users}
+              uploadFile={uploadFile}
+              createCampaign={createCampaign}
+              updateCampaign={updateCampaign}
+              deleteCampaign={deleteCampaign}
+            />
           ) : null}
 
           {auth && (isAdmin || isMissionmaker) && page === 'op-detail' && selectedOp ? (
