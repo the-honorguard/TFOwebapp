@@ -978,11 +978,12 @@ function App() {
 
   const addSlot = async (templateId, sectionId) => {
     const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const roleForNew = defaultOpSettings.defaultSlotRole || 'Rifleman';
     const tempSlot = {
       id: tempId,
       sectionId,
-      name: 'New slot',
-      role: 'Rifleman',
+      name: roleForNew,
+      role: roleForNew,
       allowedRoles: [],
       notes: '',
       assignedUserId: null,
@@ -1009,8 +1010,8 @@ function App() {
       },
       body: JSON.stringify({
         sectionId,
-        name: 'New slot',
-        role: 'Rifleman',
+        name: roleForNew,
+        role: roleForNew,
         allowedRoles: [],
         notes: ''
       })
@@ -2073,6 +2074,7 @@ function App() {
                   templates={templates}
                 changePassword={changePassword}
                 uploadCustomMarker={uploadCustomMarker}
+                  allRoles={allRoles}
                   changePasswordForm={changePasswordForm}
                   setChangePasswordForm={setChangePasswordForm}
               />

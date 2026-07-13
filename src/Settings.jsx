@@ -5,7 +5,8 @@ export default function Settings({
                                    setDefaultOpSettings,
                                    templates,
                                    changePassword,
-                                   uploadCustomMarker
+                                   uploadCustomMarker,
+                                   allRoles
                                  }) {
   const [local, setLocal] = useState({
     templateId: defaultOpSettings.templateId || '',
@@ -15,7 +16,8 @@ export default function Settings({
     tsAddress: defaultOpSettings.tsAddress || '',
     recurrence: defaultOpSettings.recurrence || 'none',
     minSignupAge: defaultOpSettings.minSignupAge ?? 17,
-    squadTypes: defaultOpSettings.squadTypes || []
+    squadTypes: defaultOpSettings.squadTypes || [],
+    defaultSlotRole: defaultOpSettings.defaultSlotRole || ''
   });
 
   useEffect(() => {
@@ -27,7 +29,8 @@ export default function Settings({
       tsAddress: defaultOpSettings.tsAddress || '',
       recurrence: defaultOpSettings.recurrence || 'none',
       minSignupAge: defaultOpSettings.minSignupAge ?? 17,
-      squadTypes: defaultOpSettings.squadTypes || []
+      squadTypes: defaultOpSettings.squadTypes || [],
+      defaultSlotRole: defaultOpSettings.defaultSlotRole || ''
     });
   }, [defaultOpSettings]);
 
@@ -41,7 +44,8 @@ export default function Settings({
       tsAddress: local.tsAddress || '',
       recurrence: local.recurrence || 'none',
       minSignupAge: Number(local.minSignupAge) || 17,
-      squadTypes: Array.isArray(local.squadTypes) ? local.squadTypes : []
+      squadTypes: Array.isArray(local.squadTypes) ? local.squadTypes : [],
+      defaultSlotRole: local.defaultSlotRole || ''
     });
     alert('Default settings saved');
   };
@@ -175,6 +179,19 @@ export default function Settings({
               Users must be older than this age to complete signup; signup will validate integer age
               and reject younger users.
             </small>
+          </div>
+
+          <div className="form-row">
+            <label>Default role for new slots</label>
+            <select
+                value={local.defaultSlotRole || ''}
+                onChange={(e) => setLocal((s) => ({ ...s, defaultSlotRole: e.target.value }))}
+            >
+              <option value="">-- None --</option>
+              {(allRoles || []).map((r) => (
+                  <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
           </div>
 
           <div className="form-row">

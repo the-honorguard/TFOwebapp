@@ -10,3 +10,4 @@ make a default set of markers
 
 fix overview page. like ALL OF IT
 
+create rank page with all the available ranks, and let them be selectable from dropdown in playerlist
