@@ -35,7 +35,7 @@ export default function OrbatOverview({
     <section className="card">
       <div className="builder-toolbar">
         <div>
-          <h4>{op.name}</h4>
+          <h4>{op.serverName || op.name}</h4>
           <p>{op.date} at {op.time} using {getTemplateName(op.templateId)}.</p>
           <p className="op-info">
             {op.serverName ? `${op.serverName}` : ''}
@@ -114,6 +114,8 @@ export default function OrbatOverview({
                   <h5>Server</h5>
                   <div className="blueprint-line"><strong>Name:</strong> {op.serverName || '-'}</div>
                   <div className="blueprint-line"><strong>Address:</strong> {op.tsAddress || '-'}</div>
+                  <div className="blueprint-line"><strong>Date:</strong> {op.date ? `${op.date}${op.time ? ' ' + op.time : ''}` : '-'}</div>
+                  <div className="blueprint-line"><strong>Campaign:</strong> {op.campaign || '-'}</div>
                   {op.modlist ? <div className="blueprint-line"><strong>Modlist:</strong> {op.modlist}</div> : null}
                   {op.modlistServer ? <div className="blueprint-line"><strong>Server Mods:</strong> {op.modlistServer}</div> : null}
                 </div>
