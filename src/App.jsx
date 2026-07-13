@@ -3,6 +3,7 @@ import OrbatOverview from './OrbatOverview';
 import OrbatScheduler from './OrbatScheduler';
 import OrbatTemplate from './OrbatTemplate';
 import Settings from './Settings';
+import Profile from './Profile';
 
 const API = '/api';
 
@@ -45,12 +46,7 @@ function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showLoginPanel, setShowLoginPanel] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [changePasswordForm, setChangePasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
+  // change password form/modal moved to Profile component
   const [signupForm, setSignupForm] = useState({
     username: '',
     password: '',
@@ -80,8 +76,8 @@ function App() {
   const changePassword = async (currentPassword, newPassword) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API}/change-password`, {
-        method: 'POST',
+      const res = await fetch(`${API}/users/me/password`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -119,6 +115,34 @@ function App() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     return data.url;
+  };
+
+  const uploadAvatar = async (file) => {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API}/upload/avatar`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data.url;
+  };
+
+  const updateMyProfile = async (patch) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/users/me`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(patch)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not update profile');
+    // update local users list
+    setUsers((prev) => prev.map((u) => (u.id === data.user.id ? data.user : u)));
+    return data.user;
   };
   const setTemplateOverride = async (templateId, enabled) => {
     // optimistic: update locally first, then persist; revert on error
@@ -294,51 +318,12 @@ function App() {
     }
   };
 
-  const submitChangePassword = async (e) => {
-    e.preventDefault();
-
-    if (!changePasswordForm.currentPassword || !changePasswordForm.newPassword) {
-      alert('Fill in both passwords.');
-      return;
-    }
-
-    if (changePasswordForm.newPassword.length < 6) {
-      alert('New password must be at least 6 characters.');
-      return;
-    }
-
-    if (changePasswordForm.newPassword !== changePasswordForm.confirmPassword) {
-      alert('Passwords do not match.');
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/change-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        currentPassword: changePasswordForm.currentPassword,
-        newPassword: changePasswordForm.newPassword
-      })
-    });
-
-    const data = await res.json();
-
-    if (res.ok) {
-      alert('Password updated successfully');
-      setChangePasswordForm({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-      setShowChangePassword(false);
-    } else {
-      alert(data.error || 'Could not change password');
-    }
-  };
+  // change-password handled in Profile component modal
+  const [changePasswordForm, setChangePasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
 
   const signup = async (e) => {
     e.preventDefault();
@@ -1328,7 +1313,6 @@ function App() {
     localStorage.removeItem('token');
     setAuth(null);
     setShowLoginPanel(false);
-    setShowChangePassword(false);
     loadPublicData();
   };
 
@@ -1833,9 +1817,7 @@ function App() {
               </>
           ) : (
               <>
-                <button className="secondary" onClick={() => setShowChangePassword(true)}>
-                  Change password
-                </button>
+                
                 <button onClick={logout}>
                   Logout
                 </button>
@@ -1871,47 +1853,7 @@ function App() {
         </div>
       ) : null}
 
-      {auth && showChangePassword ? (
-          <div className="login-popover" role="dialog" aria-modal="true">
-            <div className="login-modal">
-              <form onSubmit={submitChangePassword}>
-              <h2>Change password</h2>
-
-                <input
-                    type="password"
-                    placeholder="Current password"
-                    value={changePasswordForm.currentPassword}
-                    onChange={(e) => setChangePasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                />
-
-                <input
-                    type="password"
-                    placeholder="New password"
-                    value={changePasswordForm.newPassword}
-                    onChange={(e) => setChangePasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
-                />
-
-                <input
-                    type="password"
-                    placeholder="Confirm new password"
-                    value={changePasswordForm.confirmPassword}
-                    onChange={(e) => setChangePasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                />
-
-                <div className="login-panel-actions">
-                  <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => setShowChangePassword(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit">Save</button>
-                </div>
-              </form>
-            </div>
-          </div>
-      ) : null}
+      
 
       {page === 'signup' ? (
         <section className="card">
@@ -2050,6 +1992,13 @@ function App() {
               </button>
             </div>
           ) : null}
+          {auth ? (
+            <div style={{ marginLeft: 12 }}>
+              <button className={page === 'profile' ? 'tab active' : 'tab'} onClick={() => setPage('profile')}>
+                Profile
+              </button>
+            </div>
+          ) : null}
         </section>
 
         <div className="dashboard">
@@ -2127,6 +2076,18 @@ function App() {
                   changePasswordForm={changePasswordForm}
                   setChangePasswordForm={setChangePasswordForm}
               />
+          ) : null}
+          {auth && page === 'profile' ? (
+            <section className="card">
+              <Profile
+                auth={auth}
+                users={users}
+                ops={ops}
+                changePassword={changePassword}
+                uploadAvatar={uploadAvatar}
+                updateMyProfile={updateMyProfile}
+              />
+            </section>
           ) : null}
           {auth && (isAdmin || isMissionmaker) && page === 'scheduler' ? (
             <section className="card">

@@ -962,6 +962,53 @@ app.post('/api/upload/custom-marker', authMiddleware, (req, res) => {
   });
 });
 
+// Allow authenticated users to upload an avatar image
+app.post('/api/upload/avatar', authMiddleware, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    // Persist avatar URL onto the user's profile
+    try {
+      const data = readData();
+      const user = data.users.find((u) => u.id === req.user.id);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      user.profile = user.profile || {};
+      user.profile.avatarUrl = `/uploads/${req.file.filename}`;
+      writeData(data);
+    } catch (e) {
+      // ignore persistence errors for upload but report success URL
+    }
+    res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.originalname });
+  });
+});
+
+// Return full current user object (safe)
+app.get('/api/users/me', authMiddleware, (req, res) => {
+  const data = normalizeStorage(readData());
+  const user = data.users.find((u) => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const { password, ...safeUser } = user;
+  res.json({ user: safeUser });
+});
+
+// Update current user's profile (rank, status, profile object)
+app.put('/api/users/me', authMiddleware, (req, res) => {
+  const data = readData();
+  const user = data.users.find((u) => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  if (typeof req.body.rank === 'string') user.rank = req.body.rank;
+  if (typeof req.body.status === 'string') user.status = req.body.status;
+  // Merge profile object shallowly
+  if (req.body.profile && typeof req.body.profile === 'object') {
+    user.profile = { ...(user.profile || {}), ...req.body.profile };
+  }
+
+  writeData(data);
+  const { password, ...safeUser } = user;
+  res.json({ user: safeUser });
+});
+
 const distPath = path.join(process.cwd(), 'dist');
 
 app.use(express.static(distPath));
