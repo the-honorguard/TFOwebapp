@@ -20,6 +20,26 @@ const DATA_FILE = path.join(process.cwd(), 'data', 'app-data.json');
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.html', '.htm', '.txt', '.json', '.svg', '.png', '.jpg', '.jpeg', '.gif']);
 
+const RANKS_BASE_URL = 'https://raw.githubusercontent.com/task-force-omega/mkdocs/main/docs/assets/images/Ranks/small50';
+
+const DEFAULT_RANKS = [
+  { id: 1,  name: 'Recruit',                short: 'RCT.',  order: 1,  icon: `${RANKS_BASE_URL}/RCT.png` },
+  { id: 2,  name: 'Private',                short: 'PVT.',  order: 2,  icon: `${RANKS_BASE_URL}/PVTBlack.png` },
+  { id: 3,  name: 'Private First Class',    short: 'PFC.',  order: 3,  icon: `${RANKS_BASE_URL}/PFCBlack.png` },
+  { id: 4,  name: 'Specialist First Class', short: 'SPC1.', order: 4,  icon: `${RANKS_BASE_URL}/SPC1Black.png` },
+  { id: 5,  name: 'Specialist Second Class',short: 'SPC2.', order: 5,  icon: `${RANKS_BASE_URL}/SPC2Black.png` },
+  { id: 6,  name: 'Specialist Third Class', short: 'SPC3.', order: 6,  icon: `${RANKS_BASE_URL}/SPC3Black.png` },
+  { id: 7,  name: 'Master Specialist',      short: 'MSP.',  order: 7,  icon: `${RANKS_BASE_URL}/MSPBlack.png` },
+  { id: 8,  name: 'Corporal',               short: 'CPL.',  order: 8,  icon: `${RANKS_BASE_URL}/CPLBlack.png` },
+  { id: 9,  name: 'Sergeant',               short: 'SGT.',  order: 9,  icon: `${RANKS_BASE_URL}/SGTBlack.png` },
+  { id: 10, name: 'Staff Sergeant',         short: 'SSG.',  order: 10, icon: `${RANKS_BASE_URL}/SSGBlack.png` },
+  { id: 11, name: 'Master Sergeant',        short: 'MSG.',  order: 11, icon: `${RANKS_BASE_URL}/MSGBlack.png` },
+  { id: 12, name: 'Second Lieutenant',      short: '2LT.',  order: 12, icon: `${RANKS_BASE_URL}/2LT.png` },
+  { id: 13, name: 'First Lieutenant',       short: '1LT.',  order: 13, icon: `${RANKS_BASE_URL}/1LT.png` },
+  { id: 14, name: 'Captain',                short: 'CPT.',  order: 14, icon: `${RANKS_BASE_URL}/CPT.png` },
+  { id: 15, name: 'Major',                  short: 'MAJ.',  order: 15, icon: `${RANKS_BASE_URL}/MAJ.png` },
+];
+
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -95,7 +115,8 @@ function ensureDataFile() {
       ],
         ops: [],
         campaigns: [],
-      recurrences: []
+      recurrences: [],
+      ranks: DEFAULT_RANKS
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
   }
@@ -242,6 +263,10 @@ function normalizeStorage(data) {
     defaultTemplateId: c.defaultTemplateId ?? null,
     missionmakerUserId: c.missionmakerUserId ?? null
   }));
+  // Seed default ranks if the data file has none
+  if (!data.ranks || data.ranks.length === 0) {
+    data.ranks = DEFAULT_RANKS;
+  }
   return data;
 }
 
@@ -741,7 +766,7 @@ app.put('/api/ops/:id', authMiddleware, (req, res) => {
 app.delete('/api/ops/:id', authMiddleware, requireAdmin, (req, res) => {
   const data = readData();
   const opIndex = (data.ops || []).findIndex((op) => op.id === Number(req.params.id));
-  if (opIndex === -1) return res.status(404).json({ error: 'Op niet gevonden' });
+  if (opIndex === -1) return res.status(404).json({ error: 'Operation not found' });
   data.ops.splice(opIndex, 1);
   writeData(data);
   res.status(204).end();
