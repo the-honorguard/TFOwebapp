@@ -12,15 +12,15 @@
   <img src="https://img.shields.io/badge/Express-4-000000?style=flat-square&logo=express&logoColor=white" />
   <img src="https://img.shields.io/badge/Node.js-20-339933?style=flat-square&logo=node.js&logoColor=white" />
   <img src="https://img.shields.io/badge/JWT-auth-black?style=flat-square&logo=jsonwebtokens&logoColor=white" />
-  <img src="https://img.shields.io/badge/deployed-o2Switch-00A4EF?style=flat-square" />
+  <img src="https://img.shields.io/badge/status-private-lightgrey?style=flat-square" />
 </p>
 
 <p>
-  <a href="http://tfo.hazo1679.odns.fr"><strong>Live App</strong></a>
-  &nbsp;&middot;&nbsp;
   <a href="#deployment"><strong>Deployment</strong></a>
   &nbsp;&middot;&nbsp;
   <a href="#api-reference"><strong>API Reference</strong></a>
+  &nbsp;&middot;&nbsp;
+  <a href="#getting-started"><strong>Getting Started</strong></a>
 </p>
 
 </div>
@@ -84,7 +84,7 @@ Link operations to named campaigns with player/server modlists, default template
 | Backend | Node.js 20, Express 4 | Single process, serves API + `dist/` |
 | Auth | `jsonwebtoken`, `bcryptjs` | JWT, Bearer token |
 | Uploads | `multer` | Disk storage, UUID filenames |
-| Persistence | JSON file `data/app-data.json` | Auto-created, seeded with default `admin` |
+| Persistence | JSON file `data/app-data.json` | Auto-created, seeded on first run |
 | Dev tooling | `concurrently`, `@vitejs/plugin-react` | Parallel dev server |
 
 ---
@@ -216,8 +216,7 @@ PUT     /api/templates/:templateId/sections/:sectionId/slots/reorder
 
 ## Deployment
 
-> **Production URL:** https://tfo.hazo1679.odns.fr\
-> **Alias:** https://orbat.taskforceomega.eu (CNAME via Cloudflare proxy, SSL Full)
+This app is designed to run as a **single Node.js process** on a cPanel-compatible shared hosting environment.
 
 ### Environment variables
 
@@ -225,9 +224,9 @@ PUT     /api/templates/:templateId/sections/:sectionId/slots/reorder
 |---|---|---|
 | `PORT` | `3001` | HTTP port (injected automatically by cPanel) |
 | `NODE_ENV` | — | Set to `production` |
+| `JWT_SECRET` | — | Secret used to sign tokens — see security note below |
 
-> **Security note:** The JWT secret is currently hardcoded as `tfo-secret` in `server.js`.\
-> Before any public exposure, replace with `process.env.JWT_SECRET` and inject a strong secret via environment variables.
+> **Security note:** ensure `JWT_SECRET` is set via environment variable and never hardcoded before exposing this app publicly.
 
 ### cPanel Node.js App configuration
 
@@ -235,8 +234,6 @@ PUT     /api/templates/:templateId/sections/:sectionId/slots/reorder
 |---|---|
 | Node.js version | `20.x` |
 | Application mode | `Production` |
-| Application root | `tfo.hazo1679.odns.fr` |
-| Application URL | `tfo.hazo1679.odns.fr` |
 | Startup file | `server.js` |
 
 **First deployment:**
@@ -246,27 +243,23 @@ PUT     /api/templates/:templateId/sections/:sectionId/slots/reorder
 3. Run NPM Install from the cPanel Node.js App interface
 4. Start the application
 
-> **Let's Encrypt on `*.odns.fr` subdomains:** add a CAA DNS record on the subdomain (`0 issue "letsencrypt.org"`) before requesting the certificate to bypass the SERVFAIL on the parent zone.
-
 ### Update workflow
 
 ```bash
 # 1. Rebuild
 npm run build
 
-# 2. Upload new dist/ via FTP
-#    local:  TFOwebapp/dist/
-#    remote: /home/hazo1679/tfo.hazo1679.odns.fr/dist/
+# 2. Upload new dist/ via FTP to the application root
 
-# 3. Restart app in cPanel — Node.js App — Restart
+# 3. Restart — cPanel > Node.js App > Restart
 ```
 
 ---
 
 ## Notes
 
-- `data/` and `uploads/` are created automatically on first run
-- Default credentials on first start: `admin` / `admin123` — change immediately
+- `data/` and `uploads/` are created automatically on first run — no manual setup required
+- A default admin account is seeded on first start — update credentials immediately via Settings
 - Signup minimum age is driven by `defaultOpSettings.minSignupAge` (set in Settings, persisted to `localStorage`)
 - File-based storage is not suited for concurrent heavy writes — consider a database for scale
 
