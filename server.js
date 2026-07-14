@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import pool from './db.js';
+import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized } from './lib/dataStore.js';
 
 dotenv.config();
 
@@ -23,37 +24,18 @@ async function testDb() {
 testDb();
 
 /*
- * server.js - minimal backend for development and local storage
+ * server.js - minimal backend for development
  * - Provides basic REST endpoints under `/api/*` for users, templates, ops and recurrences
- * - Stores data in `data/app-data.json` (created automatically on first run)
+ * - Data is stored in MySQL (see db.js / lib/dataStore.js)
  * - Simple token-based auth (JWT) and role checks are implemented for admin/missionmaker paths
  */
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const SECRET = 'tfo-secret';
-const DATA_FILE = path.join(process.cwd(), 'data', 'app-data.json');
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.html', '.htm', '.txt', '.json', '.svg', '.png', '.jpg', '.jpeg', '.gif']);
 
-const RANKS_BASE_URL = 'https://raw.githubusercontent.com/task-force-omega/mkdocs/main/docs/assets/images/Ranks/small50';
-
-const DEFAULT_RANKS = [
-  { id: 1,  name: 'Recruit',                short: 'RCT.',  order: 1,  icon: `${RANKS_BASE_URL}/RCT.png` },
-  { id: 2,  name: 'Private',                short: 'PVT.',  order: 2,  icon: `${RANKS_BASE_URL}/PVTBlack.png` },
-  { id: 3,  name: 'Private First Class',    short: 'PFC.',  order: 3,  icon: `${RANKS_BASE_URL}/PFCBlack.png` },
-  { id: 4,  name: 'Specialist First Class', short: 'SPC1.', order: 4,  icon: `${RANKS_BASE_URL}/SPC1Black.png` },
-  { id: 5,  name: 'Specialist Second Class',short: 'SPC2.', order: 5,  icon: `${RANKS_BASE_URL}/SPC2Black.png` },
-  { id: 6,  name: 'Specialist Third Class', short: 'SPC3.', order: 6,  icon: `${RANKS_BASE_URL}/SPC3Black.png` },
-  { id: 7,  name: 'Master Specialist',      short: 'MSP.',  order: 7,  icon: `${RANKS_BASE_URL}/MSPBlack.png` },
-  { id: 8,  name: 'Corporal',               short: 'CPL.',  order: 8,  icon: `${RANKS_BASE_URL}/CPLBlack.png` },
-  { id: 9,  name: 'Sergeant',               short: 'SGT.',  order: 9,  icon: `${RANKS_BASE_URL}/SGTBlack.png` },
-  { id: 10, name: 'Staff Sergeant',         short: 'SSG.',  order: 10, icon: `${RANKS_BASE_URL}/SSGBlack.png` },
-  { id: 11, name: 'Master Sergeant',        short: 'MSG.',  order: 11, icon: `${RANKS_BASE_URL}/MSGBlack.png` },
-  { id: 12, name: 'Second Lieutenant',      short: '2LT.',  order: 12, icon: `${RANKS_BASE_URL}/2LT.png` },
-  { id: 13, name: 'First Lieutenant',       short: '1LT.',  order: 13, icon: `${RANKS_BASE_URL}/1LT.png` },
-  { id: 14, name: 'Captain',                short: 'CPT.',  order: 14, icon: `${RANKS_BASE_URL}/CPT.png` },
-  { id: 15, name: 'Major',                  short: 'MAJ.',  order: 15, icon: `${RANKS_BASE_URL}/MAJ.png` },
-];
+// Ranks are seeded and managed in `lib/dataStore.js` (DB-backed). Remove duplicated in-code seed.
 
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -86,66 +68,20 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 /** Ensure the data file and containing directory exist.
  * If the data file is missing it will be initialized with a small example dataset.
  */
-function ensureDataFile() {
-  if (!fs.existsSync(path.dirname(DATA_FILE))) {
-    fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  }
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial = {
-      users: [
-        { id: 1, username: 'admin', password: bcrypt.hashSync('admin123', 10), role: 'admin' }
-      ],
-      templates: [
-        {
-          id: 1,
-          name: 'Example mission',
-          sections: [
-            {
-              id: 101,
-              title: 'Missionmaker/HQ',
-              slots: [
-                { id: 1001, name: 'HQ', role: 'HQ', allowedRoles: ['admin', 'member'], notes: 'Callsign: HQ', assignedUserId: null },
-                { id: 1002, name: 'Co-Zeus', role: 'HQ', allowedRoles: ['admin', 'member'], notes: '', assignedUserId: null }
-              ]
-            },
-            {
-              id: 102,
-              title: 'Platoon Element',
-              slots: [
-                { id: 1003, name: 'PLT leader', role: 'Plt leader', allowedRoles: ['member'], notes: 'SR channel: 1', assignedUserId: null },
-                { id: 1004, name: 'Grenadier 60mm', role: 'Grenadier', allowedRoles: ['member'], notes: '', assignedUserId: null }
-              ]
-            },
-            {
-              id: 103,
-              title: 'Infantry Squad Alpha',
-              slots: [
-                { id: 1005, name: 'SQL', role: 'Teamlead', allowedRoles: ['member'], notes: '', assignedUserId: null },
-                { id: 1006, name: 'Medic', role: 'Medic', allowedRoles: ['member'], notes: '', assignedUserId: null },
-                { id: 1007, name: 'Rifleman (LAT)', role: 'Rifleman', allowedRoles: ['member'], notes: '', assignedUserId: null }
-              ]
-            }
-          ]
-        }
-      ],
-        ops: [],
-        campaigns: [],
-      recurrences: [],
-      ranks: DEFAULT_RANKS
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-  }
+// Initialize DB-backed storage
+async function ensureDataFile() {
+  await ensureDbInitialized();
 }
 
-/** Read and normalize the stored data from disk. Always calls `ensureDataFile`. */
-function readData() {
-  ensureDataFile();
-  return normalizeStorage(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')));
+/** Async helper: read and normalize stored data from DB. */
+async function getData() {
+  const raw = await _readData();
+  return normalizeStorage(raw);
 }
 
 /** Write the provided data object back to the JSON storage file. */
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+async function persistData(data) {
+  await _writeData(data);
 }
 
 /** Middleware: verify JWT token from `Authorization` header and attach `req.user`. */
@@ -278,10 +214,8 @@ function normalizeStorage(data) {
     defaultTemplateId: c.defaultTemplateId ?? null,
     missionmakerUserId: c.missionmakerUserId ?? null
   }));
-  // Seed default ranks if the data file has none
-  if (!data.ranks || data.ranks.length === 0) {
-    data.ranks = DEFAULT_RANKS;
-  }
+  // Do not seed ranks here; `lib/dataStore.js` is responsible for DB seeding.
+  data.ranks = data.ranks || [];
   return data;
 }
 
@@ -354,7 +288,7 @@ function getNextRecurrenceDate(dateTime, recurrence) {
 
 // Generate any operations that are due according to recurrence entries.
 // This is called on data load to materialize scheduled occurrences up to now.
-function generateRecurringOps(data) {
+async function generateRecurringOps(data) {
   normalizeStorage(data);
   const now = new Date();
   let changed = false;
@@ -391,98 +325,102 @@ function generateRecurringOps(data) {
       }
     }
   }
-  if (changed) writeData(data);
+  if (changed) await persistData(data);
 }
+
+import * as usersRepo from './repositories/users.js';
 
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-  const data = readData();
-  const user = data.users.find((u) => u.username === username);
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-  const ok = bcrypt.compareSync(password, user.password);
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET, { expiresIn: '8h' });
-  res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  try {
+    const user = await usersRepo.getUserByUsername(username);
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const ok = bcrypt.compareSync(password, user.password_hash || user.password || '');
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET, { expiresIn: '8h' });
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  } catch (err) {
+    console.error('Login error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-app.post('/api/signup', (req, res) => {
-  const data = readData();
+app.post('/api/signup', async (req, res) => {
   const username = (req.body.username || '').trim();
   if (!username) return res.status(400).json({ error: 'Username required' });
-  if (data.users.find((u) => u.username === username)) return res.status(409).json({ error: 'User already exists' });
-  // Signup always creates a 'member' account; missionmaker must be assigned by an admin
-  const role = 'member';
-  const user = {
-    id: Date.now(),
-    username,
-    password: bcrypt.hashSync(req.body.password || 'changeme', 10),
-    role,
-    rank: req.body.rank || '',
-    status: req.body.status || 'Active',
-    permissions: {},
-    profile: req.body.profile || {}
-  };
-  data.users.push(user);
-  writeData(data);
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET, { expiresIn: '8h' });
-  const { password: _, ...safeUser } = user;
-  res.json({ token, user: safeUser });
+  try {
+    const existing = await usersRepo.getUserByUsername(username);
+    if (existing) return res.status(409).json({ error: 'User already exists' });
+    const role = 'member';
+    const hashed = bcrypt.hashSync(req.body.password || 'changeme', 10);
+    const created = await usersRepo.createUser({ id: Date.now(), username, password_hash: hashed, role, rank: req.body.rank || '', status: req.body.status || 'Active', permissions: {}, email: req.body.email || null });
+    // create profile if provided
+    if (req.body.profile) {
+      await db.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), bio=VALUES(bio), avatar_url=VALUES(avatar_url), settings=VALUES(settings)', [created.id, req.body.profile.displayName || null, req.body.profile.bio || null, req.body.profile.avatarUrl || null, JSON.stringify(req.body.profile.settings || {})]);
+    }
+    const token = jwt.sign({ id: created.id, username: created.username, role: role }, SECRET, { expiresIn: '8h' });
+    const userSafe = { id: created.id, username: created.username, role };
+    res.json({ token, user: userSafe });
+  } catch (err) {
+    console.error('Signup error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-app.get('/api/public-data', (req, res) => {
-  const data = normalizeStorage(readData());
-  generateRecurringOps(data);
+app.get('/api/public-data', async (req, res) => {
+  const data = await getData();
+  await generateRecurringOps(data);
   const safeUsers = data.users.map(({ password, ...rest }) => rest);
   res.json({ users: safeUsers, templates: data.templates, ops: data.ops || [], campaigns: data.campaigns || [] });
 });
 
-app.get('/api/data', authMiddleware, (req, res) => {
-  const data = normalizeStorage(readData());
-  generateRecurringOps(data);
+app.get('/api/data', authMiddleware, async (req, res) => {
+  const data = await getData();
+  await generateRecurringOps(data);
   const safeUsers = data.users.map(({ password, ...rest }) => rest);
   res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role }, users: safeUsers, templates: data.templates, ops: data.ops || [], recurrences: data.recurrences || [], campaigns: data.campaigns || [] });
 });
 
-app.post('/api/users', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const user = {
-    id: Date.now(),
-    username: req.body.username,
-    password: bcrypt.hashSync(req.body.password || 'changeme', 10),
-    role: req.body.role || 'member',
-    rank: req.body.rank || '',
-    status: req.body.status || 'Active',
-    permissions: req.body.permissions || {}
-  };
-  data.users.push(user);
-  writeData(data);
-  const { password: _, ...safeUser } = user;
-  res.json({ user: safeUser });
+app.post('/api/users', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const hashed = bcrypt.hashSync(req.body.password || 'changeme', 10);
+    const created = await usersRepo.createUser({ id: Date.now(), username: req.body.username, email: req.body.email || null, password_hash: hashed, role: req.body.role || 'member', rank: req.body.rank || '', status: req.body.status || 'Active', permissions: req.body.permissions || {} });
+    const user = await usersRepo.getUserById(created.id);
+    const { password_hash, ...safeUser } = user;
+    res.json({ user: safeUser });
+  } catch (err) {
+    console.error('Create user error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-app.put('/api/users/:id/permissions', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const user = data.users.find((u) => u.id === Number(req.params.id));
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  user.permissions = req.body.permissions || user.permissions || {};
-  user.rank = req.body.rank ?? user.rank;
-  user.status = req.body.status ?? user.status;
-  user.role = req.body.role ?? user.role;
-  writeData(data);
-  const { password: _, ...safeUser } = user;
-  res.json({ user: safeUser });
+app.put('/api/users/:id/permissions', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const patch = { permissions: req.body.permissions || {}, rank: req.body.rank, status: req.body.status, role: req.body.role };
+    const updated = await usersRepo.updateUser(id, patch);
+    const { password_hash, ...safeUser } = updated;
+    res.json({ user: safeUser });
+  } catch (err) {
+    console.error('Update permissions error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-app.delete('/api/users/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const userIndex = data.users.findIndex((u) => u.id === Number(req.params.id));
-  if (userIndex === -1) return res.status(404).json({ error: 'User not found' });
-  data.users.splice(userIndex, 1);
-  writeData(data);
-  res.status(204).end();
+app.delete('/api/users/:id', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const user = await usersRepo.getUserById(id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    await usersRepo.deleteUser(id);
+    res.status(204).end();
+  } catch (err) {
+    console.error('Delete user error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-app.put('/api/users/me/password', authMiddleware, (req, res) => {
+app.put('/api/users/me/password', authMiddleware, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {
@@ -492,76 +430,89 @@ app.put('/api/users/me/password', authMiddleware, (req, res) => {
     return res.status(400).json({ error: 'New password must be at least 6 characters' });
   }
 
-  const data = readData();
-  const user = data.users.find((u) => u.id === req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  const ok = bcrypt.compareSync(currentPassword, user.password);
-  if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
-
-  user.password = bcrypt.hashSync(newPassword, 10);
-  writeData(data);
-  res.json({ ok: true });
+  try {
+    const user = await usersRepo.getUserById(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const ok = bcrypt.compareSync(currentPassword, user.password_hash || user.password || '');
+    if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+    const hashed = bcrypt.hashSync(newPassword, 10);
+    await usersRepo.updatePassword(req.user.id, hashed);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Password change error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 app.post('/api/templates', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const template = { id: Date.now(), name: req.body.name, sections: [] };
-  data.templates.push(template);
-  writeData(data);
-  res.json({ template });
+  (async () => {
+    try {
+      const t = await (await import('./repositories/templates.js')).createTemplate({ id: Date.now(), name: req.body.name, ownerId: req.user?.id || null, data: { sections: [] } });
+      res.json({ template: t });
+    } catch (err) {
+      console.error('Create template error', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  })();
 });
 
 app.put('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const template = findTemplate(data, req.params.id);
-  if (!template) return res.status(404).json({ error: 'Template not found' });
-  if (typeof req.body.name === 'string') template.name = req.body.name;
-  writeData(data);
-  res.json({ template });
+  (async () => {
+    try {
+      const id = Number(req.params.id);
+      const updated = await (await import('./repositories/templates.js')).updateTemplate(id, { name: typeof req.body.name === 'string' ? req.body.name : undefined });
+      if (!updated) return res.status(404).json({ error: 'Template not found' });
+      res.json({ template: updated });
+    } catch (err) {
+      console.error('Update template error', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  })();
 });
 
 app.post('/api/templates/:id/duplicate', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const source = findTemplate(data, req.params.id);
-  if (!source) return res.status(404).json({ error: 'Template not found' });
-
-  const nextId = () => Date.now() + Math.floor(Math.random() * 10000);
-
-  const newTemplate = {
-    id: nextId(),
-    name: typeof req.body.name === 'string' && req.body.name.trim() ? req.body.name.trim() : `Copy of ${source.name}`,
-    sections: (source.sections || []).map((section) => ({
-      id: nextId(),
-      title: section.title,
-      lrChannel: section.lrChannel || 1,
-      srChannel: section.srChannel || 1,
-      marker: section.marker || null,
-      markerIconUrl: section.markerIconUrl || null,
-      slots: (section.slots || []).map((slot) => ({
-        id: nextId(),
-        name: slot.name,
-        role: slot.role,
-        allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
-        notes: slot.notes || '',
-        assignedUserId: null
-      }))
-    }))
-  };
-
-  data.templates.push(newTemplate);
-  writeData(data);
-  res.json({ template: newTemplate });
+  (async () => {
+    try {
+      const tplRepo = await import('./repositories/templates.js');
+      const source = await tplRepo.getTemplateById(Number(req.params.id));
+      if (!source) return res.status(404).json({ error: 'Template not found' });
+      const nextId = () => Date.now() + Math.floor(Math.random() * 10000);
+      const newTemplateData = {
+        sections: (source.data.sections || []).map((section) => ({
+          id: nextId(),
+          title: section.title,
+          lrChannel: section.lrChannel || 1,
+          srChannel: section.srChannel || 1,
+          marker: section.marker || null,
+          markerIconUrl: section.markerIconUrl || null,
+          slots: (section.slots || []).map((slot) => ({
+            id: nextId(),
+            name: slot.name,
+            role: slot.role,
+            allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
+            notes: slot.notes || '',
+            assignedUserId: null
+          }))
+        }))
+      };
+      const name = typeof req.body.name === 'string' && req.body.name.trim() ? req.body.name.trim() : `Copy of ${source.name}`;
+      const created = await tplRepo.createTemplate({ id: nextId(), name, ownerId: req.user?.id || null, data: newTemplateData });
+      res.json({ template: created });
+    } catch (err) {
+      console.error('Duplicate template error', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  })();
 });
 
 // Campaigns API
-app.get('/api/campaigns', (req, res) => {
-  const data = normalizeStorage(readData());
+app.get('/api/campaigns', async (req, res) => {
+  const data = await getData();
   res.json({ campaigns: data.campaigns || [] });
 });
 
-app.post('/api/campaigns', authMiddleware, (req, res) => {
-  const data = normalizeStorage(readData());
+app.post('/api/campaigns', authMiddleware, async (req, res) => {
+  const data = await getData();
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
   const missionmakerUserId = Number(req.body.missionmakerUserId) || null;
@@ -578,12 +529,12 @@ app.post('/api/campaigns', authMiddleware, (req, res) => {
   };
   data.campaigns = data.campaigns || [];
   data.campaigns.push(campaign);
-  writeData(data);
+  await persistData(data);
   res.json({ campaign });
 });
 
-app.put('/api/campaigns/:id', authMiddleware, (req, res) => {
-  const data = normalizeStorage(readData());
+app.put('/api/campaigns/:id', authMiddleware, async (req, res) => {
+  const data = await getData();
   const campaign = (data.campaigns || []).find((c) => c.id === Number(req.params.id));
   if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
@@ -599,199 +550,178 @@ app.put('/api/campaigns/:id', authMiddleware, (req, res) => {
   if ('defaultTemplateId' in req.body) campaign.defaultTemplateId = req.body.defaultTemplateId ? Number(req.body.defaultTemplateId) : null;
   if ('missionmakerUserId' in req.body) campaign.missionmakerUserId = req.body.missionmakerUserId ? Number(req.body.missionmakerUserId) : null;
 
-  writeData(data);
+  await persistData(data);
   res.json({ campaign });
 });
 
-app.delete('/api/campaigns/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = normalizeStorage(readData());
+app.delete('/api/campaigns/:id', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const idx = (data.campaigns || []).findIndex((c) => c.id === Number(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Campaign not found' });
   data.campaigns.splice(idx, 1);
-  writeData(data);
+  await persistData(data);
   res.status(204).end();
 });
 
-app.post('/api/ops', authMiddleware, requireAdmin, (req, res) => {
-  const data = normalizeStorage(readData());
-  const template = findTemplate(data, req.body.templateId);
-  if (!template) return res.status(404).json({ error: 'Template not found' });
-  const recurrence = req.body.recurrence || 'none';
-  const op = {
-    id: Date.now(),
-    name: req.body.name || 'New operation',
-    templateId: Number(req.body.templateId),
-    date: req.body.date || '',
-    time: req.body.time || '',
-    serverName: req.body.serverName || '',
-    modlist: req.body.modlist || '',
-    modlistPlayer: req.body.modlistPlayer || '',
-    modlistServer: req.body.modlistServer || '',
-    tsAddress: req.body.tsAddress || '',
-    createdAt: new Date().toISOString(),
-    sections: buildOpSectionsFromTemplate(template)
-  };
-  let recurrenceEntry = null;
-  if (recurrence === 'none') {
-    data.ops.push(op);
-  } else {
-    const nextDateTime = `${req.body.date}T${req.body.time || '00:00'}:00`;
-    recurrenceEntry = {
-      id: Date.now() + 1,
-      name: op.name,
-      templateId: op.templateId,
-      recurrence,
-      repeatUntil: req.body.recurrenceEndDate || null,
-      startDate: req.body.date || '',
+app.post('/api/ops', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const tplRepo = await import('./repositories/templates.js');
+    const opsRepo = await import('./repositories/ops.js');
+    const template = await tplRepo.getTemplateById(Number(req.body.templateId));
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+    const recurrence = req.body.recurrence || 'none';
+    const sections = buildOpSectionsFromTemplate({ sections: template.data.sections || [] });
+    const payload = {
+      id: Date.now(),
+      name: req.body.name || 'New operation',
+      templateId: Number(req.body.templateId),
+      date: req.body.date || '',
       time: req.body.time || '',
-      weeklyDays: normalizeDays(req.body.weeklyDays),
-      monthlyDay: req.body.monthlyDay || null,
-      nextDateTime,
-      sections: op.sections,
-      createdAt: new Date().toISOString()
+      serverName: req.body.serverName || '',
+      modlist: req.body.modlist || '',
+      modlistPlayer: req.body.modlistPlayer || '',
+      modlistServer: req.body.modlistServer || '',
+      tsAddress: req.body.tsAddress || '',
+      createdAt: new Date().toISOString(),
+      sections
     };
-    data.recurrences.push(recurrenceEntry);
+
+    if (recurrence === 'none') {
+      const created = await opsRepo.createOp({ id: Date.now(), templateId: Number(req.body.templateId), title: payload.name, payload });
+      res.json({ op: created, recurrence: null });
+    } else {
+      // store recurrence as separate record
+      const conn = await import('./db.js');
+      const pool = conn.default;
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rResult] = await connection.query('INSERT INTO recurrences (id, op_id, rule, next_run) VALUES (?, ?, ?, ?)', [Date.now() + 1, null, JSON.stringify({ recurrence }), `${req.body.date}T${req.body.time || '00:00'}:00`]);
+        await connection.commit();
+        res.json({ op: null, recurrence: { id: rResult.insertId, recurrence } });
+      } catch (err) {
+        await connection.rollback();
+        throw err;
+      } finally {
+        connection.release();
+      }
+    }
+  } catch (err) {
+    console.error('Create op error', err);
+    res.status(500).json({ error: 'Server error' });
   }
-  writeData(data);
-  res.json({ op: recurrence === 'none' ? op : null, recurrence: recurrenceEntry });
 });
 
-app.post('/api/ops/:id/join', authMiddleware, (req, res) => {
-  const data = readData();
-  const op = findOp(data, req.params.id);
-  if (!op) return res.status(404).json({ error: 'Operation not found' });
-  const slot = op.sections.flatMap((section) => section.slots).find((slotItem) => slotItem.id === Number(req.body.slotId));
-  if (!slot) return res.status(404).json({ error: 'Slot not found' });
-  if (!slot.allowedRoles.includes(req.user.role) && req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'No permission for this slot' });
+app.post('/api/ops/:id/join', authMiddleware, async (req, res) => {
+  try {
+    const opsRepo = await import('./repositories/ops.js');
+    const op = await opsRepo.getOpById(Number(req.params.id));
+    if (!op) return res.status(404).json({ error: 'Operation not found' });
+    const slot = op.payload.sections.flatMap((s) => s.slots).find((sl) => sl.id === Number(req.body.slotId));
+    if (!slot) return res.status(404).json({ error: 'Slot not found' });
+    if (!slot.allowedRoles.includes(req.user.role) && req.user.role !== 'admin') return res.status(403).json({ error: 'No permission for this slot' });
+    const existingSlot = op.payload.sections.flatMap((s) => s.slots).find((other) => other.assignedUserId === req.user.id);
+    if (existingSlot && existingSlot.id !== slot.id) return res.status(409).json({ error: 'You are already signed up to another slot for this operation' });
+    if (slot.assignedUserId && slot.assignedUserId !== req.user.id) return res.status(409).json({ error: 'This slot is already taken' });
+    const updated = await opsRepo.joinSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
+    res.json({ op: updated });
+  } catch (err) {
+    console.error('Join slot error', err);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
-  const existingSlot = op.sections.flatMap((section) => section.slots).find((other) => other.assignedUserId === req.user.id);
-  if (existingSlot && existingSlot.id !== slot.id) {
-    return res.status(409).json({ error: 'You are already signed up to another slot for this operation' });
-  }
-  if (slot.assignedUserId && slot.assignedUserId !== req.user.id) {
-    return res.status(409).json({ error: 'This slot is already taken' });
-  }
-  slot.assignedUserId = req.user.id;
-  writeData(data);
-  res.json({ op });
 });
 
-app.post('/api/ops/:id/signoff', authMiddleware, (req, res) => {
-  const data = readData();
-  const op = findOp(data, req.params.id);
-  if (!op) return res.status(404).json({ error: 'Operation not found' });
-
-  const slot = op.sections.flatMap((section) => section.slots).find((slotItem) => slotItem.id === Number(req.body.slotId));
-  if (!slot) return res.status(404).json({ error: 'Slot not found' });
-  if (slot.assignedUserId !== req.user.id) {
-    return res.status(403).json({ error: 'You are not assigned to this slot' });
+app.post('/api/ops/:id/signoff', authMiddleware, async (req, res) => {
+  try {
+    const opsRepo = await import('./repositories/ops.js');
+    const updated = await opsRepo.signoffSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
+    res.json({ op: updated });
+  } catch (err) {
+    console.error('Signoff slot error', err);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
-
-  slot.assignedUserId = null;
-  writeData(data);
-  res.json({ op });
 });
 
-app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, (req, res) => {
-  const data = readData();
-  const op = findOp(data, req.params.opId);
-  if (!op) return res.status(404).json({ error: 'Operation not found' });
-
-  const section = (op.sections || []).find((item) => item.id === Number(req.params.sectionId));
-  if (!section) return res.status(404).json({ error: 'Section not found' });
-
-  const isAdminUser = req.user?.role === 'admin';
-  const isMissionmaker = req.user?.role === 'missionmaker';
-
-  if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
-
-  if ('lrChannel' in req.body) {
-    if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' });
-    section.lrChannel = Number(req.body.lrChannel);
+app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, async (req, res) => {
+  try {
+    const isAdminUser = req.user?.role === 'admin';
+    const isMissionmaker = req.user?.role === 'missionmaker';
+    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
+    const opsRepo = await import('./repositories/ops.js');
+    const patch = {};
+    if ('lrChannel' in req.body) { if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' }); patch.lrChannel = Number(req.body.lrChannel); }
+    if ('srChannel' in req.body) { if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' }); patch.srChannel = Number(req.body.srChannel); }
+    if ('marker' in req.body) { patch.marker = req.body.marker === null ? null : (typeof req.body.marker === 'string' ? req.body.marker.trim() : undefined); }
+    if ('markerIconUrl' in req.body) { patch.markerIconUrl = req.body.markerIconUrl === null ? null : (typeof req.body.markerIconUrl === 'string' ? req.body.markerIconUrl.trim() : undefined); }
+    const updated = await opsRepo.updateSection(Number(req.params.opId), Number(req.params.sectionId), patch);
+    res.json({ op: updated });
+  } catch (err) {
+    console.error('Update op section error', err);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
-  if ('srChannel' in req.body) {
-    if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
-    section.srChannel = Number(req.body.srChannel);
-  }
-  if ('marker' in req.body) {
-    if (req.body.marker === null) section.marker = null;
-    else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim();
-    else return res.status(400).json({ error: 'marker must be a string or null' });
-  }
-  if ('markerIconUrl' in req.body) {
-    if (req.body.markerIconUrl === null) section.markerIconUrl = null;
-    else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim();
-    else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
-  }
-
-  writeData(data);
-  res.json({ op });
 });
 
-app.put('/api/ops/:opId/slots/:slotId', authMiddleware, (req, res) => {
-  const data = readData();
-  const op = findOp(data, req.params.opId);
-  if (!op) return res.status(404).json({ error: 'Operation not found' });
-
-  const slot = findOpSlot(op, req.params.slotId);
-  if (!slot) return res.status(404).json({ error: 'Slot not found' });
-
-  const isAdminUser = req.user?.role === 'admin';
-  const isMissionmaker = req.user?.role === 'missionmaker';
-
-  if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
-
-  if (typeof req.body.name === 'string') {
-    slot.name = req.body.name;
+app.put('/api/ops/:opId/slots/:slotId', authMiddleware, async (req, res) => {
+  try {
+    const isAdminUser = req.user?.role === 'admin';
+    const isMissionmaker = req.user?.role === 'missionmaker';
+    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
+    const opsRepo = await import('./repositories/ops.js');
+    const patch = {};
+    if (typeof req.body.name === 'string') patch.name = req.body.name;
+    if (typeof req.body.role === 'string') patch.role = req.body.role;
+    if (typeof req.body.notes === 'string') patch.notes = req.body.notes;
+    if (Array.isArray(req.body.allowedRoles)) patch.allowedRoles = req.body.allowedRoles;
+    const updated = await opsRepo.updateSlot(Number(req.params.opId), Number(req.params.slotId), patch);
+    res.json({ op: updated });
+  } catch (err) {
+    console.error('Update slot error', err);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
-  if (typeof req.body.role === 'string') {
-    slot.role = req.body.role;
+});
+
+app.put('/api/ops/:id', authMiddleware, async (req, res) => {
+  try {
+    const isAdminUser = req.user?.role === 'admin';
+    const isMissionmaker = req.user?.role === 'missionmaker';
+    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
+    const opsRepo = await import('./repositories/ops.js');
+    const patch = {};
+    if (typeof req.body.name === 'string') patch.title = req.body.name;
+    if (typeof req.body.date === 'string' || typeof req.body.time === 'string') patch.payload = {};
+    if (typeof req.body.date === 'string') patch.payload.date = req.body.date;
+    if (typeof req.body.time === 'string') patch.payload.time = req.body.time;
+    if (typeof req.body.serverName === 'string') { patch.payload = patch.payload || {}; patch.payload.serverName = req.body.serverName; }
+    if (typeof req.body.modlist === 'string') { patch.payload = patch.payload || {}; patch.payload.modlist = req.body.modlist; }
+    if (typeof req.body.modlistPlayer === 'string') { patch.payload = patch.payload || {}; patch.payload.modlistPlayer = req.body.modlistPlayer; }
+    if (typeof req.body.modlistServer === 'string') { patch.payload = patch.payload || {}; patch.payload.modlistServer = req.body.modlistServer; }
+    if (typeof req.body.tsAddress === 'string') { patch.payload = patch.payload || {}; patch.payload.tsAddress = req.body.tsAddress; }
+    const updated = await opsRepo.updateOp(Number(req.params.id), patch);
+    res.json({ op: updated });
+  } catch (err) {
+    console.error('Update op error', err);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
-  if (typeof req.body.notes === 'string') slot.notes = req.body.notes;
-  if (Array.isArray(req.body.allowedRoles)) slot.allowedRoles = req.body.allowedRoles;
-
-  writeData(data);
-  res.json({ op });
 });
 
-app.put('/api/ops/:id', authMiddleware, (req, res) => {
-  const data = readData();
-  const op = findOp(data, req.params.id);
-  if (!op) return res.status(404).json({ error: 'Operation not found' });
-
-  const isAdminUser = req.user?.role === 'admin';
-  const isMissionmaker = req.user?.role === 'missionmaker';
-
-  if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
-
-  if (typeof req.body.name === 'string') op.name = req.body.name;
-  if (typeof req.body.date === 'string') op.date = req.body.date;
-  if (typeof req.body.time === 'string') op.time = req.body.time;
-  if (typeof req.body.serverName === 'string') op.serverName = req.body.serverName;
-  if (typeof req.body.modlist === 'string') op.modlist = req.body.modlist;
-  if (typeof req.body.modlistPlayer === 'string') op.modlistPlayer = req.body.modlistPlayer;
-  if (typeof req.body.modlistServer === 'string') op.modlistServer = req.body.modlistServer;
-  if (typeof req.body.tsAddress === 'string') op.tsAddress = req.body.tsAddress;
-
-  writeData(data);
-  res.json({ op });
+app.delete('/api/ops/:id', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const opsRepo = await import('./repositories/ops.js');
+    const op = await opsRepo.getOpById(Number(req.params.id));
+    if (!op) return res.status(404).json({ error: 'Operation not found' });
+    await opsRepo.deleteOp(Number(req.params.id));
+    res.status(204).end();
+  } catch (err) {
+    console.error('Delete op error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-app.delete('/api/ops/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const opIndex = (data.ops || []).findIndex((op) => op.id === Number(req.params.id));
-  if (opIndex === -1) return res.status(404).json({ error: 'Operation not found' });
-  data.ops.splice(opIndex, 1);
-  writeData(data);
-  res.status(204).end();
-});
-
-app.put('/api/roles/rename', authMiddleware, requireAdmin, (req, res) => {
+app.put('/api/roles/rename', authMiddleware, requireAdmin, async (req, res) => {
   const { oldName, newName } = req.body;
   if (!oldName || !newName || oldName === newName) return res.status(400).json({ error: 'oldName and newName required' });
 
-  const data = normalizeStorage(readData());
+  const data = await getData();
 
   const renameInSlots = (slots) => {
     (slots || []).forEach((slot) => {
@@ -817,19 +747,19 @@ app.put('/api/roles/rename', authMiddleware, requireAdmin, (req, res) => {
     }
   });
 
-  writeData(data);
+  await persistData(data);
   res.json({ ok: true });
 });
 
 // Ranks API: simple CRUD for rank management
-app.get('/api/ranks', (req, res) => {
-  const data = normalizeStorage(readData());
+app.get('/api/ranks', async (req, res) => {
+  const data = await getData();
   const ranks = (data.ranks || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
   res.json({ ranks });
 });
 
-app.post('/api/ranks', authMiddleware, requireAdmin, (req, res) => {
-  const data = normalizeStorage(readData());
+app.post('/api/ranks', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
   const rank = {
@@ -841,24 +771,24 @@ app.post('/api/ranks', authMiddleware, requireAdmin, (req, res) => {
   };
   data.ranks = data.ranks || [];
   data.ranks.push(rank);
-  writeData(data);
+  await persistData(data);
   res.json({ rank });
 });
 
-app.put('/api/ranks/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = normalizeStorage(readData());
+app.put('/api/ranks/:id', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const rank = (data.ranks || []).find((r) => r.id === Number(req.params.id));
   if (!rank) return res.status(404).json({ error: 'Rank not found' });
   if (typeof req.body.name === 'string') rank.name = req.body.name.trim();
   if (typeof req.body.short === 'string') rank.short = req.body.short.trim();
   if ('icon' in req.body) rank.icon = req.body.icon || null;
   if ('order' in req.body) rank.order = Number(req.body.order) || rank.order;
-  writeData(data);
+  await persistData(data);
   res.json({ rank });
 });
 
-app.delete('/api/ranks/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = normalizeStorage(readData());
+app.delete('/api/ranks/:id', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const idx = (data.ranks || []).findIndex((r) => r.id === Number(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Rank not found' });
   const removed = data.ranks.splice(idx, 1)[0];
@@ -866,21 +796,21 @@ app.delete('/api/ranks/:id', authMiddleware, requireAdmin, (req, res) => {
   data.users.forEach((u) => {
     if (u.rank === removed.id || u.rank === removed.name) u.rank = '';
   });
-  writeData(data);
+  await persistData(data);
   res.status(204).end();
 });
 
-app.delete('/api/recurrences/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = normalizeStorage(readData());
+app.delete('/api/recurrences/:id', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const recurrenceIndex = (data.recurrences || []).findIndex((recurrence) => recurrence.id === Number(req.params.id));
   if (recurrenceIndex === -1) return res.status(404).json({ error: 'Recurrence not found' });
   data.recurrences.splice(recurrenceIndex, 1);
-  writeData(data);
+  await persistData(data);
   res.status(204).end();
 });
 
-app.put('/api/recurrences/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = normalizeStorage(readData());
+app.put('/api/recurrences/:id', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const recurrence = (data.recurrences || []).find((entry) => entry.id === Number(req.params.id));
   if (!recurrence) return res.status(404).json({ error: 'Recurrence not found' });
 
@@ -899,38 +829,50 @@ app.put('/api/recurrences/:id', authMiddleware, requireAdmin, (req, res) => {
     recurrence.nextDateTime = null;
   }
 
-  writeData(data);
+  await persistData(data);
   res.json({ recurrence });
 });
 
 
 app.delete('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const templateIndex = data.templates.findIndex((template) => template.id === Number(req.params.id));
-  if (templateIndex === -1) return res.status(404).json({ error: 'Template not found' });
-  data.templates.splice(templateIndex, 1);
-  writeData(data);
-  res.status(204).end();
+  (async () => {
+    try {
+      const tplRepo = await import('./repositories/templates.js');
+      const t = await tplRepo.getTemplateById(Number(req.params.id));
+      if (!t) return res.status(404).json({ error: 'Template not found' });
+      await tplRepo.deleteTemplate(Number(req.params.id));
+      res.status(204).end();
+    } catch (err) {
+      console.error('Delete template error', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  })();
 });
 
 app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const template = findTemplate(data, req.params.templateId);
-  if (!template) return res.status(404).json({ error: 'Template not found' });
-
-  const section = {
-    id: Date.now(),
-    title: req.body.title || 'New section',
-    lrChannel: 1,
-    srChannel: template.sections.length + 1,
-    marker: req.body.marker || null,
-    markerIconUrl: req.body.markerIconUrl || null,
-    slots: []
-  };
-
-  template.sections.push(section);
-  writeData(data);
-  res.json({ section });
+  (async () => {
+    try {
+      const tplRepo = await import('./repositories/templates.js');
+      const template = await tplRepo.getTemplateById(Number(req.params.templateId));
+      if (!template) return res.status(404).json({ error: 'Template not found' });
+      const section = {
+        id: Date.now(),
+        title: req.body.title || 'New section',
+        lrChannel: 1,
+        srChannel: (template.data.sections || []).length + 1,
+        marker: req.body.marker || null,
+        markerIconUrl: req.body.markerIconUrl || null,
+        slots: []
+      };
+      template.data.sections = template.data.sections || [];
+      template.data.sections.push(section);
+      const updated = await tplRepo.updateTemplate(template.id, { data: template.data });
+      res.json({ section });
+    } catch (err) {
+      console.error('Add section error', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  })();
 });
 
 function isValidChannel(value) {
@@ -938,42 +880,28 @@ function isValidChannel(value) {
   return Number.isInteger(num) && num >= 0 && num <= 99;
 }
 
-app.put('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
-  const template = findTemplate(data, req.params.templateId);
-  if (!template) return res.status(404).json({ error: 'Template not found' });
-
-  const section = template.sections.find((item) => item.id === Number(req.params.sectionId));
-  if (!section) return res.status(404).json({ error: 'Section not found' });
-
-  if (typeof req.body.title === 'string' && req.body.title.trim()) {
-    section.title = req.body.title.trim();
-  }
-  if ('lrChannel' in req.body) {
-    if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' });
-    section.lrChannel = Number(req.body.lrChannel);
-  }
-  if ('srChannel' in req.body) {
-    if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
-    section.srChannel = Number(req.body.srChannel);
-  }
-  if ('marker' in req.body) {
-    if (req.body.marker === null) section.marker = null;
-    else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim();
-    else return res.status(400).json({ error: 'marker must be a string or null' });
-  }
-  if ('markerIconUrl' in req.body) {
-    if (req.body.markerIconUrl === null) section.markerIconUrl = null;
-    else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim();
-    else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
-  }
-
-  writeData(data);
-  res.json({ section });
+app.put('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+      const tplRepo = await import('./repositories/templates.js');
+      const template = await tplRepo.getTemplateById(Number(req.params.templateId));
+      if (!template) return res.status(404).json({ error: 'Template not found' });
+      const section = (template.data.sections || []).find((item) => item.id === Number(req.params.sectionId));
+      if (!section) return res.status(404).json({ error: 'Section not found' });
+      if (typeof req.body.title === 'string' && req.body.title.trim()) section.title = req.body.title.trim();
+      if ('lrChannel' in req.body) { if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' }); section.lrChannel = Number(req.body.lrChannel); }
+      if ('srChannel' in req.body) { if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' }); section.srChannel = Number(req.body.srChannel); }
+      if ('marker' in req.body) { if (req.body.marker === null) section.marker = null; else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim(); else return res.status(400).json({ error: 'marker must be a string or null' }); }
+      if ('markerIconUrl' in req.body) { if (req.body.markerIconUrl === null) section.markerIconUrl = null; else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim(); else return res.status(400).json({ error: 'markerIconUrl must be a string or null' }); }
+      await tplRepo.updateTemplate(template.id, { data: template.data });
+      res.json({ section });
+    } catch (err) {
+      console.error('Update section error', err);
+      res.status(500).json({ error: 'Server error' });
+    }
 });
 
-app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
+app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const op = findOp(data, req.params.opId);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
 
@@ -999,12 +927,12 @@ app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, (req
     else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
   }
 
-  writeData(data);
+  await persistData(data);
   res.json({ op });
 });
 
-app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
+app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
@@ -1012,12 +940,12 @@ app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, req
   if (sectionIndex === -1) return res.status(404).json({ error: 'Section not found' });
 
   template.sections.splice(sectionIndex, 1);
-  writeData(data);
+  await persistData(data);
   res.status(204).end();
 });
 
-app.put('/api/templates/:templateId/sections/:sectionId/slots/reorder', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
+app.put('/api/templates/:templateId/sections/:sectionId/slots/reorder', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
@@ -1040,12 +968,12 @@ app.put('/api/templates/:templateId/sections/:sectionId/slots/reorder', authMidd
   const slotMap = new Map(section.slots.map((slot) => [Number(slot.id), slot]));
   section.slots = slotIds.map((slotId) => slotMap.get(slotId));
 
-  writeData(data);
+  await persistData(data);
   res.json({ section });
 });
 
-app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
+app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const template = findTemplate(data, req.params.id);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   const section = template.sections.find((section) => section.id === Number(req.body.sectionId));
@@ -1059,12 +987,12 @@ app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, (req, res) =>
     assignedUserId: null
   };
   section.slots.push(slot);
-  writeData(data);
+  await persistData(data);
   res.json({ slot });
 });
 
-app.put('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
+app.put('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   const slot = findSlot(template, req.params.slotId);
@@ -1073,12 +1001,12 @@ app.put('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin
   if (typeof req.body.role === 'string') slot.role = req.body.role;
   if (Array.isArray(req.body.allowedRoles)) slot.allowedRoles = req.body.allowedRoles;
   if (typeof req.body.notes === 'string') slot.notes = req.body.notes;
-  writeData(data);
+  await persistData(data);
   res.json({ slot });
 });
 
-app.delete('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin, (req, res) => {
-  const data = readData();
+app.delete('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   let slotRemoved = false;
@@ -1090,12 +1018,12 @@ app.delete('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAd
     }
   });
   if (!slotRemoved) return res.status(404).json({ error: 'Slot not found' });
-  writeData(data);
+  await persistData(data);
   res.status(204).end();
 });
 
-app.post('/api/templates/:templateId/join', authMiddleware, (req, res) => {
-  const data = readData();
+app.post('/api/templates/:templateId/join', authMiddleware, async (req, res) => {
+  const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   const slot = findSlot(template, req.body.slotId);
@@ -1111,7 +1039,7 @@ app.post('/api/templates/:templateId/join', authMiddleware, (req, res) => {
     return res.status(409).json({ error: 'This slot is already taken' });
   }
   slot.assignedUserId = req.user.id;
-  writeData(data);
+  await persistData(data);
   res.json({ slot });
 });
 
@@ -1119,7 +1047,16 @@ app.post('/api/upload', authMiddleware, requireAdmin, (req, res) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.originalname });
+    (async () => {
+      try {
+        const filesRepo = await import('./repositories/files.js');
+        const stat = await fs.promises.stat(path.join(UPLOADS_DIR, req.file.filename));
+        await filesRepo.addFile({ filename: req.file.originalname, pathname: `/uploads/${req.file.filename}`, mimetype: req.file.mimetype, size: stat.size, ownerId: req.user?.id || null, metadata: {} });
+      } catch (err) {
+        console.error('Upload file error', err);
+        res.status(500).json({ error: 'Server error' });
+      }
+    })();
   });
 });
 
@@ -1131,7 +1068,16 @@ app.post('/api/upload/custom-marker', authMiddleware, (req, res) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.originalname });
+    (async () => {
+      try {
+        const filesRepo = await import('./repositories/files.js');
+        const stat = await fs.promises.stat(path.join(UPLOADS_DIR, req.file.filename));
+        await filesRepo.addFile({ filename: req.file.originalname, pathname: `/uploads/${req.file.filename}`, mimetype: req.file.mimetype, size: stat.size, ownerId: req.user?.id || null, metadata: { marker: true } });
+      } catch (e) {
+        console.error('Failed to record custom-marker metadata', e);
+      }
+      res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.originalname });
+    })();
   });
 });
 
@@ -1142,12 +1088,20 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     // Persist avatar URL onto the user's profile
     try {
-      const data = readData();
-      const user = data.users.find((u) => u.id === req.user.id);
-      if (!user) return res.status(404).json({ error: 'User not found' });
-      user.profile = user.profile || {};
-      user.profile.avatarUrl = `/uploads/${req.file.filename}`;
-      writeData(data);
+      (async () => {
+        try {
+          const filesRepo = await import('./repositories/files.js');
+          const stat = await fs.promises.stat(path.join(UPLOADS_DIR, req.file.filename));
+          await filesRepo.addFile({ filename: req.file.originalname, pathname: `/uploads/${req.file.filename}`, mimetype: req.file.mimetype, size: stat.size, ownerId: req.user.id, metadata: { avatar: true } });
+        } catch (e) {
+          console.error('Failed to record avatar metadata', e);
+        }
+        try {
+          await db.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE avatar_url=VALUES(avatar_url)', [req.user.id, null, null, `/uploads/${req.file.filename}`, JSON.stringify({})]);
+        } catch (e) {
+          console.error('Failed to update user profile with avatar', e);
+        }
+      })();
     } catch (e) {
       // ignore persistence errors for upload but report success URL
     }
@@ -1156,22 +1110,23 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
 });
 
   // Export full application data and included uploads as a single JSON payload
-  app.get('/api/backup', authMiddleware, requireAdmin, (req, res) => {
+  app.get('/api/backup', authMiddleware, requireAdmin, async (req, res) => {
     try {
-      const data = normalizeStorage(readData());
-      generateRecurringOps(data);
+      const data = normalizeStorage(await _readData());
+      // materialize any recurring ops into the data snapshot
+      try { await generateRecurringOps(data); } catch (e) { console.error('Recurring generation error', e); }
 
       const uploads = [];
       if (fs.existsSync(UPLOADS_DIR)) {
-        const files = fs.readdirSync(UPLOADS_DIR);
+        const files = await fs.promises.readdir(UPLOADS_DIR);
         for (const fname of files) {
           const full = path.join(UPLOADS_DIR, fname);
           try {
-            const stat = fs.statSync(full);
+            const stat = await fs.promises.stat(full);
             if (!stat.isFile()) continue;
             const ext = path.extname(fname).toLowerCase();
             if (!ALLOWED_UPLOAD_EXTENSIONS.has(ext)) continue;
-            const content = fs.readFileSync(full);
+            const content = await fs.promises.readFile(full);
             uploads.push({ filename: fname, content: content.toString('base64') });
           } catch (e) {
             // ignore individual file errors
@@ -1181,12 +1136,13 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
 
       res.json({ data, uploads });
     } catch (e) {
+      console.error('Backup export error', e);
       res.status(500).json({ error: 'Could not prepare backup' });
     }
   });
 
   // Import application backup (JSON payload with `data` and optional `uploads` array)
-  app.post('/api/backup/import', authMiddleware, requireAdmin, (req, res) => {
+  app.post('/api/backup/import', authMiddleware, requireAdmin, async (req, res) => {
     try {
       const payload = req.body;
       if (!payload || typeof payload !== 'object' || !payload.data) {
@@ -1196,7 +1152,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
       const selectedSections = Array.isArray(payload.selectedSections) ? payload.selectedSections : [];
       const restoreUploads = Boolean(payload.restoreUploads);
       const backupData = normalizeStorage(payload.data);
-      const currentData = normalizeStorage(readData());
+      const currentData = normalizeStorage(await getData());
 
       if (!selectedSections.length && !restoreUploads) {
         return res.status(400).json({ error: 'No sections selected for restore' });
@@ -1205,8 +1161,9 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
       // create uploads dir if missing
       if (restoreUploads && !fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-      // restore uploads (safe filenames only)
+      // restore uploads (safe filenames only) and record metadata in DB
       if (restoreUploads && Array.isArray(payload.uploads)) {
+        const filesRepo = await import('./repositories/files.js');
         for (const item of payload.uploads) {
           try {
             const name = path.basename(String(item.filename || ''));
@@ -1214,6 +1171,12 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
             if (!name || !ALLOWED_UPLOAD_EXTENSIONS.has(ext) || typeof item.content !== 'string') continue;
             const dest = path.join(UPLOADS_DIR, name);
             fs.writeFileSync(dest, Buffer.from(item.content, 'base64'));
+            try {
+              const stat = fs.statSync(dest);
+              await filesRepo.addFile({ filename: name, pathname: `/uploads/${name}`, mimetype: null, size: stat.size, ownerId: null, metadata: {} });
+            } catch (e) {
+              // ignore metadata insert errors
+            }
           } catch (e) {
             // ignore individual file write errors
           }
@@ -1231,7 +1194,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
       }
 
       // Always keep current uploads unless restoreUploads is true
-      writeData(nextData);
+      await persistData(nextData);
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: 'Import failed' });
@@ -1239,8 +1202,8 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
   });
 
 // Return full current user object (safe)
-app.get('/api/users/me', authMiddleware, (req, res) => {
-  const data = normalizeStorage(readData());
+app.get('/api/users/me', authMiddleware, async (req, res) => {
+  const data = normalizeStorage(await getData());
   const user = data.users.find((u) => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const { password, ...safeUser } = user;
@@ -1248,8 +1211,8 @@ app.get('/api/users/me', authMiddleware, (req, res) => {
 });
 
 // Update current user's profile (rank, status, profile object)
-app.put('/api/users/me', authMiddleware, (req, res) => {
-  const data = readData();
+app.put('/api/users/me', authMiddleware, async (req, res) => {
+  const data = await getData();
   const user = data.users.find((u) => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -1260,7 +1223,7 @@ app.put('/api/users/me', authMiddleware, (req, res) => {
     user.profile = { ...(user.profile || {}), ...req.body.profile };
   }
 
-  writeData(data);
+  await persistData(data);
   const { password, ...safeUser } = user;
   res.json({ user: safeUser });
 });

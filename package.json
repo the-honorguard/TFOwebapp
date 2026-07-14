@@ -7,6 +7,9 @@
         "dev": "concurrently \"npm run server\" \"npm run client\"",
         "client": "vite",
         "server": "node server.js",
+        "migrate": "node --experimental-json-modules scripts/migrate-to-mysql.js",
+        "start-db-migrate": "node scripts/wait-for-db.js || powershell -File scripts/start-db-and-migrate.ps1",
+        "start-db-migrate-docker": "powershell -File scripts/start-db-and-migrate.ps1",
         "build": "vite build",
         "test": "node --test"
     },
@@ -27,3 +30,4 @@
         "vite": "^5.4.10"
     }
 }
+

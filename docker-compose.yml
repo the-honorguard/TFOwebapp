@@ -1,0 +1,31 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-example_root_pw}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-tfowebapp}
+      MYSQL_USER: ${MYSQL_USER:-tfo}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tfo_pass}
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u ${MYSQL_USER:-tfo} -p${MYSQL_PASSWORD:-tfo_pass}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    expose:
+      - "3306"
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  db_data:
