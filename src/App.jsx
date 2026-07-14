@@ -225,6 +225,7 @@ function App() {
     setOps(data.ops || []);
     setRecurrences(data.recurrences || []);
     setCampaigns(data.campaigns || []);
+    setCustomRoles(data.customRoles || []);
     setAuth(nextAuth);
     setSelectedTemplateId(templateList?.[0]?.id || null);
     setSelectedOpId(null);
@@ -1701,45 +1702,10 @@ function App() {
     setNodeHeights((prev) => (prev[nodeKey] === nextHeight ? prev : { ...prev, [nodeKey]: nextHeight }));
   };
 
-  const [extraRoles, setExtraRoles] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('extraRoles'));
-      if (stored && stored.length > 0) return stored;
-    } catch (error) {
-      // ignore parse errors, fall through to defaults
-    }
-    return [
-      'PLT leader',
-      'Medic',
-      'SQL',
-      'AR',
-      'Marksman',
-      'Rifleman',
-      'Anti-tank',
-      'Engineer',
-      'Grenadier',
-      'JTAC/FO',
-      'Sniper',
-      'Spotter',
-      'Heli pilot',
-      'Jet pilot',
-      'Commander',
-      'Driver',
-      'Ground vehicle gunner',
-      'Fire support gunner',
-      'FS TL',
-      'Zeus',
-      'Anti air',
-      'Drone Operator'
-    ];
-  });
+  const [customRoles, setCustomRoles] = useState([]);
   const [newRoleName, setNewRoleName] = useState('');
   const [renamingRole, setRenamingRole] = useState(null);
   const [renameValue, setRenameValue] = useState('');
-
-  useEffect(() => {
-    localStorage.setItem('extraRoles', JSON.stringify(extraRoles));
-  }, [extraRoles]);
 
   const allRoles = useMemo(() => {
     const roleMap = new Map();
@@ -1759,15 +1725,15 @@ function App() {
         });
       });
     });
-    extraRoles.forEach((role) => addRoleToMap(role));
+    customRoles.forEach((role) => addRoleToMap(role.name));
     return Array.from(roleMap.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-  }, [templates, extraRoles]);
+  }, [templates, customRoles]);
 
   const permissionColumns = useMemo(() => {
     return allRoles.filter((role) => !['member', 'admin'].includes(normalizeRoleKey(role)));
   }, [allRoles]);
 
-  const addRole = (e) => {
+  const addRole = async (e) => {
     e.preventDefault();
     const name = newRoleName.trim();
     if (!name) return;
@@ -1776,15 +1742,41 @@ function App() {
       alert('Role already exists');
       return;
     }
-    setExtraRoles((prev) => [...prev, name]);
-    setNewRoleName('');
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API}/roles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.role) throw new Error(data.error || 'Could not add role');
+      setCustomRoles((prev) => [...prev, data.role]);
+      setNewRoleName('');
+    } catch (err) {
+      alert(err.message || 'Could not add role');
+    }
   };
 
-  const deleteRole = (role) => {
+  const deleteRole = async (role) => {
     if (!window.confirm(`Are you sure you want to delete the role "${role}"?`)) {
       return;
     }
-    setExtraRoles((prev) => prev.filter((item) => normalizeRoleKey(item) !== normalizeRoleKey(role)));
+    const target = customRoles.find((item) => normalizeRoleKey(item.name) === normalizeRoleKey(role));
+    if (!target) return;
+    const prevCustomRoles = customRoles;
+    setCustomRoles((prev) => prev.filter((item) => item.id !== target.id));
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/roles/${target.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Could not delete role');
+    } catch (err) {
+      alert(err.message || 'Could not delete role');
+      setCustomRoles(prevCustomRoles);
+    }
   };
 
   const renameRole = async (oldName, newName) => {
@@ -1798,9 +1790,7 @@ function App() {
     });
     const data = await res.json();
     if (data.ok) {
-      if (extraRoles.includes(oldName)) {
-        setExtraRoles((prev) => prev.map((r) => (r === oldName ? trimmed : r)));
-      }
+      setCustomRoles((prev) => prev.map((r) => (r.name === oldName ? { ...r, name: trimmed } : r)));
       setRenamingRole(null);
       loadPrivateData();
     } else {
@@ -2654,7 +2644,7 @@ function App() {
                             return sectionCount + section.slots?.filter((slot) => slot.allowedRoles?.includes(role)).length;
                           }, 0);
                         }, 0);
-                        const isRemovable = extraRoles.includes(role);
+                        const isRemovable = customRoles.some((item) => normalizeRoleKey(item.name) === normalizeRoleKey(role));
                       return (
                           <div key={role} className="role-card">
                             <div className="role-card-header">

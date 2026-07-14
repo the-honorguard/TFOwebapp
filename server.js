@@ -216,6 +216,7 @@ function normalizeStorage(data) {
   }));
   // Do not seed ranks here; `lib/dataStore.js` is responsible for DB seeding.
   data.ranks = data.ranks || [];
+  data.customRoles = data.customRoles || [];
   return data;
 }
 
@@ -371,14 +372,14 @@ app.get('/api/public-data', async (req, res) => {
   const data = await getData();
   await generateRecurringOps(data);
   const safeUsers = data.users.map(({ password, ...rest }) => rest);
-  res.json({ users: safeUsers, templates: data.templates, ops: data.ops || [], campaigns: data.campaigns || [] });
+  res.json({ users: safeUsers, templates: data.templates, ops: data.ops || [], campaigns: data.campaigns || [], customRoles: data.customRoles || [] });
 });
 
 app.get('/api/data', authMiddleware, async (req, res) => {
   const data = await getData();
   await generateRecurringOps(data);
   const safeUsers = data.users.map(({ password, ...rest }) => rest);
-  res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role }, users: safeUsers, templates: data.templates, ops: data.ops || [], recurrences: data.recurrences || [], campaigns: data.campaigns || [] });
+  res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role }, users: safeUsers, templates: data.templates, ops: data.ops || [], recurrences: data.recurrences || [], campaigns: data.campaigns || [], customRoles: data.customRoles || [] });
 });
 
 app.post('/api/users', authMiddleware, requireAdmin, async (req, res) => {
@@ -747,8 +748,40 @@ app.put('/api/roles/rename', authMiddleware, requireAdmin, async (req, res) => {
     }
   });
 
+  (data.customRoles || []).forEach((role) => {
+    if (role.name === oldName) role.name = newName;
+  });
+
   await persistData(data);
   res.json({ ok: true });
+});
+
+// Custom roles API: roles that exist independently of any template slot yet
+app.get('/api/roles', async (req, res) => {
+  const data = await getData();
+  res.json({ roles: data.customRoles || [] });
+});
+
+app.post('/api/roles', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
+  const name = (req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const exists = (data.customRoles || []).some((r) => r.name.toLowerCase() === name.toLowerCase());
+  if (exists) return res.status(409).json({ error: 'Role already exists' });
+  const role = { id: Date.now(), name };
+  data.customRoles = data.customRoles || [];
+  data.customRoles.push(role);
+  await persistData(data);
+  res.json({ role });
+});
+
+app.delete('/api/roles/:id', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
+  const idx = (data.customRoles || []).findIndex((r) => r.id === Number(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: 'Role not found' });
+  data.customRoles.splice(idx, 1);
+  await persistData(data);
+  res.status(204).end();
 });
 
 // Ranks API: simple CRUD for rank management
