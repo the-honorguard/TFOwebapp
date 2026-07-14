@@ -2,7 +2,7 @@ import db from '../db.js';
 
 export async function createUser({ id = null, username, email = null, password_hash, role = 'member', rank = null, status = 'Active', permissions = {} }) {
   const [result] = await db.query(
-    'INSERT INTO users (id, username, email, password_hash, role, rank, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO users (id, username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [id, username, email, password_hash, role, rank, status, JSON.stringify(permissions)]
   );
   return { id: result.insertId || id, username, email, role };
@@ -29,12 +29,14 @@ export async function updateUser(id, patch) {
   if ('username' in patch) { fields.push('username = ?'); values.push(patch.username); }
   if ('email' in patch) { fields.push('email = ?'); values.push(patch.email); }
   if ('role' in patch) { fields.push('role = ?'); values.push(patch.role); }
-  if ('rank' in patch) { fields.push('rank = ?'); values.push(patch.rank); }
-  if ('status' in patch) { fields.push('status = ?'); values.push(patch.status); }
+  if ('rank' in patch) { fields.push('`rank` = ?'); values.push(patch.rank); }
+  if ('status' in patch) { fields.push('`status` = ?'); values.push(patch.status); }
   if ('permissions' in patch) { fields.push('permissions = ?'); values.push(JSON.stringify(patch.permissions || {})); }
   if (fields.length === 0) return getUserById(id);
   values.push(id);
-  await db.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
+  const sql = 'UPDATE users SET ' + fields.join(', ') + ' WHERE `id` = ?';
+  console.debug('updateUser SQL:', sql, values);
+  await db.query(sql, values);
   return getUserById(id);
 }
 

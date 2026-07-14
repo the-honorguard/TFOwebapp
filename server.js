@@ -398,7 +398,11 @@ app.post('/api/users', authMiddleware, requireAdmin, async (req, res) => {
 app.put('/api/users/:id/permissions', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const patch = { permissions: req.body.permissions || {}, rank: req.body.rank, status: req.body.status, role: req.body.role };
+    const patch = {};
+    if (req.body.permissions !== undefined) patch.permissions = req.body.permissions;
+    if (req.body.rank !== undefined) patch.rank = req.body.rank;
+    if (req.body.status !== undefined) patch.status = req.body.status;
+    if (req.body.role !== undefined) patch.role = req.body.role;
     const updated = await usersRepo.updateUser(id, patch);
     const { password_hash, ...safeUser } = updated;
     res.json({ user: safeUser });

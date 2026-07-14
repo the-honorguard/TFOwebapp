@@ -1817,6 +1817,42 @@ function App() {
     }
   };
 
+  const updateUserRank = async (userId, rank) => {
+    const prevUsers = users;
+    const prevAuth = auth;
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, rank } : u)));
+    if (auth?.id === userId) {
+      setAuth((prev) => ({ ...prev, rank }));
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/users/${userId}/permissions`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ rank })
+      });
+      if (!res.ok) {
+        let err = { error: 'Could not update rank' };
+        try { err = await res.json(); } catch (e) {}
+        throw new Error(err.error || 'Could not update rank');
+      }
+      const data = await res.json();
+      if (data.user) {
+        setUsers((prev) => prev.map((u) => (u.id === data.user.id ? data.user : u)));
+        if (auth?.id === data.user.id) {
+          setAuth(data.user);
+        }
+      }
+    } catch (err) {
+      alert(err.message || 'Could not update rank');
+      setUsers(prevUsers);
+      setAuth(prevAuth);
+    }
+  };
+
   const deleteUser = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     const token = localStorage.getItem('token');
@@ -2544,7 +2580,17 @@ function App() {
                             {users.map((user) => (
                               <tr key={user.id} className={user.status !== 'Active' ? 'inactive-row' : ''}>
                                 <td>{user.username}</td>
-                                <td>{getRankLabel(user.rank)}</td>
+                                <td>
+                                  <select
+                                    value={user.rank ?? ''}
+                                    onChange={(e) => updateUserRank(user.id, e.target.value ? Number(e.target.value) : null)}
+                                  >
+                                    <option value="">Select rank</option>
+                                    {ranks.map((r) => (
+                                      <option key={r.id} value={r.id}>{r.name}{r.short ? ` (${r.short})` : ''}</option>
+                                    ))}
+                                  </select>
+                                </td>
                                 <td>{user.status || 'Active'}</td>
                                 <td>
                                   <select
