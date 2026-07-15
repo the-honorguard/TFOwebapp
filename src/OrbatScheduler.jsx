@@ -22,10 +22,11 @@ export default function OrbatScheduler({
   updateOpMeta,
   handleModlistDragOver,
   handleModlistDrop,
-  updateOpSectionMeta,
   campaigns,
   users,
   updateOpSlot,
+  updateOpSlotDebounced,
+  flushOpSlotUpdate,
   allRoles,
   weekDayLabels,
   toggleRecurrenceWeeklyDay,
@@ -44,8 +45,7 @@ export default function OrbatScheduler({
   stopCanvasDrag,
   startCanvasDrag,
   updateSectionParent,
-  sectionStats
-  ,
+  sectionStats,
   auth,
   joinOpSlot,
   signOffOpSlot,
@@ -57,6 +57,8 @@ export default function OrbatScheduler({
   handleFlowConnectorClick,
   updateSectionTitleLocal,
   updateSectionMeta,
+  updateOpSectionTitleLocal,
+  updateOpSectionMeta,
   deleteSection,
   handleSlotDragOver,
   handleSlotDrop,
@@ -74,6 +76,8 @@ export default function OrbatScheduler({
   const selectedRecurrence = selectedRecurrenceId ? recurrences.find((r) => r.id === selectedRecurrenceId) : null;
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
   const canvasScrollRef = useRef(null);
+  const [localServerName, setLocalServerName] = useState(selectedOp.serverName || '');
+  const [localTsAddress, setLocalTsAddress] = useState(selectedOp.tsAddress || '');
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
   const [isPanning, setIsPanning] = useState(false);
 
@@ -113,11 +117,16 @@ export default function OrbatScheduler({
     if (!file) return;
     try {
       const url = await uploadCustomMarker(file);
-      await updateSectionMeta(templateId, sectionId, { markerIconUrl: url });
+      await updateOpSectionMeta(selectedOp.id, sectionId, { markerIconUrl: url });
     } catch (err) {
       alert(err.message || 'Upload failed');
     }
   };
+  // keep local inputs in sync when switching ops
+  React.useEffect(() => {
+    setLocalServerName(selectedOp.serverName || '');
+    setLocalTsAddress(selectedOp.tsAddress || '');
+  }, [selectedOp.id]);
   const canUpload = Boolean(isAdmin || isMissionmaker);
   const builtins = [
     { label: 'Infantry', value: 'Infantry', file: 'infantry' },
@@ -133,12 +142,11 @@ export default function OrbatScheduler({
   // Precompute canvas nodes/edges when showing the ORBAT canvas to avoid IIFE in JSX.
   // Reuses the exact same flow edges (getTemplateFlowEdges) the admin drew in the Template Builder,
   // so the scheduler ORBAT is a faithful copy of the template's canvas, not the simple parent-tree overview.
-  let canvasSize;
+  let canvasSize = getCanvasSize(template);
   let nodes = [];
   let nodeMap = new Map();
   let links = [];
   if (builderFlowMode && template.sections.length > 0) {
-    canvasSize = getCanvasSize(template);
     nodes = template.sections.map((section, index) => {
       const node = getCanvasNode(template.id, section.id, index);
       return {
@@ -213,13 +221,15 @@ export default function OrbatScheduler({
       <div className="role-add-form" style={{marginBottom:'1rem'}}>
         <input
           placeholder="Server name (optional)"
-          value={selectedOp.serverName || ''}
-          onChange={(e) => updateOpMeta(selectedOp.id, { serverName: e.target.value })}
+          value={localServerName}
+          onChange={(e) => setLocalServerName(e.target.value)}
+          onBlur={() => updateOpMeta(selectedOp.id, { serverName: localServerName })}
         />
         <input
           placeholder="TS3 address (optional)"
-          value={selectedOp.tsAddress || ''}
-          onChange={(e) => updateOpMeta(selectedOp.id, { tsAddress: e.target.value })}
+          value={localTsAddress}
+          onChange={(e) => setLocalTsAddress(e.target.value)}
+          onBlur={() => updateOpMeta(selectedOp.id, { tsAddress: localTsAddress })}
         />
         <select value={selectedOp.campaignId || ''} onChange={(e) => updateOpMeta(selectedOp.id, { campaignId: e.target.value ? Number(e.target.value) : null })}>
           <option value="">No campaign</option>
@@ -348,13 +358,13 @@ export default function OrbatScheduler({
                       onMouseDown={(event) => startCanvasDrag(event, template.id, node.section.id, node.index)}
                     >
                       <div className="orbat-title-row">
-                        <input
+                          <input
                           className="section-title-input"
                           value={node.section.title}
                           placeholder="Section title"
                           onMouseDown={(event) => event.stopPropagation()}
-                          onChange={(event) => updateSectionTitleLocal(template.id, node.section.id, event.target.value)}
-                          onBlur={(event) => updateSectionMeta(template.id, node.section.id, { title: event.target.value })}
+                          onChange={(event) => updateOpSectionTitleLocal(selectedOp.id, node.section.id, event.target.value)}
+                          onBlur={(event) => updateOpSectionMeta(selectedOp.id, node.section.id, { title: event.target.value })}
                         />
                         <div style={{display:'inline-block', position:'relative'}} onMouseDown={(e) => e.stopPropagation()}>
                           <button type="button" className="marker-dropdown-btn" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === node.section.id ? null : node.section.id)}>
@@ -366,9 +376,9 @@ export default function OrbatScheduler({
                           {openMarkerDropdown === node.section.id ? (
                             <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
                               <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                                <button className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
+                                <button className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
                                 {builtins.map((b) => (
-                                  <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSectionMeta(template.id, node.section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
+                                  <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
                                     <img src={`/markers/${b.file}.svg`} alt={b.label} style={{width:20,height:20}} />
                                     {b.label}
                                   </button>
@@ -376,7 +386,7 @@ export default function OrbatScheduler({
                                 <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                                   <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
                                   {builtins.map((b) => (
-                                    <button key={b.value+'-text'} className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                    <button key={b.value+'-text'} className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
                                   ))}
                                 </div>
                               </div>
@@ -404,7 +414,7 @@ export default function OrbatScheduler({
                             max="99"
                             className="lr-sr-input"
                             value={node.section.lrChannel ?? 1}
-                            onChange={(e) => updateSectionMeta(template.id, node.section.id, { lrChannel: Number(e.target.value) })}
+                            onChange={(e) => updateOpSectionMeta(selectedOp.id, node.section.id, { lrChannel: Number(e.target.value) })}
                           />
                         </label>
                         <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
@@ -415,7 +425,7 @@ export default function OrbatScheduler({
                             max="99"
                             className="lr-sr-input"
                             value={node.section.srChannel ?? 1}
-                            onChange={(e) => updateSectionMeta(template.id, node.section.id, { srChannel: Number(e.target.value) })}
+                            onChange={(e) => updateOpSectionMeta(selectedOp.id, node.section.id, { srChannel: Number(e.target.value) })}
                           />
                         </label>
                         {canUpload ? (
@@ -454,8 +464,8 @@ export default function OrbatScheduler({
                                   className="flow-slot-name"
                                   value={slot.name}
                                   placeholder="Slot name"
-                                  onChange={(event) => updateSlot(template.id, slot.id, { name: event.target.value })}
-                                  onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                                  onChange={(event) => updateOpSlotDebounced(selectedOp.id, slot.id, { name: event.target.value })}
+                                  onBlur={() => flushOpSlotUpdate(selectedOp.id, slot.id)}
                                   disabled={slot._pendingCreate}
                                 />
                                 {(() => {
@@ -473,8 +483,8 @@ export default function OrbatScheduler({
                               <select
                                 className="flow-slot-role"
                                 value={slot.role}
-                                onChange={(event) => updateSlot(template.id, slot.id, { role: event.target.value })}
-                                onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                                onChange={(event) => updateOpSlotDebounced(selectedOp.id, slot.id, { role: event.target.value })}
+                                onBlur={() => flushOpSlotUpdate(selectedOp.id, slot.id)}
                                 disabled={slot._pendingCreate}
                               >
                                 {allRoles.length > 0
@@ -536,8 +546,8 @@ export default function OrbatScheduler({
                       className="section-title-input"
                       value={section.title}
                       placeholder="Section title"
-                      onChange={(e) => updateSectionTitleLocal(template.id, section.id, e.target.value)}
-                      onBlur={(e) => updateSectionMeta(template.id, section.id, { title: e.target.value })}
+                      onChange={(e) => updateOpSectionTitleLocal(selectedOp.id, section.id, e.target.value)}
+                      onBlur={(e) => updateOpSectionMeta(selectedOp.id, section.id, { title: e.target.value })}
                     />
                     <div className="slot-meta-row">
                       <span className="section-count">
@@ -551,7 +561,7 @@ export default function OrbatScheduler({
                           max="99"
                           className="lr-sr-input"
                           value={section.lrChannel ?? 1}
-                          onChange={(e) => updateSectionMeta(template.id, section.id, { lrChannel: Number(e.target.value) })}
+                          onChange={(e) => updateOpSectionMeta(selectedOp.id, section.id, { lrChannel: Number(e.target.value) })}
                         />
                       </label>
                       <label className="slot-meta">
@@ -562,7 +572,7 @@ export default function OrbatScheduler({
                           max="99"
                           className="lr-sr-input"
                           value={section.srChannel ?? 1}
-                          onChange={(e) => updateSectionMeta(template.id, section.id, { srChannel: Number(e.target.value) })}
+                          onChange={(e) => updateOpSectionMeta(selectedOp.id, section.id, { srChannel: Number(e.target.value) })}
                         />
                       </label>
                         <label className="slot-meta">
@@ -575,9 +585,9 @@ export default function OrbatScheduler({
                             {openMarkerDropdown === section.id ? (
                               <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
                                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                                  <button className="secondary small" onClick={() => { updateSectionMeta(template.id, section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
+                                  <button className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
                                   {builtins.map((b) => (
-                                    <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSectionMeta(template.id, section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
+                                    <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
                                       <img src={`/markers/${b.file}.svg`} alt={b.label} style={{width:20,height:20}} />
                                       {b.label}
                                     </button>
@@ -585,7 +595,7 @@ export default function OrbatScheduler({
                                   <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                                     <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
                                     {builtins.map((b) => (
-                                      <button key={b.value+'-text'} className="secondary small" onClick={() => { updateSectionMeta(template.id, section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                      <button key={b.value+'-text'} className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
                                     ))}
                                   </div>
                                 </div>
@@ -635,8 +645,8 @@ export default function OrbatScheduler({
                             className="slot-name-input"
                             value={slot.name}
                             placeholder="Slot name"
-                            onChange={(e) => updateSlot(template.id, slot.id, { name: e.target.value })}
-                            onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                            onChange={(e) => updateOpSlotDebounced(selectedOp.id, slot.id, { name: e.target.value })}
+                            onBlur={() => flushOpSlotUpdate(selectedOp.id, slot.id)}
                             disabled={slot._pendingCreate}
                           />
                           {!builderCompact ? (
@@ -644,16 +654,16 @@ export default function OrbatScheduler({
                               className="slot-notes-input"
                               value={slot.notes}
                               placeholder="Place extra notes here"
-                              onChange={(e) => updateSlot(template.id, slot.id, { notes: e.target.value })}
-                              onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                              onChange={(e) => updateOpSlotDebounced(selectedOp.id, slot.id, { notes: e.target.value })}
+                              onBlur={() => flushOpSlotUpdate(selectedOp.id, slot.id)}
                               disabled={slot._pendingCreate}
                             />
                           ) : null}
                           <div className="slot-meta-row">
                             <select
                               value={slot.role}
-                              onChange={(e) => updateSlot(template.id, slot.id, { role: e.target.value })}
-                              onBlur={() => flushSlotUpdate(template.id, slot.id)}
+                              onChange={(e) => updateOpSlotDebounced(selectedOp.id, slot.id, { role: e.target.value })}
+                              onBlur={() => flushOpSlotUpdate(selectedOp.id, slot.id)}
                               disabled={slot._pendingCreate}
                             >
                               {allRoles.length > 0

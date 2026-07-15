@@ -49,6 +49,8 @@ function App() {
   const [draggedSlot, setDraggedSlot] = useState(null);
   const slotSaveTimersRef = useRef({});
   const pendingSlotUpdatesRef = useRef({});
+  const opSlotSaveTimersRef = useRef({});
+  const pendingOpSlotUpdatesRef = useRef({});
   const [flowEdges, setFlowEdges] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('builderFlowEdges') || '{}');
@@ -197,6 +199,7 @@ function App() {
 
   useEffect(() => () => {
     Object.values(slotSaveTimersRef.current).forEach((timerId) => clearTimeout(timerId));
+    Object.values(opSlotSaveTimersRef.current).forEach((timerId) => clearTimeout(timerId));
   }, []);
 
   const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
@@ -260,9 +263,14 @@ function App() {
   };
 
   const loadPublicData = async () => {
-    const res = await fetch(`${API}/public-data`);
-    const data = await res.json();
-    applyLoadedData(data, null);
+    try {
+      const res = await fetch(`${API}/public-data`);
+      if (!res.ok) { console.error('Public data fetch failed', res.status); return; }
+      const data = await res.json();
+      applyLoadedData(data, null);
+    } catch (e) {
+      console.error('loadPublicData error', e);
+    }
   };
 
   const loadRanks = async () => {
@@ -731,6 +739,50 @@ function App() {
     }
   };
 
+  const applyOpSlotUpdatesLocally = (opId, slotId, updates) => {
+    setOps((prev) => prev.map((op) => {
+      if (op.id !== opId) return op;
+      return {
+        ...op,
+        sections: (op.sections || []).map((section) => ({
+          ...section,
+          slots: (section.slots || []).map((slot) => (slot.id === slotId ? { ...slot, ...updates } : slot))
+        }))
+      };
+    }));
+  };
+
+  const flushOpSlotUpdate = (opId, slotId) => {
+    const key = `${opId}:${slotId}`;
+    const pending = pendingOpSlotUpdatesRef.current[key];
+    if (!pending) return;
+
+    if (opSlotSaveTimersRef.current[key]) {
+      clearTimeout(opSlotSaveTimersRef.current[key]);
+      delete opSlotSaveTimersRef.current[key];
+    }
+
+    delete pendingOpSlotUpdatesRef.current[key];
+    updateOpSlot(opId, slotId, pending);
+  };
+
+  // Debounced variant used for text inputs (name/notes/role) so keystrokes update
+  // local state immediately without firing a network request per character.
+  const updateOpSlotDebounced = (opId, slotId, updates) => {
+    const key = `${opId}:${slotId}`;
+
+    applyOpSlotUpdatesLocally(opId, slotId, updates);
+    pendingOpSlotUpdatesRef.current[key] = {
+      ...(pendingOpSlotUpdatesRef.current[key] || {}),
+      ...updates
+    };
+
+    if (opSlotSaveTimersRef.current[key]) clearTimeout(opSlotSaveTimersRef.current[key]);
+    opSlotSaveTimersRef.current[key] = setTimeout(() => {
+      flushOpSlotUpdate(opId, slotId);
+    }, 400);
+  };
+
   const updateOpMeta = async (opId, updates) => {
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/ops/${opId}`, {
@@ -1110,6 +1162,16 @@ function App() {
       return {
         ...template,
         sections: template.sections.map((section) => (section.id === sectionId ? { ...section, title } : section))
+      };
+    }));
+  };
+
+  const updateOpSectionTitleLocal = (opId, sectionId, title) => {
+    setOps((prev) => prev.map((op) => {
+      if (op.id !== opId) return op;
+      return {
+        ...op,
+        sections: (op.sections || []).map((section) => (section.id === sectionId ? { ...section, title } : section))
       };
     }));
   };
@@ -1589,8 +1651,10 @@ function App() {
   };
   const sortedOps = useMemo(() => {
     return [...ops].sort((a, b) => {
-      if (a.date === b.date) return a.time.localeCompare(b.time);
-      return a.date.localeCompare(b.date);
+      const da = a.date || '';
+      const db = b.date || '';
+      if (da === db) return (a.time || '').localeCompare(b.time || '');
+      return da.localeCompare(db);
     });
   }, [ops]);
 
@@ -2488,6 +2552,8 @@ function App() {
                   joinOpSlot={joinOpSlot}
                   signOffOpSlot={signOffOpSlot}
                   updateOpSlot={updateOpSlot}
+                  updateOpSlotDebounced={updateOpSlotDebounced}
+                  flushOpSlotUpdate={flushOpSlotUpdate}
                     setShowLoginPanel={setShowLoginPanel}
                     showOpInScheduler={showOpInScheduler}
                     campaignImage={campaigns?.[0]?.image}
@@ -2609,6 +2675,8 @@ function App() {
                 updateOpSectionMeta={updateOpSectionMeta}
                 users={users}
                 updateOpSlot={updateOpSlot}
+                updateOpSlotDebounced={updateOpSlotDebounced}
+                flushOpSlotUpdate={flushOpSlotUpdate}
                 allRoles={allRoles}
                 weekDayLabels={weekDayLabels}
                 toggleRecurrenceWeeklyDay={toggleRecurrenceWeeklyDay}
@@ -2639,6 +2707,7 @@ function App() {
                 handleFlowConnectorClick={handleFlowConnectorClick}
                 updateSectionTitleLocal={updateSectionTitleLocal}
                 updateSectionMeta={updateSectionMeta}
+                updateOpSectionTitleLocal={updateOpSectionTitleLocal}
                 deleteSection={deleteSection}
                 handleSlotDragOver={handleSlotDragOver}
                 handleSlotDrop={handleSlotDrop}

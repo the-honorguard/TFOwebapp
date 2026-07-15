@@ -28,6 +28,8 @@ export default function OrbatOverview({
   joinOpSlot,
   signOffOpSlot,
   updateOpSlot,
+  updateOpSlotDebounced,
+  flushOpSlotUpdate,
   setShowLoginPanel,
   showOpInScheduler,
   campaignImage
@@ -245,18 +247,21 @@ export default function OrbatOverview({
                                 className="slot-name-input"
                                 value={slot.name}
                                 placeholder="Slot name"
-                                onChange={(e) => updateOpSlot(op.id, slot.id, { name: e.target.value })}
+                                onChange={(e) => updateOpSlotDebounced(op.id, slot.id, { name: e.target.value })}
+                                onBlur={() => flushOpSlotUpdate(op.id, slot.id)}
                               />
                               <textarea
                                 className="slot-notes-input"
                                 value={slot.notes}
                                 placeholder="Place extra notes here"
-                                onChange={(e) => updateOpSlot(op.id, slot.id, { notes: e.target.value })}
+                                onChange={(e) => updateOpSlotDebounced(op.id, slot.id, { notes: e.target.value })}
+                                onBlur={() => flushOpSlotUpdate(op.id, slot.id)}
                               />
                               <div className="slot-meta-row">
                                 <select
                                   value={slot.role}
-                                  onChange={(e) => updateOpSlot(op.id, slot.id, { role: e.target.value })}
+                                  onChange={(e) => updateOpSlotDebounced(op.id, slot.id, { role: e.target.value })}
+                                  onBlur={() => flushOpSlotUpdate(op.id, slot.id)}
                                 >
                                   {allRoles.length > 0
                                     ? allRoles.map((roleOption) => (

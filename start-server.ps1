@@ -86,14 +86,8 @@ if (-not $dbReady) {
     if (-not $dockerOk) {
         Write-Host "Proceeding may fail because Docker is not available. You can start Docker Desktop manually and re-run this script." -ForegroundColor Yellow
     }
-    if (Test-Path "$PSScriptRoot\scripts\start-db-and-migrate.ps1") {
-        # Use the repository helper which brings up Docker, waits for DB and runs migrations
-        powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\scripts\start-db-and-migrate.ps1"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to start database with scripts\start-db-and-migrate.ps1 (exit $LASTEXITCODE). Aborting."
-            exit $LASTEXITCODE
-        }
-    } else {
+    # Start Docker and the MySQL (db) service via Docker Compose (no migrations)
+    
         Write-Host "start-db-and-migrate.ps1 not found; attempting to start Docker and the MySQL (db) service via Docker Compose" -ForegroundColor Yellow
 
         # Ensure Docker engine is responsive, otherwise try to start Docker Desktop or the com.docker.service
@@ -180,7 +174,6 @@ if (-not $dbReady) {
             Write-Error "Database did not become ready after starting Docker Compose. Aborting (exit $LASTEXITCODE)."
             exit $LASTEXITCODE
         }
-    }
 } else {
     Write-Host "Database is reachable." -ForegroundColor Green
 }

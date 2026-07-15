@@ -727,16 +727,23 @@ app.put('/api/ops/:id', authMiddleware, async (req, res) => {
     const isMissionmaker = req.user?.role === 'missionmaker';
     if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
     const opsRepo = await import('./repositories/ops.js');
+    const existing = await opsRepo.getOpById(Number(req.params.id));
+    if (!existing) return res.status(404).json({ error: 'Operation not found' });
     const patch = {};
     if (typeof req.body.name === 'string') patch.title = req.body.name;
-    if (typeof req.body.date === 'string' || typeof req.body.time === 'string') patch.payload = {};
-    if (typeof req.body.date === 'string') patch.payload.date = req.body.date;
-    if (typeof req.body.time === 'string') patch.payload.time = req.body.time;
-    if (typeof req.body.serverName === 'string') { patch.payload = patch.payload || {}; patch.payload.serverName = req.body.serverName; }
-    if (typeof req.body.modlist === 'string') { patch.payload = patch.payload || {}; patch.payload.modlist = req.body.modlist; }
-    if (typeof req.body.modlistPlayer === 'string') { patch.payload = patch.payload || {}; patch.payload.modlistPlayer = req.body.modlistPlayer; }
-    if (typeof req.body.modlistServer === 'string') { patch.payload = patch.payload || {}; patch.payload.modlistServer = req.body.modlistServer; }
-    if (typeof req.body.tsAddress === 'string') { patch.payload = patch.payload || {}; patch.payload.tsAddress = req.body.tsAddress; }
+    const payloadFields = ['date', 'time', 'serverName', 'modlist', 'modlistPlayer', 'modlistServer', 'tsAddress'];
+    const hasPayloadChange = payloadFields.some((f) => typeof req.body[f] === 'string');
+    if (hasPayloadChange) {
+      // Merge into existing payload to avoid destroying stored fields (name, sections, etc.)
+      patch.payload = { ...(existing.payload || {}) };
+      if (typeof req.body.date === 'string') patch.payload.date = req.body.date;
+      if (typeof req.body.time === 'string') patch.payload.time = req.body.time;
+      if (typeof req.body.serverName === 'string') patch.payload.serverName = req.body.serverName;
+      if (typeof req.body.modlist === 'string') patch.payload.modlist = req.body.modlist;
+      if (typeof req.body.modlistPlayer === 'string') patch.payload.modlistPlayer = req.body.modlistPlayer;
+      if (typeof req.body.modlistServer === 'string') patch.payload.modlistServer = req.body.modlistServer;
+      if (typeof req.body.tsAddress === 'string') patch.payload.tsAddress = req.body.tsAddress;
+    }
     const updated = await opsRepo.updateOp(Number(req.params.id), patch);
     res.json({ op: updated });
   } catch (err) {
