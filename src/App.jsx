@@ -13,6 +13,11 @@ import Campaigns from './Campaigns';
 
 const API = '/api';
 
+// Template-builder canvas grid: one "unit" approximates a single slot row, so a section
+// with N slots naturally occupies roughly (2 + N) units tall (2 units for the header).
+const CANVAS_GRID_UNIT = 40;
+const snapToCanvasGrid = (value) => Math.round(value / CANVAS_GRID_UNIT) * CANVAS_GRID_UNIT;
+
 function App() {
   const [auth, setAuth] = useState(null);
   const [users, setUsers] = useState([]);
@@ -39,6 +44,7 @@ function App() {
     }
   });
   const [canvasDrag, setCanvasDrag] = useState(null);
+  const [dragSnapPreview, setDragSnapPreview] = useState(null);
   const [nodeHeights, setNodeHeights] = useState({});
   const [draggedSlot, setDraggedSlot] = useState(null);
   const slotSaveTimersRef = useRef({});
@@ -1007,6 +1013,8 @@ function App() {
           if (template.id !== templateId) return template;
           return { ...template, sections: template.sections.map((s) => (s.id === tempId ? data.section : s)) };
         }));
+      } else if (res.status === 401) {
+        throw new Error(data.error || 'Login expired, please log in again');
       } else {
         throw new Error(data.error || 'Could not add section');
       }
@@ -1016,6 +1024,9 @@ function App() {
         if (template.id !== templateId) return template;
         return { ...template, sections: template.sections.filter((s) => s.id !== tempId) };
       }));
+      if (err.message?.toLowerCase().includes('log in again')) {
+        logout();
+      }
     }
   };
 
@@ -1191,6 +1202,7 @@ function App() {
         };
       }));
       alert(data.error || 'Could not add slot');
+      if (res.status === 401) logout();
     }
   };
 
@@ -1588,6 +1600,112 @@ function App() {
     setFlowLinkSource(null);
   };
 
+  const autoLayoutTemplate = (templateId) => {
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+
+    const sections = template.sections || [];
+    const sectionIds = new Set(sections.map((section) => section.id));
+    const edges = getTemplateFlowEdges(templateId, sections);
+
+    const HORIZONTAL_GAP = 300; // matches fixed .flow-node width (300px)
+    const VERTICAL_GAP = 60; // breathing room between a row and the tallest node in it
+    const DEFAULT_NODE_HEIGHT = 124;
+    const START_X = 40;
+    const START_Y = 40;
+
+    const nodeHeight = (id) => nodeHeights[`flow-${templateId}-${id}`] || DEFAULT_NODE_HEIGHT;
+
+    const childrenMap = new Map();
+    const hasParent = new Set();
+    edges.forEach((edge) => {
+      if (!sectionIds.has(edge.sourceId) || !sectionIds.has(edge.targetId)) return;
+      if (!childrenMap.has(edge.sourceId)) childrenMap.set(edge.sourceId, []);
+      childrenMap.get(edge.sourceId).push(edge.targetId);
+      hasParent.add(edge.targetId);
+    });
+
+    const roots = sections.filter((section) => !hasParent.has(section.id)).map((section) => section.id);
+
+    // Depth = longest path from any root, so a node always sits below every one of its parents.
+    const depths = new Map();
+    roots.forEach((rootId) => depths.set(rootId, 0));
+    let changed = true;
+    let guard = 0;
+    while (changed && guard < sections.length + 1) {
+      changed = false;
+      guard += 1;
+      edges.forEach((edge) => {
+        if (!sectionIds.has(edge.sourceId) || !sectionIds.has(edge.targetId)) return;
+        const parentDepth = depths.get(edge.sourceId);
+        if (parentDepth === undefined) return;
+        const nextDepth = parentDepth + 1;
+        if ((depths.get(edge.targetId) ?? -1) < nextDepth) {
+          depths.set(edge.targetId, nextDepth);
+          changed = true;
+        }
+      });
+    }
+    sections.forEach((section) => {
+      if (!depths.has(section.id)) depths.set(section.id, 0);
+    });
+
+    // Row height per depth = tallest node actually present on that row, so rows below a
+    // large HQ block don't overlap it.
+    const maxDepth = Math.max(0, ...Array.from(depths.values()));
+    const rowHeights = [];
+    for (let d = 0; d <= maxDepth; d += 1) {
+      const idsInRow = sections.filter((section) => depths.get(section.id) === d).map((section) => section.id);
+      rowHeights[d] = idsInRow.length ? Math.max(...idsInRow.map(nodeHeight)) : DEFAULT_NODE_HEIGHT;
+    }
+    const rowY = [START_Y];
+    for (let d = 1; d <= maxDepth; d += 1) {
+      rowY[d] = rowY[d - 1] + rowHeights[d - 1] + VERTICAL_GAP;
+    }
+
+    const positions = {};
+    const visited = new Set();
+    let cursorX = START_X;
+
+    const layoutNode = (id) => {
+      if (visited.has(id)) return positions[id]?.x ?? cursorX;
+      visited.add(id);
+
+      const depth = depths.get(id) ?? 0;
+      const children = (childrenMap.get(id) || []).filter((childId) => sectionIds.has(childId) && !visited.has(childId));
+
+      if (children.length === 0) {
+        const x = cursorX;
+        positions[id] = { x, y: rowY[depth] };
+        cursorX += HORIZONTAL_GAP;
+        return x;
+      }
+
+      const childXs = children.map((childId) => layoutNode(childId));
+      const x = (Math.min(...childXs) + Math.max(...childXs)) / 2;
+      positions[id] = { x, y: rowY[depth] };
+      return x;
+    };
+
+    roots.forEach((rootId) => layoutNode(rootId));
+    // Any remaining sections not reached (e.g. isolated cycles) still get placed
+    sections.forEach((section) => {
+      if (!visited.has(section.id)) layoutNode(section.id);
+    });
+
+    setCanvasLayout((prev) => {
+      const templateLayout = { ...(prev?.[templateId] || {}) };
+      Object.entries(positions).forEach(([sectionId, pos]) => {
+        templateLayout[sectionId] = {
+          ...(templateLayout[sectionId] || {}),
+          x: snapToCanvasGrid(pos.x),
+          y: snapToCanvasGrid(pos.y)
+        };
+      });
+      return { ...prev, [templateId]: templateLayout };
+    });
+  };
+
   const handleFlowConnectorClick = (templateId, sectionId, anchor, event) => {
     event.stopPropagation();
 
@@ -1601,7 +1719,20 @@ function App() {
       return;
     }
 
-    addTemplateFlowEdge(templateId, flowLinkSource.sectionId, sectionId, flowLinkSource.anchor || 'bottom', anchor || 'top');
+    // A line always runs from a "bottom" dot (parent, emits downward) to a "top" dot
+    // (child, receives from above) - which end is which never depends on click order.
+    if (flowLinkSource.anchor === anchor) {
+      // Both clicked dots are the same type (e.g. two "bottom" dots) - there is no valid
+      // parent/child direction to infer from that, so treat this click as the start of a
+      // fresh selection instead of guessing based on click order.
+      setFlowLinkSource({ templateId, sectionId, anchor });
+      return;
+    }
+
+    const parentId = flowLinkSource.anchor === 'bottom' ? flowLinkSource.sectionId : sectionId;
+    const childId = parentId === flowLinkSource.sectionId ? sectionId : flowLinkSource.sectionId;
+
+    addTemplateFlowEdge(templateId, parentId, childId, 'bottom', 'top');
     setFlowLinkSource(null);
   };
 
@@ -1692,9 +1823,29 @@ function App() {
     const nextY = Math.max(12, event.clientY - rect.top - canvasDrag.offsetY);
 
     updateCanvasNode(template.id, canvasDrag.sectionId, { x: nextX, y: nextY });
+    setDragSnapPreview({
+      templateId: template.id,
+      sectionId: canvasDrag.sectionId,
+      x: snapToCanvasGrid(nextX),
+      y: snapToCanvasGrid(nextY)
+    });
   };
 
-  const stopCanvasDrag = () => setCanvasDrag(null);
+  const stopCanvasDrag = () => {
+    if (
+      canvasDrag
+      && dragSnapPreview
+      && dragSnapPreview.templateId === canvasDrag.templateId
+      && dragSnapPreview.sectionId === canvasDrag.sectionId
+    ) {
+      updateCanvasNode(canvasDrag.templateId, canvasDrag.sectionId, {
+        x: dragSnapPreview.x,
+        y: dragSnapPreview.y
+      });
+    }
+    setCanvasDrag(null);
+    setDragSnapPreview(null);
+  };
 
   const setNodeHeightRef = (nodeKey) => (element) => {
     if (!element) return;
@@ -2475,6 +2626,7 @@ function App() {
                           builderCompact={builderCompact}
                           allRoles={allRoles}
                           nodeHeights={nodeHeights}
+                          dragSnapPreview={dragSnapPreview}
                           flowLinkSource={flowLinkSource}
                           getCanvasSize={getCanvasSize}
                           getCanvasNode={getCanvasNode}
@@ -2482,6 +2634,7 @@ function App() {
                           addSectionQuick={addSectionQuick}
                           clearTemplateFlowEdges={clearTemplateFlowEdges}
                           resetTemplateCanvasLayout={resetTemplateCanvasLayout}
+                          autoLayoutTemplate={autoLayoutTemplate}
                           moveCanvasDrag={moveCanvasDrag}
                           stopCanvasDrag={stopCanvasDrag}
                           startCanvasDrag={startCanvasDrag}

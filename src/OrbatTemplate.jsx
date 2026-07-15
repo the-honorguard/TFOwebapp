@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
 /**
  * OrbatTemplate
@@ -12,6 +12,7 @@ export default function OrbatTemplate({
   builderCompact,
   allRoles,
   nodeHeights,
+  dragSnapPreview,
   flowLinkSource,
   getCanvasSize,
   getCanvasNode,
@@ -19,6 +20,7 @@ export default function OrbatTemplate({
   addSectionQuick,
   clearTemplateFlowEdges,
   resetTemplateCanvasLayout,
+  autoLayoutTemplate,
   moveCanvasDrag,
   stopCanvasDrag,
   startCanvasDrag,
@@ -59,6 +61,39 @@ export default function OrbatTemplate({
 
   const canUpload = Boolean(isAdmin || isMissionmaker);
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
+  const canvasScrollRef = useRef(null);
+  const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+
+  const handleCanvasPanStart = (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest('.orbat-node')) return; // let node dragging handle its own mousedown
+    const scrollEl = canvasScrollRef.current;
+    if (!scrollEl) return;
+    panRef.current = {
+      active: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: scrollEl.scrollLeft,
+      scrollTop: scrollEl.scrollTop
+    };
+    setIsPanning(true);
+  };
+
+  const handleCanvasPanMove = (event) => {
+    if (!panRef.current.active) return;
+    const scrollEl = canvasScrollRef.current;
+    if (!scrollEl) return;
+    scrollEl.scrollLeft = panRef.current.scrollLeft - (event.clientX - panRef.current.startX);
+    scrollEl.scrollTop = panRef.current.scrollTop - (event.clientY - panRef.current.startY);
+  };
+
+  const handleCanvasPanEnd = () => {
+    if (!panRef.current.active) return;
+    panRef.current.active = false;
+    setIsPanning(false);
+  };
+
   const builtins = [
     { label: 'Infantry', value: 'Infantry', file: 'infantry' },
     { label: 'Armor', value: 'Armor', file: 'armor' },
@@ -121,15 +156,39 @@ export default function OrbatTemplate({
                   <button type="button" className="secondary small" onClick={() => resetTemplateCanvasLayout(template.id)}>
                     Reset
                   </button>
+                  <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id)}>
+                    Auto-layout
+                  </button>
                 </div>
                 <div
-                  className="orbat-canvas drag-canvas"
-                  style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
-                  onMouseMove={(event) => moveCanvasDrag(event, template)}
-                  onMouseUp={stopCanvasDrag}
-                  onMouseLeave={stopCanvasDrag}
+                  className={`orbat-canvas${isPanning ? ' panning' : ''}`}
+                  ref={canvasScrollRef}
+                  onMouseDown={handleCanvasPanStart}
+                  onMouseMove={handleCanvasPanMove}
+                  onMouseUp={handleCanvasPanEnd}
+                  onMouseLeave={handleCanvasPanEnd}
                 >
+                  <div
+                    className="flow-canvas-content drag-canvas"
+                    style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
+                    onMouseMove={(event) => moveCanvasDrag(event, template)}
+                    onMouseUp={stopCanvasDrag}
+                    onMouseLeave={stopCanvasDrag}
+                  >
                   <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
+                    <defs>
+                      <marker
+                        id={`orbat-arrow-${template.id}`}
+                        viewBox="0 0 10 10"
+                        refX="8"
+                        refY="5"
+                        markerWidth="7"
+                        markerHeight="7"
+                        orient="auto-start-reverse"
+                      >
+                        <path d="M 0 0 L 10 5 L 0 10 z" className="orbat-link-arrow" />
+                      </marker>
+                    </defs>
                     {edges.map((edge) => (
                       <line
                         key={edge.id}
@@ -138,9 +197,22 @@ export default function OrbatTemplate({
                         x2={edge.x2}
                         y2={edge.y2}
                         className="orbat-link"
+                        markerEnd={`url(#orbat-arrow-${template.id})`}
                       />
                     ))}
                   </svg>
+
+                  {dragSnapPreview && dragSnapPreview.templateId === template.id ? (
+                    <div
+                      className="flow-drag-ghost"
+                      style={{
+                        left: `${dragSnapPreview.x}px`,
+                        top: `${dragSnapPreview.y}px`,
+                        width: '300px',
+                        height: `${nodeHeights[`flow-${template.id}-${dragSnapPreview.sectionId}`] || 124}px`
+                      }}
+                    />
+                  ) : null}
 
                   {nodes.map((node) => {
                     const isSelected = selectedFlowSectionId === node.section.id;
@@ -317,6 +389,7 @@ export default function OrbatTemplate({
                             type="button"
                             className="secondary small"
                             onClick={() => addSlot(template.id, node.section.id)}
+                            disabled={node.section._pendingCreate}
                           >
                             + Slot
                           </button>
@@ -324,6 +397,7 @@ export default function OrbatTemplate({
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               </div>
               {selectedFlowSection ? (
@@ -412,7 +486,7 @@ export default function OrbatTemplate({
                     </div>
                   </div>
                   <div className="slot-actions">
-                    <button onClick={() => addSlot(template.id, section.id)} className="secondary small">
+                    <button onClick={() => addSlot(template.id, section.id)} className="secondary small" disabled={section._pendingCreate}>
                       Add slot
                     </button>
                   </div>

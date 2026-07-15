@@ -93,8 +93,11 @@ function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, SECRET);
     req.user = decoded;
     next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Login expired, please log in again', code: 'TOKEN_EXPIRED' });
+    }
+    return res.status(401).json({ error: 'Invalid login session, please log in again', code: 'TOKEN_INVALID' });
   }
 }
 

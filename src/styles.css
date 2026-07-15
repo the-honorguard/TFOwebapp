@@ -76,8 +76,14 @@ button.btn-danger:hover { background: #991b1b; }
 .builder-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .orbat-wrapper { position: relative; /* keep wrapper visible so popovers can overflow */ overflow: visible; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)); }
 .orbat-canvas { position: relative; min-height: 680px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 24px 24px; overflow: auto; }
+.flow-fullscreen-wrapper .orbat-canvas { min-height: 0; flex: 1 1 auto; cursor: grab; background-image: none; }
+.flow-fullscreen-wrapper .orbat-canvas.panning { cursor: grabbing; }
+.flow-canvas-content { position: relative; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: 40px 40px; }
+.flow-drag-ghost { position: absolute; border: 2px dashed #22c55e; border-radius: 12px; background: rgba(34,197,94,0.08); pointer-events: none; z-index: 3; }
+.flow-canvas-content { position: relative; }
 .orbat-links { position: absolute; inset: 0; pointer-events: none; }
 .orbat-link { stroke: #94a3b8; stroke-width: 1.5; stroke-linecap: round; }
+.orbat-link-arrow { fill: #94a3b8; }
 .orbat-blueprint { position: absolute; left: 12px; top: 12px; z-index: 6; pointer-events: none; width: 280px; padding: 0.6rem; border-radius: 8px; border: 1px dashed rgba(148,163,184,0.12); background: linear-gradient(180deg, rgba(2,6,23,0.6), rgba(3,7,18,0.45)); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; font-size: 0.9rem; color: #a5f3fc; box-shadow: 0 8px 20px rgba(0,0,0,0.35); }
 .orbat-blueprint h5 { margin: 0 0 0.25rem; font-size: 0.95rem; font-weight: 700; color: #e6f7ff; }
 .orbat-blueprint .blueprint-line { display: flex; gap: 0.5rem; align-items: center; opacity: 0.95; }
@@ -101,7 +107,7 @@ button.btn-danger:hover { background: #991b1b; }
 .orbat-slot-more { font-size: 0.78rem; opacity: 0.75; }
 .flow-layout { display: grid; gap: 0.7rem; align-items: start; width: 100%; }
 .flow-layout.flow-fullscreen { width: 100%; }
-.flow-fullscreen-wrapper { width: 100%; height: calc(100vh - 250px); min-height: 620px; }
+.flow-fullscreen-wrapper { width: 100%; height: calc(100vh - 250px); min-height: 620px; max-height: 82vh; display: flex; flex-direction: column; }
 .flow-canvas-controls { position: absolute; top: 8px; right: 8px; z-index: 6; display: flex; gap: 0.4rem; justify-content: flex-end; pointer-events: none; }
 .flow-canvas-controls button { pointer-events: auto; padding: 0.4rem 0.55rem; min-width: auto; }
 .flow-help { margin: 0; font-size: 0.84rem; opacity: 0.78; }
@@ -245,7 +251,7 @@ button.btn-danger:hover { background: #991b1b; }
     flex-direction: column;
   }
   .flow-layout { grid-template-columns: 1fr; }
-  .flow-fullscreen-wrapper { height: calc(100vh - 290px); min-height: 520px; }
+  .flow-fullscreen-wrapper { height: calc(100vh - 290px); min-height: 520px; max-height: 78vh; }
   .flow-canvas-controls { top: 8px; right: 8px; }
   .player-form {
     grid-template-columns: 1fr;
