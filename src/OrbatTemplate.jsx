@@ -43,23 +43,7 @@ export default function OrbatTemplate({
   uploadCustomMarker
   
 }) {
-  const fileInputs = {};
-  const triggerFileInput = (sectionId) => {
-    const el = document.getElementById(`marker-upload-${sectionId}`);
-    if (el) el.click();
-  };
-  const handleFileChange = async (templateId, sectionId, e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const url = await uploadCustomMarker(file);
-      await updateSectionMeta(templateId, sectionId, { markerIconUrl: url });
-    } catch (err) {
-      alert(err.message || 'Upload failed');
-    }
-  };
-
-  const canUpload = Boolean(isAdmin || isMissionmaker);
+  
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
   const canvasScrollRef = useRef(null);
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
@@ -213,9 +197,10 @@ export default function OrbatTemplate({
                       return (
                         <div
                           className="flow-drag-ghost"
-                          style={{ left: `${dragSnapPreview.x}px`, top: `${dragSnapPreview.y}px`, width: `${w}px`, height: `${h}px` }}
+                          style={{ left: `${dragSnapPreview.x}px`, top: `${dragSnapPreview.y}px`, width: `${7 * unit}px`, height: `${h}px` }}
                         />
                       );
+                    
                     })()
                   ) : null}
 
@@ -223,10 +208,10 @@ export default function OrbatTemplate({
                     const isSelected = selectedFlowSectionId === node.section.id;
 
                     return (
-                      <div
+                        <div
                         key={node.section.id}
                         className={`orbat-node flow-node ${isSelected ? 'selected' : ''}`}
-                        style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${Math.max(7, 4 + (node.section.slots || []).length) * 40}px` }}
+                        style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${7 * 40}px` }}
                         ref={setNodeHeightRef(node.nodeKey)}
                       >
                         <button
@@ -254,6 +239,33 @@ export default function OrbatTemplate({
                               onChange={(event) => updateSectionTitleLocal(template.id, node.section.id, event.target.value)}
                               onBlur={(event) => updateSectionMeta(template.id, node.section.id, { title: event.target.value })}
                             />
+                            <div style={{display:'inline-block', position:'relative'}} onMouseDown={(e) => e.stopPropagation()}>
+                              <button type="button" className="marker-dropdown-btn" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === node.section.id ? null : node.section.id)}>
+                                <span className="marker-dropdown-icon">
+                                  {node.section.markerIconUrl ? <img src={node.section.markerIconUrl} alt="marker" style={{width:'100%',height:'100%',objectFit:'contain',display:'block'}} /> : node.section.marker ? <span className={`marker-badge marker-${String(node.section.marker).toLowerCase().replace(/\s+/g,'-')}`} style={{fontSize:'0.6rem'}}>{node.section.marker}</span> : null}
+                                </span>
+                                <span className="marker-dropdown-arrow">▾</span>
+                              </button>
+                              {openMarkerDropdown === node.section.id ? (
+                                <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
+                                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                                    <button className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
+                                    {builtins.map((b) => (
+                                      <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSectionMeta(template.id, node.section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
+                                        <img src={`/markers/${b.file}.svg`} alt={b.label} style={{width:20,height:20}} />
+                                        {b.label}
+                                      </button>
+                                    ))}
+                                    <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
+                                      <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
+                                      {builtins.map((b) => (
+                                        <button key={b.value+'-text'} className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
                             <button
                               type="button"
                               className="danger-x-button"
@@ -262,11 +274,6 @@ export default function OrbatTemplate({
                             >
                               ✕
                             </button>
-                            {node.section.markerIconUrl ? (
-                              <img src={node.section.markerIconUrl} alt="marker" className="marker-icon" />
-                            ) : node.section.marker ? (
-                              <span className={`marker-badge marker-${String(node.section.marker).toLowerCase().replace(/\s+/g,'-')}`}>{node.section.marker}</span>
-                            ) : null}
                           </div>
                           <div className="flow-meta-row" onMouseDown={(e) => e.stopPropagation()}>
                             <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
@@ -291,40 +298,7 @@ export default function OrbatTemplate({
                                 onChange={(e) => updateSectionMeta(template.id, node.section.id, { srChannel: Number(e.target.value) })}
                               />
                             </label>
-                            <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
-                              Marker
-                              <div style={{position:'relative',display:'inline-block'}} onMouseDown={(e) => e.stopPropagation()}>
-                                <button type="button" className="secondary small" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === node.section.id ? null : node.section.id)}>
-                                  {node.section.markerIconUrl ? <img src={node.section.markerIconUrl} alt="marker" className="marker-icon" /> : node.section.marker ? <span className={`marker-badge marker-${String(node.section.marker).toLowerCase().replace(/\s+/g,'-')}`}>{node.section.marker}</span> : 'None'}
-                                  <span style={{marginLeft:8}}>▾</span>
-                                </button>
-                                {openMarkerDropdown === node.section.id ? (
-                                  <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
-                                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                                      <button className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
-                                      {builtins.map((b) => (
-                                        <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSectionMeta(template.id, node.section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
-                                          <img src={`/markers/${b.file}.svg`} alt={b.label} style={{width:20,height:20}} />
-                                          {b.label}
-                                        </button>
-                                      ))}
-                                      <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
-                                        <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
-                                        {builtins.map((b) => (
-                                          <button key={b.value+'-text'} className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : null}
-                              </div>
-                              {canUpload ? (
-                                <>
-                                  <input id={`marker-upload-${node.section.id}`} style={{display:'none'}} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={(e) => handleFileChange(template.id, node.section.id, e)} />
-                                  <button type="button" className="secondary small" onClick={() => triggerFileInput(node.section.id)}>Upload</button>
-                                </>
-                              ) : null}
-                            </label>
+
                           </div>
                         </div>
                         <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
@@ -453,41 +427,7 @@ export default function OrbatTemplate({
                           onChange={(e) => updateSectionMeta(template.id, section.id, { srChannel: Number(e.target.value) })}
                         />
                       </label>
-                        <label className="slot-meta">
-                          Marker
-                          <div style={{position:'relative',display:'inline-block'}} onMouseDown={(e) => e.stopPropagation()}>
-                            <button type="button" className="secondary small" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === section.id ? null : section.id)}>
-                              {section.markerIconUrl ? <img src={section.markerIconUrl} alt="marker" className="marker-icon" /> : section.marker ? <span className={`marker-badge marker-${String(section.marker).toLowerCase().replace(/\s+/g,'-')}`}>{section.marker}</span> : 'None'}
-                              <span style={{marginLeft:8}}>▾</span>
-                            </button>
-                            {openMarkerDropdown === section.id ? (
-                              <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
-                                <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                                  <button className="secondary small" onClick={() => { updateSectionMeta(template.id, section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
-                                  {builtins.map((b) => (
-                                    <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSectionMeta(template.id, section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
-                                      <img src={`/markers/${b.file}.svg`} alt={b.label} style={{width:20,height:20}} />
-                                      {b.label}
-                                    </button>
-                                  ))}
-                                  <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
-                                    <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
-                                    {builtins.map((b) => (
-                                      <button key={b.value+'-text'} className="secondary small" onClick={() => { updateSectionMeta(template.id, section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-                          {canUpload ? (
-                            <>
-                              <input id={`marker-upload-panel-${section.id}`} style={{display:'none'}} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={(e) => handleFileChange(template.id, section.id, e)} />
-                              <button type="button" className="secondary small" onClick={() => document.getElementById(`marker-upload-panel-${section.id}`)?.click()}>Upload</button>
-                            </>
-                          ) : null}
-                          {section.markerIconUrl ? <img src={section.markerIconUrl} alt="marker" className="marker-icon" /> : null}
-                        </label>
+
                     </div>
                   </div>
                   <div className="slot-actions">
