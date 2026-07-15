@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 // - Loads the current user's full profile (via `/api/users/me`) and allows
 //   editing profile fields, uploading avatar and changing password.
 // - Falls back to provided `auth` + `users` props if the API does not return data.
-export default function Profile({ auth, users = [], ops = [], changePassword, uploadAvatar, updateMyProfile }) {
+export default function Profile({ auth, users = [], ops = [], changePassword, uploadAvatar, updateMyProfile, allRoles = [] }) {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -173,10 +173,34 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
 
           <div style={{ marginTop: 20 }}>
             <h4>Roles & Permissions</h4>
-            <div>
-              {(me.permissions && Object.entries(me.permissions).filter(([, v]) => v).map(([role]) => (
-                <span key={role} className="role-badge" style={{ marginRight: 6 }}>{role}</span>
-              ))) || <div>No roles</div>}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {allRoles && allRoles.length > 0 ? (
+                allRoles.map((role) => {
+                  const has = me.permissions && !!me.permissions[role];
+                  const isCurrent = me.role === role;
+                  return (
+                    <span
+                      key={role}
+                      className="role-badge"
+                      style={{
+                        marginRight: 6,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        background: isCurrent ? 'var(--accent)' : (has ? 'var(--positive)' : 'var(--panel)'),
+                        color: isCurrent || has ? '#fff' : 'inherit',
+                        border: isCurrent ? '2px solid var(--accent)' : '1px solid var(--border)'
+                      }}
+                    >
+                      {role}{isCurrent ? ' (current)' : ''}
+                    </span>
+                  );
+                })
+              ) : (
+                (me.permissions && Object.entries(me.permissions).filter(([, v]) => v).map(([role]) => (
+                  <span key={role} className="role-badge" style={{ marginRight: 6 }}>{role}</span>
+                ))) || <div>No roles</div>
+              )}
             </div>
           </div>
 

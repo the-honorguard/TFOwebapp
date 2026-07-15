@@ -2584,6 +2584,7 @@ function App() {
                 changePassword={changePassword}
                 uploadAvatar={uploadAvatar}
                 updateMyProfile={updateMyProfile}
+                allRoles={allRoles}
               />
             </section>
           ) : null}
