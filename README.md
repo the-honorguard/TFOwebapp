@@ -381,15 +381,15 @@ See [`todo.md`](todo.md) for the full task list. Current blocking items:
 <div align="center">
 
 <sub>Built by &nbsp;
-<img src="https://flagcdn.com/16x12/nl.png" alt="NL" />&nbsp;<a href="https://github.com/the-honorguard">the-honorguard</a>
+<img src="https://flagcdn.com/w20/nl.png" alt="NL" />&nbsp;<a href="https://github.com/the-honorguard">the-honorguard</a>
 &nbsp;&nbsp;&middot;&nbsp;&nbsp;
-<img src="https://flagcdn.com/16x12/fr.png" alt="FR" />&nbsp;<a href="https://github.com/cntrlshft">cntrlshft</a>
+<img src="https://flagcdn.com/w20/fr.png" alt="FR" />&nbsp;<a href="https://github.com/cntrlshft">cntrlshft</a>
 </sub>
 
 <br />
 
 <sub>
-Built with&nbsp;
+Built with assistance of&nbsp;
 <img src="https://img.shields.io/badge/Perplexity-20808D?style=flat-square&logo=perplexity&logoColor=white" alt="Perplexity" />
 &nbsp;
 <img src="https://img.shields.io/badge/Claude-D97757?style=flat-square&logo=anthropic&logoColor=white" alt="Claude" />
