@@ -381,9 +381,9 @@ See [`todo.md`](todo.md) for the full task list. Current blocking items:
 <div align="center">
 
 <sub>Built by &nbsp;
-&#x1F1F3;&#x1F1F1;&nbsp;<a href="https://github.com/the-honorguard">the-honorguard</a>
+<img src="https://flagcdn.com/16x12/nl.png" alt="NL" />&nbsp;<a href="https://github.com/the-honorguard">the-honorguard</a>
 &nbsp;&nbsp;&middot;&nbsp;&nbsp;
-&#x1F1EB;&#x1F1F7;&nbsp;<a href="https://github.com/cntrlshft">cntrlshft</a>
+<img src="https://flagcdn.com/16x12/fr.png" alt="FR" />&nbsp;<a href="https://github.com/cntrlshft">cntrlshft</a>
 </sub>
 
 <br />
