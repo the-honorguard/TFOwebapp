@@ -323,19 +323,39 @@ function App() {
 
   const login = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(loginForm)
-    });
-    const data = await res.json();
-    if (data.token) {
-      localStorage.setItem('token', data.token);
-      setLoginForm({ username: '', password: '' });
-      setShowLoginPanel(false);
-      loadPrivateData();
-    } else {
-      alert(data.error || 'Login failed');
+    try {
+      const res = await fetch(`${API}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm)
+      });
+
+      // Safely parse response: handle non-JSON or empty responses to avoid uncaught SyntaxError
+      let data = null;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        try {
+          data = await res.json();
+        } catch (err) {
+          console.error('Failed to parse JSON response from /api/login', err);
+          data = { error: 'Invalid JSON response from server' };
+        }
+      } else {
+        const text = await res.text();
+        data = { error: text || 'Unexpected empty response from server' };
+      }
+
+      if (data && data.token) {
+        localStorage.setItem('token', data.token);
+        setLoginForm({ username: '', password: '' });
+        setShowLoginPanel(false);
+        loadPrivateData();
+      } else {
+        alert(data.error || 'Login failed');
+      }
+    } catch (err) {
+      console.error('Login request failed', err);
+      alert('Login request failed: ' + (err.message || 'Network error'));
     }
   };
 
