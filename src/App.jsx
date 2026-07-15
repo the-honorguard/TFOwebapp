@@ -2648,6 +2648,8 @@ function App() {
                 flushSlotUpdate={flushSlotUpdate}
                 deleteSlot={deleteSlot}
                 addSlot={addSlot}
+                dragSnapPreview={dragSnapPreview}
+                autoLayoutTemplate={autoLayoutTemplate}
               />
             </section>
           ) : null}

@@ -630,6 +630,29 @@ app.post('/api/ops', authMiddleware, requireAdmin, async (req, res) => {
   }
 });
 
+app.post('/api/ops/:id/load-template', authMiddleware, async (req, res) => {
+  try {
+    const isAdminUser = req.user?.role === 'admin';
+    const isMissionmaker = req.user?.role === 'missionmaker';
+    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
+    const data = await getData();
+    const op = findOp(data, req.params.id);
+    if (!op) return res.status(404).json({ error: 'Operation not found' });
+    const templateId = req.body.templateId ? Number(req.body.templateId) : op.templateId;
+    if (!templateId) return res.status(400).json({ error: 'No templateId provided' });
+    const template = data.templates.find((t) => t.id === templateId);
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+    const existingSections = op.sections || [];
+    op.sections = buildOpSectionsFromTemplate({ sections: template.sections || [] }, existingSections);
+    op.templateId = templateId;
+    await persistData(data);
+    res.json({ op });
+  } catch (err) {
+    console.error('Load template into op error', err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
 app.post('/api/ops/:id/join', authMiddleware, async (req, res) => {
   try {
     const opsRepo = await import('./repositories/ops.js');
