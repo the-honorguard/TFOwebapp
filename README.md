@@ -380,10 +380,20 @@ See [`todo.md`](todo.md) for the full task list. Current blocking items:
 
 <div align="center">
 
+<sub>Built by &nbsp;
+&#x1F1F3;&#x1F1F1;&nbsp;<a href="https://github.com/the-honorguard">the-honorguard</a>
+&nbsp;&nbsp;&middot;&nbsp;&nbsp;
+&#x1F1EB;&#x1F1F7;&nbsp;<a href="https://github.com/cntrlshft">cntrlshft</a>
+</sub>
+
+<br />
+
 <sub>
-Developed with assistance from
+Built with&nbsp;
 <img src="https://img.shields.io/badge/Perplexity-20808D?style=flat-square&logo=perplexity&logoColor=white" alt="Perplexity" />
+&nbsp;
 <img src="https://img.shields.io/badge/Claude-D97757?style=flat-square&logo=anthropic&logoColor=white" alt="Claude" />
+&nbsp;
 <img src="https://img.shields.io/badge/GitHub_Copilot-000000?style=flat-square&logo=github&logoColor=white" alt="GitHub Copilot" />
 </sub>
 
