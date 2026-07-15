@@ -75,13 +75,23 @@ async function ensureDataFile() {
 
 /** Async helper: read and normalize stored data from DB. */
 async function getData() {
-  const raw = await _readData();
-  return normalizeStorage(raw);
+  try {
+    const raw = await _readData();
+    return normalizeStorage(raw);
+  } catch (err) {
+    console.error('getData error', err && err.stack ? err.stack : err);
+    throw err;
+  }
 }
 
 /** Write the provided data object back to the JSON storage file. */
 async function persistData(data) {
-  await _writeData(data);
+  try {
+    await _writeData(data);
+  } catch (err) {
+    console.error('persistData error', err && err.stack ? err.stack : err);
+    throw err;
+  }
 }
 
 /** Middleware: verify JWT token from `Authorization` header and attach `req.user`. */
@@ -892,6 +902,7 @@ app.delete('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
 app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (req, res) => {
   (async () => {
     try {
+      console.debug('POST /api/templates/:templateId/sections', { templateId: req.params.templateId, body: req.body });
       const tplRepo = await import('./repositories/templates.js');
       const template = await tplRepo.getTemplateById(Number(req.params.templateId));
       if (!template) return res.status(404).json({ error: 'Template not found' });
@@ -909,8 +920,8 @@ app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (r
       const updated = await tplRepo.updateTemplate(template.id, { data: template.data });
       res.json({ section });
     } catch (err) {
-      console.error('Add section error', err);
-      res.status(500).json({ error: 'Server error' });
+      console.error('Add section error', err && err.stack ? err.stack : err);
+      res.status(500).json({ error: err.message || 'Server error' });
     }
   })();
 });
@@ -972,6 +983,7 @@ app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, asyn
 });
 
 app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
+  console.debug('DELETE /api/templates/:templateId/sections/:sectionId', { templateId: req.params.templateId, sectionId: req.params.sectionId });
   const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
@@ -980,8 +992,13 @@ app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, req
   if (sectionIndex === -1) return res.status(404).json({ error: 'Section not found' });
 
   template.sections.splice(sectionIndex, 1);
-  await persistData(data);
-  res.status(204).end();
+  try {
+    await persistData(data);
+    res.status(204).end();
+  } catch (err) {
+    console.error('Delete section persist error', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
 });
 
 app.put('/api/templates/:templateId/sections/:sectionId/slots/reorder', authMiddleware, requireAdmin, async (req, res) => {
@@ -1013,22 +1030,29 @@ app.put('/api/templates/:templateId/sections/:sectionId/slots/reorder', authMidd
 });
 
 app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, async (req, res) => {
-  const data = await getData();
-  const template = findTemplate(data, req.params.id);
-  if (!template) return res.status(404).json({ error: 'Template not found' });
-  const section = template.sections.find((section) => section.id === Number(req.body.sectionId));
-  if (!section) return res.status(404).json({ error: 'Section not found' });
-  const slot = {
-    id: Date.now(),
-    name: req.body.name || 'New role',
-    role: req.body.role || 'Rifleman',
-    allowedRoles: Array.isArray(req.body.allowedRoles) ? req.body.allowedRoles : [],
-    notes: req.body.notes || '',
-    assignedUserId: null
-  };
-  section.slots.push(slot);
-  await persistData(data);
-  res.json({ slot });
+  try {
+    console.debug('POST /api/templates/:id/slots', { templateId: req.params.id, body: req.body });
+    const data = await getData();
+    const template = findTemplate(data, req.params.id);
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+    const section = template.sections.find((section) => section.id === Number(req.body.sectionId));
+    if (!section) return res.status(404).json({ error: 'Section not found' });
+
+    const slot = {
+      id: Date.now(),
+      name: req.body.name || 'New role',
+      role: req.body.role || 'Rifleman',
+      allowedRoles: Array.isArray(req.body.allowedRoles) ? req.body.allowedRoles : [],
+      notes: req.body.notes || '',
+      assignedUserId: null
+    };
+    section.slots.push(slot);
+    await persistData(data);
+    res.json({ slot });
+  } catch (err) {
+    console.error('Add slot error', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
 });
 
 app.put('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin, async (req, res) => {

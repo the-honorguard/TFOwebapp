@@ -323,39 +323,19 @@ function App() {
 
   const login = async (e) => {
     e.preventDefault();
-    try {
-      const res = await fetch(`${API}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm)
-      });
-
-      // Safely parse response: handle non-JSON or empty responses to avoid uncaught SyntaxError
-      let data = null;
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) {
-        try {
-          data = await res.json();
-        } catch (err) {
-          console.error('Failed to parse JSON response from /api/login', err);
-          data = { error: 'Invalid JSON response from server' };
-        }
-      } else {
-        const text = await res.text();
-        data = { error: text || 'Unexpected empty response from server' };
-      }
-
-      if (data && data.token) {
-        localStorage.setItem('token', data.token);
-        setLoginForm({ username: '', password: '' });
-        setShowLoginPanel(false);
-        loadPrivateData();
-      } else {
-        alert(data.error || 'Login failed');
-      }
-    } catch (err) {
-      console.error('Login request failed', err);
-      alert('Login request failed: ' + (err.message || 'Network error'));
+    const res = await fetch(`${API}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loginForm)
+    });
+    const data = await res.json();
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+      setLoginForm({ username: '', password: '' });
+      setShowLoginPanel(false);
+      loadPrivateData();
+    } else {
+      alert(data.error || 'Login failed');
     }
   };
 
@@ -991,6 +971,9 @@ function App() {
         body: JSON.stringify({ title })
       });
       const data = await res.json();
+      if (res.status === 401) {
+        throw new Error(data.error || 'Login expired, please log in again');
+      }
       if (data.section) {
         setTemplates((prev) => prev.map((template) => {
           if (template.id !== templateId) return template;
@@ -1005,6 +988,7 @@ function App() {
         if (template.id !== templateId) return template;
         return { ...template, sections: template.sections.filter((s) => s.id !== tempId) };
       }));
+      if (err.message?.toLowerCase().includes('log in again')) logout();
     }
   };
 
@@ -1132,6 +1116,15 @@ function App() {
 
   const deleteSection = async (templateId, sectionId) => {
     if (!window.confirm('Are you sure you want to delete this section?')) return;
+    // If sectionId is a temporary id (client-only), just remove locally and return
+    if (Number.isNaN(Number(sectionId))) {
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return { ...template, sections: template.sections.filter((section) => section.id !== sectionId) };
+      }));
+      return;
+    }
+
     // optimistic: remove locally first
     const prevTemplates = templates;
     setTemplates((prev) => prev.map((template) => {
@@ -1141,17 +1134,36 @@ function App() {
 
     try {
       const token = localStorage.getItem('token');
+      console.debug('Deleting section', { templateId, sectionId });
       const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      if (!res.ok) throw new Error('Could not delete section');
+      if (!res.ok) {
+        let msg = `Could not delete section (status ${res.status})`;
+        try {
+          const text = await res.text();
+          console.error('Delete section failed', res.status, text);
+          // try parse json
+          const data = JSON.parse(text || '{}');
+          if (res.status === 401) {
+            msg = data.error || 'Login expired, please log in again';
+            throw new Error(msg);
+          }
+          msg = data.error || msg;
+        } catch (e) {
+          console.error('Error reading delete section response', e);
+        }
+        throw new Error(msg);
+      }
+      console.debug('Delete section response ok', res.status);
     } catch (err) {
       alert(err.message || 'Could not delete section');
       // revert
       setTemplates(prevTemplates);
+      if (err.message?.toLowerCase().includes('log in again')) logout();
     }
   };
 
@@ -1180,23 +1192,86 @@ function App() {
       };
     }));
 
+    // If sectionId is temporary (not yet persisted), don't attempt server call.
+    if (Number.isNaN(Number(sectionId))) {
+      alert('Section not yet saved. Please wait for the section to be created before adding slots.');
+      return;
+    }
+
     const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${templateId}/slots`, {
+    let res;
+    try {
+      res = await fetch(`${API}/templates/${templateId}/slots`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
-        sectionId,
+        sectionId: Number(sectionId),
         name: roleForNew,
         role: roleForNew,
         allowedRoles: [],
         notes: ''
       })
-    });
-    const data = await res.json();
-    if (data.slot) {
+      });
+    } catch (networkErr) {
+      // Network or CORS error
+      console.error('Network error adding slot', networkErr);
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return {
+          ...template,
+          sections: template.sections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return { ...section, slots: section.slots.filter((s) => s.id !== tempId) };
+          })
+        };
+      }));
+      alert('Network error: Could not add slot');
+      return;
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      // Response was not JSON
+      const text = await res.text().catch(() => '');
+      console.error('Non-JSON response adding slot', res.status, text);
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return {
+          ...template,
+          sections: template.sections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return { ...section, slots: section.slots.filter((s) => s.id !== tempId) };
+          })
+        };
+      }));
+      alert(`Could not add slot (status ${res.status})`);
+      if (res.status === 401) logout();
+      return;
+    }
+
+    if (res.status === 401) {
+      // remove temp slot and force logout
+      setTemplates((prev) => prev.map((template) => {
+        if (template.id !== templateId) return template;
+        return {
+          ...template,
+          sections: template.sections.map((section) => {
+            if (section.id !== sectionId) return section;
+            return { ...section, slots: section.slots.filter((s) => s.id !== tempId) };
+          })
+        };
+      }));
+      alert(data.error || 'Login expired, please log in again');
+      logout();
+      return;
+    }
+
+    if (data && data.slot) {
       setTemplates((prev) => prev.map((template) => {
         if (template.id !== templateId) return template;
         return {
@@ -1221,8 +1296,8 @@ function App() {
           })
         };
       }));
-      alert(data.error || 'Could not add slot');
-      if (res.status === 401) logout();
+      console.error('Add slot failed', res.status, data);
+      alert((data && data.error) || `Could not add slot (status ${res.status})`);
     }
   };
 
@@ -1628,13 +1703,20 @@ function App() {
     const sectionIds = new Set(sections.map((section) => section.id));
     const edges = getTemplateFlowEdges(templateId, sections);
 
-    const HORIZONTAL_GAP = 300; // matches fixed .flow-node width (300px)
+    const HORIZONTAL_GAP = CANVAS_GRID_UNIT; // small gap between nodes (use grid unit for nicer alignment)
     const VERTICAL_GAP = 60; // breathing room between a row and the tallest node in it
     const DEFAULT_NODE_HEIGHT = 124;
     const START_X = 40;
     const START_Y = 40;
 
     const nodeHeight = (id) => nodeHeights[`flow-${templateId}-${id}`] || DEFAULT_NODE_HEIGHT;
+    const nodeWidth = (id) => {
+      const section = sections.find((s) => s.id === id) || {};
+      const slots = Array.isArray(section.slots) ? section.slots.length : 0;
+      // width units: base 7 units (~280px) plus 1 unit per slot (grid unit defined elsewhere)
+      const widthUnits = Math.max(7, 4 + slots);
+      return widthUnits * CANVAS_GRID_UNIT; // matches visual grid unit
+    };
 
     const childrenMap = new Map();
     const hasParent = new Set();
@@ -1697,12 +1779,16 @@ function App() {
       if (children.length === 0) {
         const x = cursorX;
         positions[id] = { x, y: rowY[depth] };
-        cursorX += HORIZONTAL_GAP;
+        cursorX += nodeWidth(id) + HORIZONTAL_GAP;
         return x;
       }
 
-      const childXs = children.map((childId) => layoutNode(childId));
-      const x = (Math.min(...childXs) + Math.max(...childXs)) / 2;
+      const childLefts = children.map((childId) => layoutNode(childId));
+      const childCenters = children.map((childId, i) => childLefts[i] + nodeWidth(children[i]) / 2);
+      const minCenter = Math.min(...childCenters);
+      const maxCenter = Math.max(...childCenters);
+      const center = (minCenter + maxCenter) / 2;
+      const x = center - nodeWidth(id) / 2;
       positions[id] = { x, y: rowY[depth] };
       return x;
     };

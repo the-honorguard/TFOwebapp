@@ -116,7 +116,7 @@ button.btn-danger:hover { background: #991b1b; }
 .flow-meta-row label { min-width: 0; }
 .flow-meta-row .lr-sr-input { width: 2.6rem; }
 .flow-meta-row button.secondary.small { padding: 0.3rem 0.5rem; font-size: 0.8rem; }
-.flow-node { width: 300px; cursor: pointer; }
+.flow-node { width: auto; min-width: 160px; cursor: pointer; }
 .flow-node.selected { outline: 2px solid #22c55e; }
 .flow-node-body { padding: 0.65rem 0.75rem; display: grid; gap: 0.6rem; }
 .flow-node-body > span { font-size: 0.85rem; opacity: 0.8; }

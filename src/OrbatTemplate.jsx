@@ -203,15 +203,20 @@ export default function OrbatTemplate({
                   </svg>
 
                   {dragSnapPreview && dragSnapPreview.templateId === template.id ? (
-                    <div
-                      className="flow-drag-ghost"
-                      style={{
-                        left: `${dragSnapPreview.x}px`,
-                        top: `${dragSnapPreview.y}px`,
-                        width: '300px',
-                        height: `${nodeHeights[`flow-${template.id}-${dragSnapPreview.sectionId}`] || 124}px`
-                      }}
-                    />
+                    (() => {
+                      const unit = 40;
+                      const sec = template.sections.find((s) => s.id === dragSnapPreview.sectionId) || {};
+                      const slots = Array.isArray(sec.slots) ? sec.slots.length : 0;
+                      const widthUnits = Math.max(7, 4 + slots);
+                      const w = widthUnits * unit;
+                      const h = nodeHeights[`flow-${template.id}-${dragSnapPreview.sectionId}`] || 124;
+                      return (
+                        <div
+                          className="flow-drag-ghost"
+                          style={{ left: `${dragSnapPreview.x}px`, top: `${dragSnapPreview.y}px`, width: `${w}px`, height: `${h}px` }}
+                        />
+                      );
+                    })()
                   ) : null}
 
                   {nodes.map((node) => {
@@ -221,7 +226,7 @@ export default function OrbatTemplate({
                       <div
                         key={node.section.id}
                         className={`orbat-node flow-node ${isSelected ? 'selected' : ''}`}
-                        style={{ left: `${node.x}px`, top: `${node.y}px` }}
+                        style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${Math.max(7, 4 + (node.section.slots || []).length) * 40}px` }}
                         ref={setNodeHeightRef(node.nodeKey)}
                       >
                         <button
