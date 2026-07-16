@@ -18,6 +18,7 @@
 - [ ] **Hardcoded auth secret** — move to environment variable, never commit the value
 - [ ] **Duplicate route conflict** — two `PUT` handlers exist for the same section endpoint with different permission checks; the second silently overrides the first
 - [ ] **User profile not returned after signup** — `profile` is written to storage but not included in the initial auth response, so the client has no profile data on first login
+- [ ] **Ranks `icon` column missing** — `lib/dataStore.js` CREATE TABLE for `ranks` has no `icon` column and the INSERT also omits it; icon URLs are silently dropped on save and never persisted. Fix: add `icon VARCHAR(1024)` to the schema, update the INSERT statement, and run `ALTER TABLE ranks ADD COLUMN icon VARCHAR(1024)` on production.
 
 ### Medium priority
 
@@ -29,6 +30,13 @@
 
 - [ ] **Wrong language in one error message** — one 404 response body is not in English, inconsistent with the rest of the API
 - [ ] **ID generation** — `Date.now()` is used as entity ID; `crypto.randomUUID()` (already imported) would be safer and collision-free
+
+---
+
+## Missing Features
+
+- [ ] **Roles backend not implemented** — the Roles page (`src/App.jsx`) is fully wired in the UI (Add, Rename, System badge, Occupied/Slots/Allowed counts) but has zero backend: no `roles` table in `lib/dataStore.js`, no `repositories/roles.js`, and no `/api/roles` routes in `server.js`. Roles currently derive from template slot strings and are not persisted. Fix: create `roles` table, `repositories/roles.js`, and full CRUD API routes; compute Occupied/Slots/Allowed as DB queries against the `slots` table.
+- [ ] **Backup/Restore missing `roles` section label** — `SECTION_LABELS` in `src/Settings.jsx` has no `roles` entry; once the roles backend is added, `roles: 'Roles'` must be added to that map so it displays correctly in the restore UI.
 
 ---
 
