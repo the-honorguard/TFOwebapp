@@ -800,35 +800,57 @@ app.put('/api/roles/rename', authMiddleware, requireAdmin, async (req, res) => {
   });
 
   await persistData(data);
+
+  try {
+    const rolesRepo = await import('./repositories/roles.js');
+    const existing = await rolesRepo.findByName(oldName);
+    if (existing) {
+      await rolesRepo.updateRole(existing.id, { name: newName });
+    }
+  } catch (err) {
+    console.error('Roles table rename sync error', err);
+  }
   res.json({ ok: true });
 });
 
 // Custom roles API: roles that exist independently of any template slot yet
 app.get('/api/roles', async (req, res) => {
-  const data = await getData();
-  res.json({ roles: data.customRoles || [] });
+  try {
+    const rolesRepo = await import('./repositories/roles.js');
+    const roles = await rolesRepo.listRoles();
+    res.json({ roles: roles || [] });
+  } catch (err) {
+    console.error('List roles error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 app.post('/api/roles', authMiddleware, requireAdmin, async (req, res) => {
-  const data = await getData();
-  const name = (req.body.name || '').trim();
-  if (!name) return res.status(400).json({ error: 'Name required' });
-  const exists = (data.customRoles || []).some((r) => r.name.toLowerCase() === name.toLowerCase());
-  if (exists) return res.status(409).json({ error: 'Role already exists' });
-  const role = { id: Date.now(), name };
-  data.customRoles = data.customRoles || [];
-  data.customRoles.push(role);
-  await persistData(data);
-  res.json({ role });
+  try {
+    const rolesRepo = await import('./repositories/roles.js');
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    const exists = await rolesRepo.findByName(name);
+    if (exists) return res.status(409).json({ error: 'Role already exists' });
+    const role = await rolesRepo.createRole({ name });
+    res.json({ role });
+  } catch (err) {
+    console.error('Create role error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 app.delete('/api/roles/:id', authMiddleware, requireAdmin, async (req, res) => {
-  const data = await getData();
-  const idx = (data.customRoles || []).findIndex((r) => r.id === Number(req.params.id));
-  if (idx === -1) return res.status(404).json({ error: 'Role not found' });
-  data.customRoles.splice(idx, 1);
-  await persistData(data);
-  res.status(204).end();
+  try {
+    const rolesRepo = await import('./repositories/roles.js');
+    const role = await rolesRepo.getRoleById(Number(req.params.id));
+    if (!role) return res.status(404).json({ error: 'Role not found' });
+    await rolesRepo.deleteRole(Number(req.params.id));
+    res.status(204).end();
+  } catch (err) {
+    console.error('Delete role error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // Ranks API: simple CRUD for rank management

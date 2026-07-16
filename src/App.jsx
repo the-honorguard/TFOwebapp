@@ -10,6 +10,7 @@ import Settings from './Settings';
 import Ranks from './Ranks';
 import Profile from './Profile';
 import Campaigns from './Campaigns';
+import apiFetch from './api';
 
 const API = '/api';
 
@@ -244,10 +245,12 @@ function App() {
 
   const loadCampaigns = async () => {
     try {
-      const res = await fetch(`${API}/campaigns`);
-      const data = await res.json();
-      if (data.campaigns) setCampaigns(data.campaigns);
-    } catch (e) {}
+      const data = await apiFetch('/campaigns');
+      if (data && data.campaigns) setCampaigns(data.campaigns);
+    } catch (e) {
+      console.error('loadCampaigns error', e);
+      alert('Could not load campaigns: ' + (e.message || e));
+    }
   };
 
   useEffect(() => { loadCampaigns(); }, []);
@@ -255,32 +258,32 @@ function App() {
   const loadPrivateData = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    const res = await fetch(`${API}/data`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const data = await res.json();
-    applyLoadedData(data, data.user || null);
+    try {
+      const data = await apiFetch('/data', { headers: { Authorization: `Bearer ${token}` } });
+      applyLoadedData(data, data.user || null);
+    } catch (e) {
+      console.error('loadPrivateData error', e);
+      alert('Could not load private data: ' + (e.message || e));
+    }
   };
 
   const loadPublicData = async () => {
     try {
-      const res = await fetch(`${API}/public-data`);
-      if (!res.ok) { console.error('Public data fetch failed', res.status); return; }
-      const data = await res.json();
+      const data = await apiFetch('/public-data');
       applyLoadedData(data, null);
     } catch (e) {
       console.error('loadPublicData error', e);
+      alert('Could not load public data: ' + (e.message || e));
     }
   };
 
   const loadRanks = async () => {
     try {
-      const res = await fetch(`${API}/ranks`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await apiFetch('/ranks');
       setRanks(data.ranks || []);
     } catch (e) {
-      // ignore
+      console.error('loadRanks error', e);
+      alert('Could not load ranks: ' + (e.message || e));
     }
   };
 
@@ -331,19 +334,22 @@ function App() {
 
   const login = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(loginForm)
-    });
-    const data = await res.json();
-    if (data.token) {
-      localStorage.setItem('token', data.token);
-      setLoginForm({ username: '', password: '' });
-      setShowLoginPanel(false);
-      loadPrivateData();
-    } else {
-      alert(data.error || 'Login failed');
+    try {
+      const data = await apiFetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginForm)
+      });
+      if (data && data.token) {
+        localStorage.setItem('token', data.token);
+        setLoginForm({ username: '', password: '' });
+        setShowLoginPanel(false);
+        loadPrivateData();
+      } else {
+        alert('Login failed: missing token');
+      }
+    } catch (err) {
+      alert(err.message || 'Login failed');
     }
   };
 
@@ -395,19 +401,22 @@ function App() {
       }
     };
 
-    const res = await fetch(`${API}/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.token) {
-      localStorage.setItem('token', data.token);
-      setSignupForm({ username: '', password: '', rank: '', status: 'Active', role: 'member' });
-      setShowSignup(false);
-      loadPrivateData();
-    } else {
-      alert(data.error || 'Signup failed');
+    try {
+      const data = await apiFetch('/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (data && data.token) {
+        localStorage.setItem('token', data.token);
+        setSignupForm({ username: '', password: '', rank: '', status: 'Active', role: 'member' });
+        setShowSignup(false);
+        loadPrivateData();
+      } else {
+        alert('Signup failed: missing token');
+      }
+    } catch (err) {
+      alert(err.message || 'Signup failed');
     }
   };
 
