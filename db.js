@@ -39,4 +39,12 @@ const pool = mysql.createPool({
         queueLimit: 0
 });
 
+async function testConnection(timeoutMs = 2000) {
+    // Simple query to verify DB connectivity. Throws on failure or timeout.
+    const q = pool.query('SELECT 1 AS ok');
+    const timer = new Promise((_, rej) => setTimeout(() => rej(new Error('DB connection timed out')), timeoutMs));
+    await Promise.race([q, timer]);
+}
+
 export default pool;
+export { testConnection };

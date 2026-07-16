@@ -7,8 +7,8 @@ import path from 'path';
 import crypto from 'crypto';
 import multer from 'multer';
 import dotenv from 'dotenv';
-import pool from './db.js';
-import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized } from './lib/dataStore.js';
+import pool, { testConnection } from './db.js';
+import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential } from './lib/dataStore.js';
 
 dotenv.config();
 
@@ -64,6 +64,124 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Lightweight health endpoint to detect DB availability
+app.get('/health', async (req, res) => {
+  try {
+    await testConnection(2000);
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(503).json({ ok: false, error: err && err.message ? err.message : 'DB unavailable' });
+  }
+});
+
+// Init-status for frontend: returns whether DB appears initialized (users exist)
+app.get('/api/init-status', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT COUNT(*) as c FROM users');
+    const initialized = Array.isArray(rows) && rows[0] && rows[0].c > 0;
+    return res.json({ initialized: !!initialized });
+  } catch (err) {
+    // If users table doesn't exist, consider DB not initialized (but reachable)
+    if (err && (err.code === 'ER_NO_SUCH_TABLE' || err.errno === 1146)) {
+      return res.json({ initialized: false });
+    }
+    return res.status(503).json({ error: 'DB unavailable' });
+  }
+});
+
+// Return table row counts and simple DB info for the setup page
+app.get('/api/db-info', async (req, res) => {
+  console.log('GET /api/db-info called from', req.ip || req.headers['x-forwarded-for'] || 'unknown');
+  const tables = ['users','user_profiles','ranks','templates','ops','recurrences','campaigns','modlists','files','backups','roles'];
+  try {
+    const results = [];
+    for (const t of tables) {
+      try {
+        const [r] = await pool.query(`SELECT COUNT(*) as c FROM \`${t}\``);
+        results.push({ table: t, rows: Array.isArray(r) && r[0] ? Number(r[0].c) : 0 });
+      } catch (e) {
+        // if table doesn't exist, treat as zero
+        results.push({ table: t, rows: 0, error: e && e.code ? e.code : String(e) });
+      }
+    }
+    return res.json({ tables: results });
+  } catch (err) {
+    console.error('DB info error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Failed to collect DB info' });
+  }
+});
+
+// Simple initialization endpoint used by public/init.html
+app.post('/init', async (req, res) => {
+  try {
+    await ensureDbInitialized();
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Init error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Initialization failed', details: err && err.message ? err.message : String(err) });
+  }
+});
+
+// Reset database: DROP all tables and re-create schema
+app.post('/init/reset', async (req, res) => {
+  try {
+    const wantEmpty = (req.query && req.query.empty === '1') || (req.body && req.body.empty === true);
+    await resetDatabase();
+    if (wantEmpty) {
+      // Ensure tables exist but remove any seeded rows so DB is truly empty
+      const conn = await pool.getConnection();
+      try {
+        await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+        const toClear = ['recurrences','ops','templates','roles','files','modlists','backups','campaigns','ranks','user_profiles','users'];
+        for (const t of toClear) {
+          try { await conn.query(`DELETE FROM \`${t}\``); } catch (e) { /* ignore */ }
+        }
+        await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+      } finally {
+        conn.release();
+      }
+    } else {
+      await ensureDbInitialized();
+    }
+    return res.json({ ok: true, empty: !!wantEmpty });
+  } catch (err) {
+    console.error('Reset error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Reset failed', details: err && err.message ? err.message : String(err) });
+  }
+});
+
+// Seed demo data only
+app.post('/init/demo', async (req, res) => {
+  try {
+    await seedDemo();
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Demo seed error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Demo seed failed', details: err && err.message ? err.message : String(err) });
+  }
+});
+
+// Import full DB payload (JSON) either via file upload (multipart/form-data) or JSON body
+app.post('/init/import', upload.single('file'), async (req, res) => {
+  try {
+    let payload = null;
+    if (req.file && req.file.path) {
+      const content = fs.readFileSync(req.file.path, 'utf8');
+      payload = JSON.parse(content);
+    } else if (req.body && req.body.data) {
+      payload = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : req.body.data;
+    } else if (req.body) {
+      payload = req.body;
+    }
+    if (!payload) return res.status(400).json({ error: 'No import data provided' });
+    await _writeData(payload);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Import error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Import failed', details: err && err.message ? err.message : String(err) });
+  }
+});
 
 /** Ensure the data file and containing directory exist.
  * If the data file is missing it will be initialized with a small example dataset.
@@ -813,6 +931,56 @@ app.put('/api/roles/rename', authMiddleware, requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin: clear the configured database by running the clear-db script on the server
+app.post('/api/admin/clear-db', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { execFile } = await import('child_process');
+    const script = path.join(process.cwd(), 'scripts', 'clear-db.js');
+    execFile(process.execPath, [script, '--force'], { cwd: process.cwd(), env: process.env, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('Clear DB script failed', err, stdout, stderr);
+        return res.status(500).json({ error: 'Clear DB failed', details: stderr || (err && err.message) || String(err) });
+      }
+      res.json({ ok: true, out: stdout || '' });
+    });
+  } catch (err) {
+    console.error('Clear DB spawn error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Streamed variant: run clear-db and stream stdout/stderr to the HTTP response body
+app.post('/api/admin/clear-db-stream', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { spawn } = await import('child_process');
+    const script = path.join(process.cwd(), 'scripts', 'clear-db.js');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    // Keep connection open while process runs
+    const child = spawn(process.execPath, [script, '--force'], { cwd: process.cwd(), env: process.env });
+
+    child.stdout.on('data', (chunk) => {
+      try { res.write(String(chunk)); } catch (e) { /* ignore */ }
+    });
+    child.stderr.on('data', (chunk) => {
+      try { res.write(String(chunk)); } catch (e) { /* ignore */ }
+    });
+    child.on('close', (code) => {
+      try {
+        res.write(`\nProcess exited with code ${code}\n`);
+      } catch (e) {}
+      try { res.end(); } catch (e) {}
+    });
+    child.on('error', (err) => {
+      try { res.write(`\nProcess spawn error: ${err && err.message ? err.message : String(err)}\n`); } catch (e) {}
+      try { res.end(); } catch (e) {}
+    });
+  } catch (err) {
+    console.error('Clear DB stream spawn error', err);
+    res.status(500).send('Server error');
+  }
+});
+
 // Custom roles API: roles that exist independently of any template slot yet
 app.get('/api/roles', async (req, res) => {
   try {
@@ -1349,6 +1517,11 @@ app.put('/api/users/me', authMiddleware, async (req, res) => {
   res.json({ user: safeUser });
 });
 
+// Serve the public init page directly so first-run setup is always reachable
+app.get('/init.html', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'init.html'));
+});
+
 const distPath = path.join(process.cwd(), 'dist');
 
 app.use(express.static(distPath));
@@ -1357,6 +1530,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
+// Attempt to ensure DB initialization at startup, but do not crash server if DB is unavailable.
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

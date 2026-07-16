@@ -14,7 +14,7 @@ Write-Host "Checking database availability..." -ForegroundColor Cyan
 # Try a quick DB check with the existing wait-for-db.js using a short timeout.
 try {
     $env:WAIT_DB_SECONDS = "5"
-    & node scripts/wait-for-db.js
+    & node ./wait-for-db.js
     $dbReady = $LASTEXITCODE -eq 0
 } catch {
     Write-Host "Could not run wait-for-db.js (node might be missing). Assuming DB is not ready." -ForegroundColor Yellow
@@ -169,7 +169,7 @@ if (-not $dbReady) {
 
         Write-Host "Waiting for DB to become available..." -ForegroundColor Cyan
         # Try full wait (default WAIT_DB_SECONDS in script)
-        & node scripts/wait-for-db.js
+        & node ./wait-for-db.js
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Database did not become ready after starting Docker Compose. Aborting (exit $LASTEXITCODE)."
             exit $LASTEXITCODE

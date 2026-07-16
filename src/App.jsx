@@ -923,6 +923,24 @@ function App() {
     }
   };
 
+  const clearDb = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) { alert('Login required'); return false; }
+    const ans = prompt("Type DELETE to confirm wiping ALL TABLES in the configured database on the server (irreversible):");
+    if (ans !== 'DELETE') { alert('Aborted'); return false; }
+    try {
+      const res = await fetch(`${API}/admin/clear-db`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (!res.ok) throw new Error(data?.error || data?.details || `HTTP ${res.status}`);
+      alert('Database cleared successfully on the server.');
+      return true;
+    } catch (e) {
+      alert('Clear DB failed: ' + (e.message || e));
+      return false;
+    }
+  };
+
   const importBackup = async (backupPayload, selectedSections = [], restoreUploads = false) => {
     const token = localStorage.getItem('token');
     if (!token) { alert('Login required'); return; }
@@ -2623,6 +2641,8 @@ function App() {
                 changePassword={changePassword}
                 uploadCustomMarker={uploadCustomMarker}
                   allRoles={allRoles}
+                  isAdmin={isAdmin}
+                  clearDb={clearDb}
                   changePasswordForm={changePasswordForm}
                   setChangePasswordForm={setChangePasswordForm}
                   exportBackup={exportBackup}

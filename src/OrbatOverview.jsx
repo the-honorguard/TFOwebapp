@@ -172,6 +172,7 @@ export default function OrbatOverview({
                     <div className="orbat-slot-list">
                       {node.section.slots.slice(0, 6).map((slot) => {
                         const assignedUser = users.find((user) => user.id === slot.assignedUserId);
+                        const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
                         const allowedRoles = slot.allowedRoles || [];
                         const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
                         const isOwnSlot = Boolean(auth && slot.assignedUserId === auth.id);
@@ -181,6 +182,9 @@ export default function OrbatOverview({
                               {assignedUser ? 'occupied' : 'free'}
                             </span>
                             <span className="orbat-slot-text">{slot.name}</span>
+                            {assignedUser && avatarUrl ? (
+                              <img src={avatarUrl} alt="avatar" className="slot-avatar" />
+                            ) : null}
                             {isOwnSlot ? (
                               <button
                                 type="button"
@@ -232,8 +236,9 @@ export default function OrbatOverview({
                 {section.slots.length === 0 ? (
                   <p className="panel-empty">No slots in this section.</p>
                 ) : (
-                  section.slots.map((slot) => {
+                      section.slots.map((slot) => {
                     const assignedUser = users.find((user) => user.id === slot.assignedUserId);
+                    const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
                     const allowedRoles = slot.allowedRoles || [];
                     const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
                     const isOwnSlot = Boolean(auth && slot.assignedUserId === auth.id);
@@ -285,6 +290,11 @@ export default function OrbatOverview({
                             </>
                           )}
                         </div>
+                        {assignedUser && avatarUrl ? (
+                          <div style={{ marginLeft: 12 }}>
+                            <img src={avatarUrl} alt="avatar" className="slot-avatar" />
+                          </div>
+                        ) : null}
                         <div className="slot-footer">
                           <span>{assignedUser ? `Occupied by ${assignedUser.username}` : 'Available'}</span>
                           {isOwnSlot ? (

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>TFO Webapp — Initialization</title>
+    <style>
+      body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:32px}
+      .card{max-width:640px;margin:0 auto;padding:24px;border:1px solid #ddd;border-radius:8px}
+      button{padding:10px 16px;font-size:16px}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Initialize database</h1>
+      <p>The database appears uninitialized. Choose an action below:</p>
+      <div id="status"></div>
+
+      <div style="margin-top:12px">
+        <button id="initBtn">Create default database</button>
+        <button id="demoBtn" style="margin-left:8px">Import demo data</button>
+        <button id="resetBtn" style="margin-left:8px;color:#900">Reset database (remove all data)</button>
+        <button id="exportBtn" style="margin-left:8px">Export backup</button>
+      </div>
+
+      <hr />
+      <h3>Restore backup (select sections)</h3>
+      <p>Upload a backup JSON (exported via Export backup) and select which sections to restore.</p>
+      <input type="file" id="backupFile" accept="application/json" />
+      <div style="margin-top:8px">or paste backup JSON below</div>
+      <textarea id="backupJson" rows="8" style="width:100%;margin-top:8px" placeholder='{"data":{...},"uploads":[...]}'></textarea>
+      <div style="margin-top:8px">
+        <button id="loadBackup">Load backup</button>
+        <button id="clearBackup" style="margin-left:8px">Clear loaded backup</button>
+      </div>
+      <div id="backupPreview" style="margin-top:12px;display:none">
+        <div id="backupMeta" style="margin-bottom:8px;font-size:14px"></div>
+        <div id="backupSections" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px"></div>
+        <div style="margin-top:8px">
+          <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="restoreUploads" /> Restore uploaded files</label>
+        </div>
+        <div style="margin-top:8px">
+          <button id="restoreBtn">Restore selected sections</button>
+        </div>
+      </div>
+      <h3>Import full dataset</h3>
+      <p>Upload a JSON file containing a full database export or paste JSON below.</p>
+      <input type="file" id="fileInput" accept="application/json" />
+      <div style="margin-top:8px">of</div>
+      <textarea id="jsonInput" rows="8" style="width:100%;margin-top:8px" placeholder='{"users":[],"templates":[],"ops":[]}'></textarea>
+      <div style="margin-top:8px">
+        <button id="importBtn">Import JSON</button>
+      </div>
+      <hr />
+      <h3>Database informatie</h3>
+      <div id="dbInfo" style="font-family:monospace;margin-top:8px">Loading...</div>
+    </div>
+    <script>
+      const status = document.getElementById('status');
+      const initBtn = document.getElementById('initBtn');
+      const demoBtn = document.getElementById('demoBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const importBtn = document.getElementById('importBtn');
+      const fileInput = document.getElementById('fileInput');
+      const jsonInput = document.getElementById('jsonInput');
+
+      async function postJson(path, body) {
+        status.textContent = 'Working...';
+        try {
+          const res = await fetch(path, { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body), headers: body instanceof FormData ? {} : { 'Content-Type': 'application/json' } });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            status.textContent = 'Error: ' + (body && body.error ? body.error : res.statusText);
+            return null;
+          }
+          const j = await res.json().catch(() => ({}));
+          status.textContent = 'Success';
+          setTimeout(() => { window.location.href = '/'; }, 800);
+          return j;
+        } catch (err) {
+          status.textContent = 'Server or network error: ' + (err && err.message ? err.message : String(err));
+          return null;
+        }
+      }
+
+      initBtn.addEventListener('click', (e) => { e.preventDefault(); postJson('/init', {}); });
+      demoBtn.addEventListener('click', (e) => { e.preventDefault(); postJson('/init/demo', {}); });
+      resetBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!confirm('Are you sure you want to reset the entire database? This will delete all data.')) return;
+        postJson('/init/reset', {});
+      });
+
+      importBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const file = fileInput.files && fileInput.files[0];
+        if (file) {
+          const fd = new FormData();
+          fd.append('file', file);
+          await postJson('/init/import', fd);
+          return;
+        }
+        const txt = jsonInput.value && jsonInput.value.trim();
+        if (!txt) { status.textContent = 'No JSON provided'; return; }
+        let parsed;
+        try { parsed = JSON.parse(txt); } catch (err) { status.textContent = 'Geen geldige JSON: ' + err.message; return; }
+        await postJson('/init/import', parsed);
+      });
+
+      // --- Backup restore (selective) ---
+      const backupFile = document.getElementById('backupFile');
+      const backupJson = document.getElementById('backupJson');
+      const loadBackup = document.getElementById('loadBackup');
+      const clearBackup = document.getElementById('clearBackup');
+      const backupPreview = document.getElementById('backupPreview');
+      const backupMeta = document.getElementById('backupMeta');
+      const backupSections = document.getElementById('backupSections');
+      const restoreUploadsEl = document.getElementById('restoreUploads');
+      const restoreBtn = document.getElementById('restoreBtn');
+
+      let loadedBackup = null;
+
+      function renderBackupPreview(obj) {
+        backupSections.innerHTML = '';
+        const dataObj = obj && obj.data ? obj.data : obj;
+        const keys = dataObj && typeof dataObj === 'object' ? Object.keys(dataObj).filter(k => k !== 'uploads') : [];
+        backupMeta.textContent = `Top-level keys: ${keys.join(', ')}${Array.isArray(obj && obj.uploads) ? ' — uploads: ' + obj.uploads.length : ''}`;
+        for (const k of keys) {
+          const el = document.createElement('label'); el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.gap = '8px';
+          const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = true; chk.value = k; chk.dataset.key = k;
+          chk.addEventListener('change', () => {});
+          const span = document.createElement('span'); span.textContent = `${k} (${Array.isArray(dataObj[k]) ? dataObj[k].length + ' items' : (dataObj[k] && typeof dataObj[k] === 'object' ? Object.keys(dataObj[k]).length + ' fields' : 'available')})`;
+          el.appendChild(chk); el.appendChild(span);
+          backupSections.appendChild(el);
+        }
+        backupPreview.style.display = keys.length ? 'block' : 'none';
+      }
+
+      loadBackup.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const f = backupFile.files && backupFile.files[0];
+        if (f) {
+          try {
+            const txt = await f.text();
+            const parsed = JSON.parse(txt);
+            loadedBackup = parsed;
+            backupJson.value = JSON.stringify(parsed, null, 2);
+            renderBackupPreview(parsed);
+            restoreUploadsEl.checked = Array.isArray(parsed.uploads) && parsed.uploads.length > 0;
+            status.textContent = 'Backup loaded';
+          } catch (err) { status.textContent = 'Failed to read backup file: ' + (err.message || err); }
+          return;
+        }
+        const txt = backupJson.value && backupJson.value.trim();
+        if (!txt) { status.textContent = 'No backup provided'; return; }
+        try {
+          const parsed = JSON.parse(txt);
+          loadedBackup = parsed;
+          renderBackupPreview(parsed);
+          restoreUploadsEl.checked = Array.isArray(parsed.uploads) && parsed.uploads.length > 0;
+          status.textContent = 'Backup loaded';
+        } catch (err) { status.textContent = 'Invalid JSON: ' + (err.message || err); }
+      });
+
+      clearBackup.addEventListener('click', (e) => {
+        e.preventDefault();
+        loadedBackup = null; backupFile.value = ''; backupJson.value = ''; backupPreview.style.display = 'none'; backupSections.innerHTML = ''; status.textContent = '';
+      });
+
+      restoreBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (!loadedBackup) { status.textContent = 'No backup loaded'; return; }
+        // collect selected sections
+        const chks = [...backupSections.querySelectorAll('input[type=checkbox]')];
+        const selectedSections = chks.filter(c => c.checked).map(c => c.value);
+        const restoreUploads = Boolean(restoreUploadsEl.checked);
+        if (!selectedSections.length && !restoreUploads) { status.textContent = 'Select sections or uploads to restore'; return; }
+
+        const payload = { data: loadedBackup.data || loadedBackup, uploads: loadedBackup.uploads || [], selectedSections, restoreUploads };
+        status.textContent = 'Restoring...';
+        try {
+          const token = localStorage.getItem('token');
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = 'Bearer ' + token;
+          const res = await fetch('/api/backup/import', { method: 'POST', headers, body: JSON.stringify(payload) });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            status.textContent = 'Restore failed: ' + (body && body.error ? body.error : res.statusText);
+            return;
+          }
+          status.textContent = 'Restore successful';
+          setTimeout(() => { window.location.href = '/'; }, 800);
+        } catch (err) {
+          status.textContent = 'Network error: ' + (err && err.message ? err.message : String(err));
+        }
+      });
+
+      document.getElementById('exportBtn').addEventListener('click', async (e) => {
+        e.preventDefault();
+        status.textContent = 'Preparing backup...';
+        try {
+          const res = await fetch('/api/backup');
+          if (!res.ok) { status.textContent = 'Failed to export backup'; return; }
+          const j = await res.json();
+          const fname = `tfo-backup-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+          const blob = new Blob([JSON.stringify(j, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+          status.textContent = 'Backup downloaded';
+        } catch (err) {
+          status.textContent = 'Backup failed: ' + (err && err.message ? err.message : String(err));
+        }
+      });
+
+      async function fetchDbInfo() {
+        try {
+          const res = await fetch('/api/db-info');
+          if (!res.ok) { document.getElementById('dbInfo').textContent = 'Could not fetch DB info'; return; }
+          const j = await res.json();
+          const div = document.getElementById('dbInfo');
+          div.innerHTML = '';
+          const table = document.createElement('table');
+          table.style.borderCollapse = 'collapse';
+          table.style.width = '100%';
+          for (const t of j.tables) {
+            const tr = document.createElement('tr');
+            const td1 = document.createElement('td'); td1.textContent = t.table; td1.style.padding = '4px';
+            const td2 = document.createElement('td'); td2.textContent = t.rows; td2.style.padding = '4px'; td2.style.textAlign = 'right';
+            tr.appendChild(td1); tr.appendChild(td2);
+            table.appendChild(tr);
+          }
+          div.appendChild(table);
+          const updated = document.createElement('div'); updated.style.fontSize = '12px'; updated.style.marginTop = '6px'; updated.textContent = 'Updated: ' + new Date().toLocaleString();
+          div.appendChild(updated);
+        } catch (err) {
+          document.getElementById('dbInfo').textContent = 'Error fetching DB info: ' + (err && err.message ? err.message : String(err));
+        }
+      }
+
+      // initial fetch and periodic refresh
+      fetchDbInfo();
+      setInterval(fetchDbInfo, 5000);
+    </script>
+  </body>
+</html>

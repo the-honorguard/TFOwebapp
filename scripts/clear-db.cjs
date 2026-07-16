@@ -37,8 +37,41 @@ function askConfirmation(prompt) {
   const cfg = await loadConfig();
   console.log(`Database target: ${cfg.host}:${cfg.port} / ${cfg.database}`);
 
+  // Determine mode from flags, if provided
+  let mode = null; // 'drop' | 'truncate' | 'drop-recreate'
+  if (args.includes('--truncate') || args.includes('-t')) mode = 'truncate';
+  if (args.includes('--drop') || args.includes('-d')) mode = 'drop';
+  if (args.includes('--recreate') || args.includes('-r')) {
+    // If recreate requested without explicit drop flag, treat as drop-recreate
+    if (mode === 'truncate') {
+      // contradictory flags; prefer explicit drop-recreate
+      mode = 'drop-recreate';
+    } else {
+      mode = mode === 'drop' ? 'drop-recreate' : (mode || 'drop-recreate');
+    }
+  }
+
+  // If no mode specified, present interactive menu
+  if (!mode) {
+    console.log('Select an action:');
+    console.log('  1) Drop all tables (remove schema and data)');
+    console.log('  2) Clear all data (TRUNCATE/DELETE) but keep schema');
+    console.log('  3) Drop all tables AND recreate empty schema (drop + init)');
+    console.log('  4) Cancel');
+    const choice = await askConfirmation('Choose 1,2,3 or 4: ');
+    if (choice === '1') mode = 'drop';
+    else if (choice === '2') mode = 'truncate';
+    else if (choice === '3') mode = 'drop-recreate';
+    else {
+      console.log('Cancelled by user.');
+      process.exit(0);
+    }
+  }
+
+  console.log(`Chosen action: ${mode}`);
+
   if (!force) {
-    const ans = await askConfirmation(`Type DELETE to confirm wiping all tables in database '${cfg.database}': `);
+    const ans = await askConfirmation(`Type DELETE to confirm action '${mode}' on database '${cfg.database}': `);
     if (ans !== 'DELETE') {
       console.log('Aborted by user.');
       process.exit(1);
@@ -50,37 +83,73 @@ function askConfirmation(prompt) {
   let conn;
   try {
     conn = await mysql.createConnection({ host: cfg.host, port: cfg.port, user: cfg.user, password: cfg.password, database: cfg.database });
-    const [rows] = await conn.execute("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?", [cfg.database]);
-    const tables = rows.map(r => r.TABLE_NAME).filter(Boolean);
+    const [rows] = await conn.execute("SELECT TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?", [cfg.database]);
+    const allTables = (rows || []).map(r => ({ name: r.TABLE_NAME, type: r.TABLE_TYPE })).filter(Boolean);
+    const tables = allTables.map(r => r.name).filter(Boolean);
     if (tables.length === 0) {
       console.log(`No tables found in database '${cfg.database}'. Nothing to do.`);
       await conn.end();
       process.exit(0);
     }
-    console.log(`Dropping ${tables.length} tables...`);
-    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-    for (const t of tables) {
-      await conn.query(`DROP TABLE IF EXISTS \`${t}\``);
-    }
-    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
-    console.log(`All tables dropped from '${cfg.database}'.`);
-    await conn.end();
-    // Attempt to recreate schema (calls ESM script)
-    try {
-      const { spawnSync } = require('child_process');
-      const scriptPath = path.join(process.cwd(), 'scripts', 'init-schema.mjs');
-      console.log('Recreating tables (empty schema)...');
-      const res = spawnSync('node', [scriptPath], { stdio: 'inherit' });
-      if (res.status !== 0) {
-        console.error('Schema initialization failed with exit code', res.status);
-        process.exit(3);
+
+    if (mode === 'truncate') {
+      console.log(`Clearing data from ${tables.length} tables (preserving schema)...`);
+      await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+      for (const t of tables) {
+        try {
+          await conn.query(`TRUNCATE TABLE \`${t}\``);
+          console.log(`Truncated ${t}`);
+        } catch (err) {
+          try {
+            await conn.query(`DELETE FROM \`${t}\``);
+            console.log(`Deleted rows from ${t}`);
+          } catch (err2) {
+            console.error(`Failed to clear table ${t}:`, err2 && err2.message ? err2.message : err2);
+          }
+        }
       }
-      console.log('Empty schema recreated successfully.');
+      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+      console.log(`All tables cleared (schema preserved) from '${cfg.database}'.`);
+      await conn.end();
       process.exit(0);
-    } catch (err) {
-      console.error('Failed to run schema init:', err && err.message ? err.message : err);
-      process.exit(3);
     }
+
+    if (mode === 'drop' || mode === 'drop-recreate') {
+      console.log(`Dropping ${tables.length} tables...`);
+      await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+      for (const t of tables) {
+        await conn.query(`DROP TABLE IF EXISTS \`${t}\``);
+        console.log(`Dropped ${t}`);
+      }
+      await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+      console.log(`All tables dropped from '${cfg.database}'.`);
+      await conn.end();
+
+      if (mode === 'drop-recreate') {
+        try {
+          const { spawnSync } = require('child_process');
+          const scriptPath = path.join(process.cwd(), 'scripts', 'init-schema.mjs');
+          console.log('Recreating tables (empty schema) because drop-recreate was selected...');
+          const res = spawnSync('node', [scriptPath], { stdio: 'inherit' });
+          if (res.status !== 0) {
+            console.error('Schema initialization failed with exit code', res.status);
+            process.exit(3);
+          }
+          console.log('Empty schema recreated successfully.');
+          process.exit(0);
+        } catch (err) {
+          console.error('Failed to run schema init:', err && err.message ? err.message : err);
+          process.exit(3);
+        }
+      }
+
+      process.exit(0);
+    }
+
+    console.log('Unknown mode, exiting.');
+    await conn.end();
+    process.exit(1);
+
   } catch (err) {
     if (conn) try { await conn.end(); } catch (e) {}
     console.error('Error clearing DB:', err && err.message ? err.message : err);

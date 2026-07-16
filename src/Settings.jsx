@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import Ranks from './Ranks';
 import Roles from './settings/Roles';
+import TerminalModal from './TerminalModal';
 
 const SECTION_LABELS = {
   users: 'Users',
@@ -29,6 +30,8 @@ export default function Settings({
   allRoles,
   exportBackup,
   importBackup,
+  isAdmin = false,
+  clearDb = null,
   // roles-related props
   customRoles = [],
   addRole = null,
@@ -60,11 +63,7 @@ export default function Settings({
     squadTypes: defaultOpSettings.squadTypes || [],
     defaultSlotRole: defaultOpSettings.defaultSlotRole || ''
   });
-  const [backupFileName, setBackupFileName] = useState('');
-  const [backupData, setBackupData] = useState(null);
-  const [selectedSections, setSelectedSections] = useState([]);
-  const [restoreUploads, setRestoreUploads] = useState(false);
-  const [backupError, setBackupError] = useState('');
+  
 
   useEffect(() => {
     setLocal({
@@ -143,50 +142,45 @@ export default function Settings({
     }
   };
 
-  const sectionKeys = backupData ? Object.keys(backupData.data || {}).filter((key) => key !== 'uploads') : [];
+  
 
-  const handleBackupFile = async (file) => {
-    if (!file) return;
+  // Confirmation modal + streaming terminal state
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmInput, setConfirmInput] = useState('');
+  const [termOpen, setTermOpen] = useState(false);
+  const [termContent, setTermContent] = useState('');
+  const [termFinished, setTermFinished] = useState(false);
+
+  const appendTerm = (text) => setTermContent((t) => t + String(text));
+
+  const startClearDbStream = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) { alert('Login required'); return; }
+    setTermContent('');
+    setTermFinished(false);
+    setTermOpen(true);
     try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!parsed || typeof parsed !== 'object' || !parsed.data) {
-        throw new Error('Invalid backup file format');
+      const res = await fetch('/api/admin/clear-db-stream', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const txt = await res.text();
+        appendTerm('\nServer error: ' + (txt || `HTTP ${res.status}`));
+        setTermFinished(true);
+        return;
       }
-      setBackupFileName(file.name);
-      setBackupData(parsed);
-      setBackupError('');
-      setSelectedSections(Object.keys(parsed.data).filter((key) => key !== 'uploads'));
-      setRestoreUploads(Array.isArray(parsed.uploads) && parsed.uploads.length > 0);
-    } catch (err) {
-      setBackupError(err.message || 'Could not read backup file');
-      setBackupFileName('');
-      setBackupData(null);
-      setSelectedSections([]);
-      setRestoreUploads(false);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        appendTerm(decoder.decode(value));
+      }
+      appendTerm('\n-- stream closed --\n');
+    } catch (e) {
+      appendTerm('\nNetwork error: ' + (e.message || e));
+    } finally {
+      setTermFinished(true);
     }
-  };
-
-  const toggleSection = (section) => {
-    setSelectedSections((prev) => prev.includes(section) ? prev.filter((item) => item !== section) : [...prev, section]);
-  };
-
-  const handleRestore = async () => {
-    if (!backupData) return;
-    if (!importBackup) { alert('Import not available'); return; }
-    if (!selectedSections.length && !restoreUploads) {
-      alert('Select at least one section or uploaded files to restore.');
-      return;
-    }
-    await importBackup(backupData, selectedSections, restoreUploads);
-  };
-
-  const clearBackupSelection = () => {
-    setBackupFileName('');
-    setBackupData(null);
-    setSelectedSections([]);
-    setRestoreUploads(false);
-    setBackupError('');
   };
 
   return (
@@ -318,45 +312,16 @@ export default function Settings({
       </section>
 
       <section className="card" style={{ marginTop: '1.5rem' }}>
-        <h3>Backup / Restore</h3>
+        <h3>Backups & setup</h3>
         <div className="form-row" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => { if (exportBackup) exportBackup(); else alert('Export not available'); }}>Export backup</button>
-          <button type="button" onClick={() => { const el = document.getElementById('import-backup-file'); if (el) el.click(); }}>Load backup file</button>
-          <input id="import-backup-file" type="file" accept="application/json" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) { handleBackupFile(f); e.target.value = ''; } }} />
+          <button type="button" onClick={() => { window.location.href = '/init.html'; }}>Open Setup & Backups</button>
         </div>
         <div className="form-row">
-          <small>Exported backup includes application data and uploaded files. Load a backup first, then choose which sections to restore.</small>
+          <small>Backup/restore functionality moved to the Setup page. Click the button to open the setup UI (includes export, demo import, reset and import features).</small>
         </div>
-        {backupError ? (
-          <div className="form-row" style={{ color: 'var(--danger)' }}>{backupError}</div>
-        ) : null}
-        {backupData ? (
-          <div className="form-row" style={{ flexDirection: 'column', gap: '0.75rem', padding: '0.5rem 0' }}>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <strong>Loaded file:</strong> {backupFileName}
-              <strong>Top-level keys:</strong> {Object.keys(backupData.data).join(', ')}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
-              {sectionKeys.map((key) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input type="checkbox" checked={selectedSections.includes(key)} onChange={() => toggleSection(key)} />
-                  <span>{getSectionLabel(key)} ({getSectionSummary(backupData.data[key])})</span>
-                </label>
-              ))}
-              {Array.isArray(backupData.uploads) && backupData.uploads.length > 0 ? (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input type="checkbox" checked={restoreUploads} onChange={() => setRestoreUploads((prev) => !prev)} />
-                  <span>Uploaded files ({backupData.uploads.length})</span>
-                </label>
-              ) : null}
-            </div>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button type="button" onClick={handleRestore}>Restore selected data</button>
-              <button type="button" className="secondary" onClick={clearBackupSelection}>Clear loaded file</button>
-            </div>
-          </div>
-        ) : null}
       </section>
+
+      
     </section>
     )}
 

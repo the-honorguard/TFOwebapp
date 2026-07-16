@@ -156,6 +156,8 @@ button.btn-danger:hover { background: #991b1b; }
 .slot-badge { border-radius: 999px; padding: 0.15rem 0.5rem; border: 1px solid var(--border); text-transform: uppercase; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; }
 .slot-badge.occupied { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #fecaca; }
 .slot-badge.free { background: rgba(34,197,94,0.15); border-color: #22c55e; color: #bbf7d0; }
+/* Small avatar thumbnail for slots */
+.slot-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); }
 /* Marker badge styles */
 .marker-badge { border-radius: 999px; padding: 0.15rem 0.5rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.03em; margin-left: 0.5rem; display: inline-block; border: 1px solid var(--panel-border); }
 .marker-badge.marker-infantry { background: rgba(59,130,246,0.12); color: #bfdbfe; border-color: rgba(59,130,246,0.35); }
