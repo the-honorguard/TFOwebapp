@@ -1160,7 +1160,9 @@ app.post('/api/templates/:templateId/join', authMiddleware, async (req, res) => 
 });
 
 app.post('/api/upload', authMiddleware, requireAdmin, (req, res) => {
+  console.log('Upload endpoint hit: /api/upload');
   upload.single('file')(req, res, (err) => {
+    console.log('Multer callback for /api/upload invoked, err=', err && err.message ? err.message : null);
     if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     (async () => {
@@ -1168,6 +1170,9 @@ app.post('/api/upload', authMiddleware, requireAdmin, (req, res) => {
         const filesRepo = await import('./repositories/files.js');
         const stat = await fs.promises.stat(path.join(UPLOADS_DIR, req.file.filename));
         await filesRepo.addFile({ filename: req.file.originalname, pathname: `/uploads/${req.file.filename}`, mimetype: req.file.mimetype, size: stat.size, ownerId: req.user?.id || null, metadata: {} });
+        // Respond with uploaded file URL
+        console.log('Upload succeeded, responding with URL for', req.file.filename);
+        res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.originalname });
       } catch (err) {
         console.error('Upload file error', err);
         res.status(500).json({ error: 'Server error' });

@@ -828,21 +828,70 @@ function App() {
     }
   };
 
-  const uploadFile = async (file) => {
+  const uploadFile = async (file, onProgress) => {
     const token = localStorage.getItem('token');
+    // If a progress callback is supplied, use XHR to report progress
+    if (typeof onProgress === 'function') {
+      return new Promise((resolve) => {
+        try {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', `${API}/upload`);
+          xhr.timeout = 30000; // 30s
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+          };
+          xhr.onload = () => {
+            let data = null;
+            try { data = xhr.responseText ? JSON.parse(xhr.responseText) : null; } catch (e) { /* ignore parse error */ }
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(data?.url || null);
+            } else {
+              alert(data?.error || `Upload failed (HTTP ${xhr.status})`);
+              resolve(null);
+            }
+          };
+          xhr.onerror = () => { alert('Upload failed: network error'); resolve(null); };
+          xhr.ontimeout = () => { alert('Upload timed out (30s) — please try again'); resolve(null); };
+          const fd = new FormData(); fd.append('file', file);
+          xhr.send(fd);
+        } catch (e) {
+          alert('Upload failed: ' + (e.message || e));
+          resolve(null);
+        }
+      });
+    }
+
+    // Fallback: use fetch with abort timeout
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${API}/upload`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error || 'Upload failed');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    try {
+      const res = await fetch(`${API}/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      let data;
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (!res.ok) {
+        alert(data?.error || `Upload failed (HTTP ${res.status})`);
+        return null;
+      }
+      return data?.url || null;
+    } catch (e) {
+      clearTimeout(timeout);
+      if (e.name === 'AbortError') {
+        alert('Upload timed out (30s) — please try a smaller file or check your connection');
+      } else {
+        alert('Upload failed: ' + (e.message || e));
+      }
       return null;
     }
-    return data.url;
   };
 
   const exportBackup = async () => {

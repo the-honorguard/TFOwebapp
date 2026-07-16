@@ -8,6 +8,8 @@ export default function Ranks({ ranks: initialRanks = [], reloadRanks, setRanks,
   const [newShort, setNewShort] = useState('');
   const [error, setError] = useState('');
   const [uploadingRankId, setUploadingRankId] = useState(null);
+  const [uploadSuccessId, setUploadSuccessId] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState({});
   const dragItem = useRef();
 
   useEffect(() => setLocalRanks(initialRanks || []), [initialRanks]);
@@ -107,14 +109,18 @@ export default function Ranks({ ranks: initialRanks = [], reloadRanks, setRanks,
     setError('');
     if (!uploadFile) { setError('Upload function not available'); return; }
     setUploadingRankId(rankId);
+    setUploadProgress((prev) => ({ ...prev, [rankId]: 0 }));
     try {
-      const url = await uploadFile(file);
+      const url = await uploadFile(file, (p) => setUploadProgress((prev) => ({ ...prev, [rankId]: p })));
       if (!url) throw new Error('Upload failed');
       await updateRank(rankId, { icon: url });
+      setUploadSuccessId(rankId);
+      setTimeout(() => setUploadSuccessId((prev) => (prev === rankId ? null : prev)), 2000);
     } catch (e) {
       setError(e.message || 'Could not upload icon');
     } finally {
       setUploadingRankId(null);
+      setUploadProgress((prev) => { const copy = { ...prev }; delete copy[rankId]; return copy; });
     }
   };
 
@@ -158,13 +164,19 @@ export default function Ranks({ ranks: initialRanks = [], reloadRanks, setRanks,
             </div>
 
             <div style={{marginTop:8,display:'flex',gap:8,alignItems:'center'}}>
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) onIconUpload(f, rank.id); }}
-                style={{padding:'6px 8px',border:'1px dashed var(--border)',borderRadius:6,cursor:'pointer'}}
-              >
-                {uploadingRankId === rank.id ? 'Uploading...' : 'Drop icon here'}
-              </div>
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) onIconUpload(f, rank.id); }}
+                  style={{padding:'6px 8px',border:'1px dashed var(--border)',borderRadius:6,cursor:'pointer',minWidth:120}}
+                >
+                  {uploadProgress[rank.id] != null
+                    ? `Uploading... ${uploadProgress[rank.id]}%`
+                    : uploadingRankId === rank.id
+                      ? 'Uploading...'
+                      : uploadSuccessId === rank.id
+                        ? 'Uploaded'
+                        : 'Drop icon here'}
+                </div>
               <label style={{padding:'6px 10px',background:'var(--panel)',border:'1px solid var(--border)',borderRadius:6,cursor:'pointer'}}>
                 Choose file
                 <input type="file" accept="image/*,.svg" style={{display:'none'}} onChange={(e) => { const f = e.target.files?.[0]; if (f) onIconUpload(f, rank.id); }} />
