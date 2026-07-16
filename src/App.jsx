@@ -32,6 +32,7 @@ function App() {
   const [selectedOpId, setSelectedOpId] = useState(null);
   const [selectedRecurrenceId, setSelectedRecurrenceId] = useState(null);
   const [page, setPage] = useState('overview');
+  const [settingsInitialSubpage, setSettingsInitialSubpage] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [overviewMode] = useState('orbat');
   const [isNarrowViewport, setIsNarrowViewport] = useState(() => window.innerWidth <= 900);
@@ -290,9 +291,9 @@ function App() {
   const goToOverview = () => setPage('overview');
   const goToScheduler = () => setPage('scheduler');
   const goToBuilder = () => setPage('builder');
-  const goToRoles = () => setPage('roles');
+  const goToRoles = () => { setSettingsInitialSubpage('roles'); setPage('settings'); };
   const goToPlayers = () => setPage('players');
-  const goToRanks = () => setPage('ranks');
+  const goToRanks = () => { setSettingsInitialSubpage('ranks'); setPage('settings'); };
   const goToDashboard = () => setPage('overview');
   const goToSettings = () => setPage('settings');
   const goToCampaigns = () => setPage('campaigns');
@@ -2528,12 +2529,7 @@ function App() {
               <button className={page === 'builder' ? 'tab active' : 'tab'} onClick={goToBuilder}>
                 Template Builder
               </button>
-              <button className={page === 'roles' ? 'tab active' : 'tab'} onClick={goToRoles}>
-                Roles
-              </button>
-              <button className={page === 'ranks' ? 'tab active' : 'tab'} onClick={goToRanks}>
-                Ranks
-              </button>
+              {/* Roles and Ranks moved to Settings subtabs */}
               <button className={page === 'players' ? 'tab active' : 'tab'} onClick={goToPlayers}>
                 Player List
               </button>
@@ -2631,6 +2627,18 @@ function App() {
                   setChangePasswordForm={setChangePasswordForm}
                   exportBackup={exportBackup}
                   importBackup={importBackup}
+                  customRoles={customRoles}
+                  addRole={addRole}
+                  deleteRole={deleteRole}
+                  renameRole={renameRole}
+                  goToDashboard={goToDashboard}
+                  initialSubpage={settingsInitialSubpage}
+                  ranks={ranks}
+                  reloadRanks={loadRanks}
+                  setRanks={setRanks}
+                  uploadFile={uploadFile}
+                  users={users}
+                  setUsers={setUsers}
               />
           ) : null}
           {auth && page === 'profile' ? (
@@ -3031,105 +3039,7 @@ function App() {
                 </section>
               )}
 
-              {page === 'ranks' && (
-                <section className="card">
-                  <Ranks ranks={ranks} reloadRanks={loadRanks} setRanks={setRanks} users={users} setUsers={setUsers} uploadFile={uploadFile} />
-                </section>
-              )}
-
-              {page === 'roles' && (
-                <section className="card">
-                  <div className="playerlist-toolbar">
-                    <button onClick={goToDashboard} className="secondary small">
-                      Back to dashboard
-                    </button>
-                    <div>
-                      <h3>All roles</h3>
-                      <p>View all roles currently available in the system.</p>
-                    </div>
-                  </div>
-                  <section className="card role-add-section">
-                    <h4>Add new role</h4>
-                    <form className="role-add-form" onSubmit={addRole}>
-                      <input
-                        placeholder="New role name"
-                        value={newRoleName}
-                        onChange={(e) => setNewRoleName(e.target.value)}
-                      />
-                      <button type="submit">Add</button>
-                    </form>
-                  </section>
-                  {allRoles.length === 0 ? (
-                    <p>No roles defined yet. Add slots to templates to make roles available.</p>
-                  ) : (
-                    <div className="role-grid">
-                      {allRoles.map((role) => {
-                        const assignedCount = templates.reduce((count, template) => {
-                          return count + template.sections?.reduce((sectionCount, section) => {
-                            return sectionCount + section.slots?.filter((slot) => slot.role === role && slot.assignedUserId).length;
-                          }, 0);
-                        }, 0);
-                        const slotCount = templates.reduce((count, template) => {
-                          return count + template.sections?.reduce((sectionCount, section) => {
-                            return sectionCount + section.slots?.filter((slot) => slot.role === role).length;
-                          }, 0);
-                        }, 0);
-                        const allowedCount = templates.reduce((count, template) => {
-                          return count + template.sections?.reduce((sectionCount, section) => {
-                            return sectionCount + section.slots?.filter((slot) => slot.allowedRoles?.includes(role)).length;
-                          }, 0);
-                        }, 0);
-                        const isRemovable = customRoles.some((item) => normalizeRoleKey(item.name) === normalizeRoleKey(role));
-                      return (
-                          <div key={role} className="role-card">
-                            <div className="role-card-header">
-                              {renamingRole === role ? (
-                                <form
-                                  className="role-rename-form"
-                                  onSubmit={(e) => { e.preventDefault(); renameRole(role, renameValue); }}
-                                >
-                                  <input
-                                    autoFocus
-                                    value={renameValue}
-                                    onChange={(e) => setRenameValue(e.target.value)}
-                                    className="role-rename-input"
-                                  />
-                                  <button type="submit" className="small">Save</button>
-                                  <button type="button" className="secondary small" onClick={() => setRenamingRole(null)}>Cancel</button>
-                                </form>
-                              ) : (
-                                <h4>{role}</h4>
-                              )}
-                              <div style={{display:'flex',gap:'0.4rem'}}>
-                                {renamingRole !== role ? (
-                                  <button
-                                    type="button"
-                                    className="secondary small"
-                                    onClick={() => { setRenamingRole(role); setRenameValue(role); }}
-                                  >
-                                    Rename
-                                  </button>
-                                ) : null}
-                                <button
-                                  type="button"
-                                  className="secondary small"
-                                  disabled={!isRemovable}
-                                  onClick={() => deleteRole(role)}
-                                >
-                                  {isRemovable ? 'Delete' : 'System'}
-                                </button>
-                              </div>
-                            </div>
-                            <p>Occupied: {assignedCount}</p>
-                            <p>Slots: {slotCount}</p>
-                            <p>Allowed in: {allowedCount}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              )}
+              {/* Roles and Ranks UI moved into Settings subtabs */}
             </>
           ) : null}
 

@@ -1,4 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
+import Ranks from './Ranks';
+import Roles from './settings/Roles';
 
 const SECTION_LABELS = {
   users: 'Users',
@@ -6,6 +8,7 @@ const SECTION_LABELS = {
   ops: 'Operations',
   recurrences: 'Recurrences',
   ranks: 'Ranks',
+  roles: 'Custom Roles',
   campaigns: 'Campaigns',
   slots: 'Template slots'
 };
@@ -25,8 +28,27 @@ export default function Settings({
   uploadCustomMarker,
   allRoles,
   exportBackup,
-  importBackup
+  importBackup,
+  // roles-related props
+  customRoles = [],
+  addRole = null,
+  deleteRole = null,
+  renameRole = null,
+  goToDashboard = () => {},
+  initialSubpage = null,
+  // ranks-related props
+  ranks = [],
+  reloadRanks = null,
+  setRanks = null,
+  uploadFile = null,
+  users = [],
+  setUsers = null
 }) {
+  const [subpage, setSubpage] = useState(() => initialSubpage || 'general');
+
+  useEffect(() => {
+    if (initialSubpage) setSubpage(initialSubpage);
+  }, [initialSubpage]);
   const [local, setLocal] = useState({
     templateId: defaultOpSettings.templateId || '',
     time: defaultOpSettings.time || '',
@@ -168,10 +190,18 @@ export default function Settings({
   };
 
   return (
-    <section className="card">
-      <h3>Default values for new operations</h3>
+    <div>
+      <div className="settings-subnav" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+        <button className={subpage === 'general' ? 'tab active' : 'tab'} onClick={() => setSubpage('general')}>General</button>
+        <button className={subpage === 'ranks' ? 'tab active' : 'tab'} onClick={() => setSubpage('ranks')}>Ranks</button>
+        <button className={subpage === 'roles' ? 'tab active' : 'tab'} onClick={() => setSubpage('roles')}>Roles</button>
+      </div>
 
-      <form onSubmit={save}>
+      {subpage === 'general' && (
+        <section className="card">
+          <h3>Default values for new operations</h3>
+
+          <form onSubmit={save}>
         <div className="form-row">
           <label>Template</label>
           <select
@@ -328,6 +358,20 @@ export default function Settings({
         ) : null}
       </section>
     </section>
+    )}
+
+      {subpage === 'ranks' && (
+        <section className="card">
+          <Ranks ranks={ranks} reloadRanks={reloadRanks} setRanks={setRanks} users={users} setUsers={setUsers} uploadFile={uploadFile} />
+        </section>
+      )}
+
+      {subpage === 'roles' && (
+        <section className="card">
+          <Roles allRoles={allRoles} templates={templates} customRoles={customRoles} addRole={addRole} deleteRole={deleteRole} renameRole={renameRole} goBack={goToDashboard} />
+        </section>
+      )}
+    </div>
   );
 }
 

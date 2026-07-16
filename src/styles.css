@@ -122,8 +122,8 @@ button.btn-danger:hover { background: #991b1b; }
 .flow-node-body > span { font-size: 0.85rem; opacity: 0.8; }
 .flow-link-btn.active { border-color: #22c55e; color: #22c55e; }
 .flow-slot-list { display: grid; gap: 0.35rem; max-height: 240px; overflow: auto; padding-right: 0.2rem; }
-.flow-slot-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 120px 34px; gap: 0.35rem; align-items: center; }
-.flow-slot-name, .flow-slot-role { width: 100%; padding: 0.4rem 0.5rem; border-radius: 7px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+.flow-slot-row { display: grid; grid-template-columns: 28px 6fr 80px 34px; gap: 0.35rem; align-items: center; }
+.flow-slot-name, .flow-slot-role { width: 100%; padding: 0.5rem 0.6rem; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
 .danger-x-button { width: 34px; height: 34px; border-radius: 7px; border: 1px solid #ef4444; background: #b91c1c; color: #fee2e2; padding: 0; font-weight: 700; flex: 0 0 auto; }
 .marker-dropdown-btn { width: 34px; height: 34px; border-radius: 7px; border: 1px solid var(--border); background: transparent !important; color: var(--text); padding: 0; display: flex; align-items: center; justify-content: center; gap: 0; flex: 0 0 auto; overflow: hidden; }
 .marker-dropdown-btn:hover { border-color: var(--panel-border); }
@@ -144,9 +144,12 @@ button.btn-danger:hover { background: #991b1b; }
 .panel-title-text { display: grid; gap: 0.2rem; }
 .section-count { font-size: 0.78rem; opacity: 0.72; text-transform: uppercase; letter-spacing: 0.04em; }
 .panel-content { display: grid; gap: 0.75rem; }
-.builder-slot { flex-direction: column; align-items: stretch; }
+.builder-slot { display: grid; grid-template-columns: 28px 6fr 100px 34px; gap: 0.75rem; align-items: center; }
 .builder-slot.compact { padding: 0.6rem; gap: 0.5rem; }
 .builder-slot.compact .slot-name-input { margin-bottom: 0.35rem; padding: 0.55rem; }
+
+/* Make slot name input use available grid space inside builder panels */
+.builder-slot .slot-name-input { margin-bottom: 0; padding: 0.6rem; }
 .slot-footer { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; }
 .builder-slot.compact .slot-footer { margin-top: 0.5rem; }
 .slot-status-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; }

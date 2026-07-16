@@ -1304,7 +1304,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
         }
       }
 
-      const allowedKeys = new Set(['users', 'templates', 'ops', 'recurrences', 'ranks', 'campaigns', 'slots']);
+      const allowedKeys = new Set(['users', 'templates', 'ops', 'recurrences', 'ranks', 'campaigns', 'slots', 'roles']);
       const nextData = { ...currentData };
 
       for (const key of selectedSections) {
