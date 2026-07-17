@@ -87,8 +87,8 @@
       demoBtn.addEventListener('click', (e) => { e.preventDefault(); postJson('/init/demo', {}); });
       resetBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        if (!confirm('Are you sure you want to reset the entire database? This will delete all data.')) return;
-        postJson('/init/reset', {});
+        if (!confirm('Are you sure you want to wipe the entire database? This will delete all data and uploaded files.')) return;
+        postJson('/init/reset?empty=1', {});
       });
 
       importBtn.addEventListener('click', async (e) => {
