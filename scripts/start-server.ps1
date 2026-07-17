@@ -1,6 +1,10 @@
 # Starts the TFO Attendance app (backend API + Vite dev server) for local development.
 # Usage: right-click > Run with PowerShell, or from a terminal: .\start-server.ps1
 
+param(
+    [switch]$Build
+)
+
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
 
@@ -178,5 +182,19 @@ if (-not $dbReady) {
     Write-Host "Database is reachable." -ForegroundColor Green
 }
 
-Write-Host "Starting frontend and backend (npm run dev)..." -ForegroundColor Cyan
-npm run dev
+if ($Build) {
+    Write-Host "Running frontend build (npm run build) before starting server..." -ForegroundColor Cyan
+    try {
+        npm run build
+        if ($LASTEXITCODE -ne 0) { throw "npm run build failed with exit code $LASTEXITCODE" }
+    } catch {
+        Write-Error "Frontend build failed: $_"
+        exit 1
+    }
+
+    Write-Host "Starting backend server from built assets (node server.js)..." -ForegroundColor Cyan
+    node server.js
+} else {
+    Write-Host "Starting frontend and backend in dev mode (npm run dev)..." -ForegroundColor Cyan
+    npm run dev
+}

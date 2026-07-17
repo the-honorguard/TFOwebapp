@@ -75,6 +75,24 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Dedicated DB health endpoint for monitoring/alerts. Returns connected=false
+// with 503 when DB check fails, and includes server version when available.
+app.get('/api/db-health', async (req, res) => {
+  try {
+    await testConnection(2000);
+    let version = null;
+    try {
+      const [r] = await pool.query('SELECT VERSION() as version');
+      version = Array.isArray(r) && r[0] ? r[0].version : null;
+    } catch (e) {
+      // ignore version lookup failures
+    }
+    return res.json({ ok: true, connected: true, version });
+  } catch (err) {
+    return res.status(503).json({ ok: false, connected: false, error: err && err.message ? err.message : String(err) });
+  }
+});
+
 // Init-status for frontend: returns whether DB appears initialized (users exist)
 app.get('/api/init-status', async (req, res) => {
   try {
@@ -109,6 +127,43 @@ app.get('/api/db-info', async (req, res) => {
   } catch (err) {
     console.error('DB info error', err && err.stack ? err.stack : err);
     return res.status(500).json({ error: 'Failed to collect DB info' });
+  }
+});
+
+// Simple DB integrity check endpoint: returns counts and basic sanity checks
+app.get('/api/db-check', async (req, res) => {
+  try {
+    const tables = ['users','user_profiles','ranks','templates','ops','recurrences','campaigns','modlists','files','backups','roles'];
+    const results = {};
+    for (const t of tables) {
+      try {
+        const [r] = await pool.query(`SELECT COUNT(*) as c FROM \`${t}\``);
+        results[t] = { rows: Array.isArray(r) && r[0] ? Number(r[0].c) : 0 };
+      } catch (e) {
+        results[t] = { error: e && e.code ? e.code : String(e) };
+      }
+    }
+
+    // Check for an admin user and placeholder password
+    let admin = { exists: false, id: null, placeholder: false };
+    try {
+      const [a] = await pool.query('SELECT id, password_hash FROM users WHERE username = ? LIMIT 1', ['admin']);
+      if (Array.isArray(a) && a[0]) {
+        admin.exists = true; admin.id = a[0].id; admin.placeholder = a[0].password_hash === 'admin-disabled';
+      }
+    } catch (e) { /* ignore */ }
+
+    // Basic orphan check: templates with non-existing owner_id
+    let orphanTemplates = 0;
+    try {
+      const [rows] = await pool.query(`SELECT COUNT(*) as c FROM templates t LEFT JOIN users u ON u.id = t.owner_id WHERE t.owner_id IS NOT NULL AND u.id IS NULL`);
+      orphanTemplates = Array.isArray(rows) && rows[0] ? Number(rows[0].c) : 0;
+    } catch (e) { /* ignore */ }
+
+    return res.json({ ok: true, results, admin, orphanTemplates });
+  } catch (err) {
+    console.error('DB-check error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ ok: false, error: err && err.message ? err.message : String(err) });
   }
 });
 
@@ -159,6 +214,46 @@ app.post('/init/demo', async (req, res) => {
   } catch (err) {
     console.error('Demo seed error', err && err.stack ? err.stack : err);
     return res.status(500).json({ error: 'Demo seed failed', details: err && err.message ? err.message : String(err) });
+  }
+});
+
+// Create an admin user (used by init UI). Accepts JSON { username, password }.
+app.post('/init/create-admin', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    const bcryptHash = bcrypt.hashSync(password, 10);
+    const id = Date.now();
+    try {
+      await pool.query('INSERT INTO users (id, username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, username, null, bcryptHash, 'admin', '', 'Active', JSON.stringify({})]);
+      return res.json({ ok: true, id });
+    } catch (e) {
+      if (e && e.code === 'ER_DUP_ENTRY') {
+        // If a placeholder admin was created by ensureInitialized() with
+        // password_hash='admin-disabled', convert that placeholder into a
+        // usable admin by updating the password. This lets a single-button
+        // "Create default admin" action work even when the placeholder
+        // user exists.
+        try {
+          const [rows] = await pool.query('SELECT id, password_hash FROM users WHERE username = ? LIMIT 1', [username]);
+          if (Array.isArray(rows) && rows[0]) {
+            const existing = rows[0];
+            if (existing.password_hash === 'admin-disabled') {
+              await pool.query('UPDATE users SET password_hash = ?, role = ?, status = ? WHERE id = ?', [bcryptHash, 'admin', 'Active', existing.id]);
+              return res.json({ ok: true, id: existing.id, updated: true });
+            }
+          }
+        } catch (inner) {
+          console.error('Error upgrading placeholder admin', inner && inner.stack ? inner.stack : inner);
+        }
+        return res.status(409).json({ error: 'user_exists' });
+      }
+      console.error('Create admin error', e && e.stack ? e.stack : e);
+      return res.status(500).json({ error: 'Could not create admin' });
+    }
+  } catch (err) {
+    console.error('Create-admin endpoint error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Internal error' });
   }
 });
 

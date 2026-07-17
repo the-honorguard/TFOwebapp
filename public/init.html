@@ -14,6 +14,7 @@
     <div class="card">
       <h1>Initialize database</h1>
       <p>The database appears uninitialized. Choose an action below:</p>
+      <div id="globalHealth" style="font-weight:700;margin-top:6px">Health: checking...</div>
       <div id="status"></div>
 
       <div style="margin-top:12px">
@@ -21,9 +22,11 @@
         <button id="demoBtn" style="margin-left:8px">Import demo data</button>
         <button id="resetBtn" style="margin-left:8px;color:#900">Reset database (remove all data)</button>
         <button id="exportBtn" style="margin-left:8px">Export backup</button>
+        <button id="createDefaultAdminBtn" style="margin-left:8px">Create default admin</button>
       </div>
 
-      <hr />
+      <!-- Simple default admin button available above. Manual username/password inputs removed. -->
+
       <h3>Restore backup (select sections)</h3>
       <p>Upload a backup JSON (exported via Export backup) and select which sections to restore.</p>
       <input type="file" id="backupFile" accept="application/json" />
@@ -52,8 +55,16 @@
         <button id="importBtn">Import JSON</button>
       </div>
       <hr />
-      <h3>Database informatie</h3>
-      <div id="dbInfo" style="font-family:monospace;margin-top:8px">Loading...</div>
+      <h3>Database Health & Info</h3>
+      <div id="dbHealth" style="margin-top:8px;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <div id="dbStatus" style="font-weight:600">Checking...</div>
+          <div id="dbVersion" style="color:#666;font-size:13px"></div>
+          <button id="refreshDbHealth" style="margin-left:auto">Refresh</button>
+        </div>
+        <div id="dbLastChecked" style="margin-top:8px;color:#666;font-size:13px">-</div>
+        <div id="dbInfo" style="font-family:monospace;margin-top:8px">Loading...</div>
+      </div>
     </div>
     <script>
       const status = document.getElementById('status');
@@ -75,7 +86,6 @@
           }
           const j = await res.json().catch(() => ({}));
           status.textContent = 'Success';
-          setTimeout(() => { window.location.href = '/'; }, 800);
           return j;
         } catch (err) {
           status.textContent = 'Server or network error: ' + (err && err.message ? err.message : String(err));
@@ -89,6 +99,19 @@
         e.preventDefault();
         if (!confirm('Are you sure you want to wipe the entire database? This will delete all data and uploaded files.')) return;
         postJson('/init/reset?empty=1', {});
+      });
+      // Quick create default admin (admin/admin)
+      document.getElementById('createDefaultAdminBtn').addEventListener('click', async (e) => {
+        e.preventDefault();
+        status.textContent = '';
+        try {
+          const res = await fetch('/init/create-admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: 'admin' }) });
+          if (res.status === 409) { status.textContent = 'admin user already exists'; return; }
+          if (!res.ok) { const b = await res.json().catch(() => ({})); status.textContent = 'Error: ' + (b.error || res.statusText); return; }
+          status.textContent = 'Default admin created (admin/admin)';
+        } catch (err) {
+          status.textContent = 'Request failed: ' + (err && err.message ? err.message : String(err));
+        }
       });
 
       importBtn.addEventListener('click', async (e) => {
@@ -106,6 +129,9 @@
         try { parsed = JSON.parse(txt); } catch (err) { status.textContent = 'Geen geldige JSON: ' + err.message; return; }
         await postJson('/init/import', parsed);
       });
+
+      // Create admin account handler
+      // manual create-admin inputs removed (use the single button above)
 
       // --- Backup restore (selective) ---
       const backupFile = document.getElementById('backupFile');
@@ -199,7 +225,9 @@
         e.preventDefault();
         status.textContent = 'Preparing backup...';
         try {
-          const res = await fetch('/api/backup');
+          const token = localStorage.getItem('token');
+          const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+          const res = await fetch('/api/backup', { headers });
           if (!res.ok) { status.textContent = 'Failed to export backup'; return; }
           const j = await res.json();
           const fname = `tfo-backup-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
@@ -240,6 +268,100 @@
       // initial fetch and periodic refresh
       fetchDbInfo();
       setInterval(fetchDbInfo, 5000);
+
+      // Database health polling: fetch /api/db-health and /api/db-info and render
+      const dbStatusEl = document.getElementById('dbStatus');
+      const dbVersionEl = document.getElementById('dbVersion');
+      const dbLastCheckedEl = document.getElementById('dbLastChecked');
+      const globalHealthEl = document.getElementById('globalHealth');
+      const refreshDbHealth = document.getElementById('refreshDbHealth');
+
+      async function fetchDbHealth() {
+        try {
+          const res = await fetch('/api/db-health');
+          if (!res.ok) {
+            dbStatusEl.textContent = 'DB: unreachable';
+            dbStatusEl.style.color = '#900';
+            dbVersionEl.textContent = '';
+            dbLastCheckedEl.textContent = 'Last checked: ' + new Date().toLocaleString();
+            return;
+          }
+          const j = await res.json();
+          if (j && j.connected) {
+            dbStatusEl.textContent = 'DB: connected';
+            dbStatusEl.style.color = '#0a0';
+            dbVersionEl.textContent = j.version ? `version: ${j.version}` : '';
+            if (globalHealthEl) { globalHealthEl.textContent = 'Health: OK'; globalHealthEl.style.color = '#0a0'; }
+          } else {
+            dbStatusEl.textContent = 'DB: disconnected';
+            dbStatusEl.style.color = '#900';
+            dbVersionEl.textContent = '';
+            if (globalHealthEl) { globalHealthEl.textContent = 'Health: NOT OK'; globalHealthEl.style.color = '#900'; }
+          }
+        } catch (err) {
+          dbStatusEl.textContent = 'DB: error';
+          dbStatusEl.style.color = '#900';
+          dbVersionEl.textContent = '';
+          if (globalHealthEl) { globalHealthEl.textContent = 'Health: NOT OK'; globalHealthEl.style.color = '#900'; }
+        } finally {
+          dbLastCheckedEl.textContent = 'Last checked: ' + new Date().toLocaleString();
+        }
+      }
+
+      async function fetchDbHealthAndInfo() {
+        await fetchDbHealth();
+        try {
+          const res = await fetch('/api/db-info');
+          if (!res.ok) {
+            document.getElementById('dbInfo').textContent = 'Could not fetch DB info';
+            return;
+          }
+          const j = await res.json();
+          const div = document.getElementById('dbInfo');
+          div.innerHTML = '';
+          const table = document.createElement('table');
+          table.style.borderCollapse = 'collapse';
+          table.style.width = '100%';
+          for (const t of j.tables) {
+            const tr = document.createElement('tr');
+            const td1 = document.createElement('td'); td1.textContent = t.table; td1.style.padding = '4px';
+            const td2 = document.createElement('td'); td2.textContent = t.rows; td2.style.padding = '4px'; td2.style.textAlign = 'right';
+            tr.appendChild(td1); tr.appendChild(td2); table.appendChild(tr);
+          }
+          div.appendChild(table);
+        } catch (err) {
+          document.getElementById('dbInfo').textContent = 'Error fetching DB info: ' + (err && err.message ? err.message : String(err));
+        }
+      }
+
+      refreshDbHealth.addEventListener('click', (e) => { e.preventDefault(); fetchDbHealthAndInfo(); });
+      // initial health fetch and periodic refresh
+      fetchDbHealthAndInfo();
+      setInterval(fetchDbHealthAndInfo, 5000);
+
+      // Poll init status and update UI so actions reflect current DB state
+      async function fetchInitStatus() {
+        try {
+          const res = await fetch('/api/init-status');
+          if (!res.ok) return;
+          const j = await res.json();
+          const initialized = Boolean(j.initialized);
+          const banner = document.getElementById('status');
+          const disableSel = ['initBtn','demoBtn','resetBtn','exportBtn','createDefaultAdminBtn','importBtn','restoreBtn'];
+          if (initialized) {
+            banner.textContent = 'Database initialized.';
+            disableSel.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+          } else {
+            banner.textContent = 'Database appears uninitialized. Choose an action below:';
+            // keep init buttons enabled so user can act
+            disableSel.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+          }
+        } catch (err) {
+          // ignore
+        }
+      }
+      fetchInitStatus();
+      setInterval(fetchInitStatus, 2500);
     </script>
   </body>
 </html>
