@@ -82,6 +82,21 @@ function App() {
     found_via: 'Discord'
   });
   const [signupErrors, setSignupErrors] = useState({});
+  useEffect(() => {
+    const beforeUnload = (e) => {
+      try { console.warn('[App] beforeunload fired', e); } catch (err) { /* ignore */ }
+    };
+    const onUnload = (e) => { try { console.warn('[App] unload', e); } catch (err) {} };
+    const onVisibility = () => { try { console.warn('[App] visibilitychange', document.visibilityState); } catch (err) {} };
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener('unload', onUnload);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener('unload', onUnload);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'member', rank: '', status: 'Active' });
   const [opForm, setOpForm] = useState({ name: '', templateId: null, date: '', time: '', serverName: '', tsAddress: '', recurrence: 'none', weeklyDays: [], monthlyDay: '', campaignId: null });
   const [defaultOpSettings, setDefaultOpSettings] = useState(() => {
@@ -234,6 +249,7 @@ function App() {
     setUsers(data.users || []);
     setTemplates(templateList);
     setOps(data.ops || []);
+    console.debug('[applyLoadedData] loaded ops count', (data.ops || []).length);
     setRecurrences(data.recurrences || []);
     setCampaigns(data.campaigns || []);
     setCustomRoles(data.customRoles || []);
@@ -243,6 +259,14 @@ function App() {
     setOpForm((prev) => ({ ...prev, templateId: templateList?.[0]?.id || null, campaignId: defaultOpSettings.campaignId || (data.campaigns && data.campaigns[0] ? data.campaigns[0].id : null) }));
     setPage('overview');
   };
+
+  useEffect(() => {
+    try {
+      console.debug('[App] ops changed', ops ? ops.length : 0, (ops || []).map((o) => o.id));
+    } catch (err) {
+      console.warn('[App] ops changed (log failure)', err);
+    }
+  }, [ops]);
 
   const loadCampaigns = async () => {
     try {
@@ -639,6 +663,7 @@ function App() {
 
   const joinOpSlot = async (opId, slotId, userId = null) => {
     if (!auth && !userId) return;
+    console.debug('[joinOpSlot] start', { opId, slotId, userId: userId || auth?.id });
     const prevOps = ops;
     // optimistic local update: assign slot
     setOps((prev) => prev.map((op) => {
@@ -655,6 +680,7 @@ function App() {
     try {
       const token = localStorage.getItem('token');
       const body = userId && auth?.role === 'admin' ? { slotId, userId } : { slotId };
+      console.debug('[joinOpSlot] sending request', { url: `${API}/ops/${opId}/join`, body });
       const res = await fetch(`${API}/ops/${opId}/join`, {
         method: 'POST',
         headers: {
@@ -664,12 +690,14 @@ function App() {
         body: JSON.stringify(body)
       });
       const data = await res.json();
+      console.debug('[joinOpSlot] response', { status: res.status, data });
       if (data.op) {
         setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
       } else {
         throw new Error(data.error || 'Could not update slot');
       }
     } catch (err) {
+      console.error('[joinOpSlot] error', err);
       alert(err.message || 'Could not update slot');
       setOps(prevOps);
     }
@@ -677,6 +705,7 @@ function App() {
 
   const signOffOpSlot = async (opId, slotId) => {
     if (!auth) return;
+    console.debug('[signOffOpSlot] start', { opId, slotId, userId: auth?.id });
     const prevOps = ops;
     // optimistic local update: clear assignment
     setOps((prev) => prev.map((op) => {
@@ -692,6 +721,7 @@ function App() {
 
     try {
       const token = localStorage.getItem('token');
+      console.debug('[signOffOpSlot] sending request', { url: `${API}/ops/${opId}/signoff`, body: { slotId } });
       const res = await fetch(`${API}/ops/${opId}/signoff`, {
         method: 'POST',
         headers: {
@@ -701,12 +731,14 @@ function App() {
         body: JSON.stringify({ slotId })
       });
       const data = await res.json();
+      console.debug('[signOffOpSlot] response', { status: res.status, data });
       if (data.op) {
         setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
       } else {
         throw new Error(data.error || 'Could not sign off');
       }
     } catch (err) {
+      console.error('[signOffOpSlot] error', err);
       alert(err.message || 'Could not sign off');
       setOps(prevOps);
     }
@@ -2030,7 +2062,8 @@ function App() {
     let maxX = 0;
     let maxY = 0;
 
-    template.sections.forEach((section, index) => {
+    const sections = template.sections || [];
+    sections.forEach((section, index) => {
       const node = getCanvasNode(template.id, section.id, index);
       maxX = Math.max(maxX, node.x);
       maxY = Math.max(maxY, node.y);
@@ -2667,6 +2700,7 @@ function App() {
               <Profile
                 auth={auth}
                 users={users}
+                ranks={ranks}
                 ops={ops}
                 changePassword={changePassword}
                 uploadAvatar={uploadAvatar}

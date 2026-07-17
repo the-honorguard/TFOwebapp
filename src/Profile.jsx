@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 // - Loads the current user's full profile (via `/api/users/me`) and allows
 //   editing profile fields, uploading avatar and changing password.
 // - Falls back to provided `auth` + `users` props if the API does not return data.
-export default function Profile({ auth, users = [], ops = [], changePassword, uploadAvatar, updateMyProfile, allRoles = [] }) {
+export default function Profile({ auth, users = [], ops = [], changePassword, uploadAvatar, updateMyProfile, allRoles = [], ranks = [] }) {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -63,6 +63,19 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
     const found = (op.sections || []).some((section) => (section.slots || []).some((s) => s.assignedUserId === me.id));
     return count + (found ? 1 : 0);
   }, 0);
+
+  // Resolve rank object (DB may store rank as numeric id, short code or name)
+  const resolveRank = (rankVal) => {
+    if (!rankVal) return null;
+    const valStr = String(rankVal);
+    // try id match
+    let found = ranks.find((r) => String(r.id) === valStr);
+    if (found) return found;
+    // try short or name match (case-insensitive)
+    found = ranks.find((r) => (r.short && r.short.toLowerCase() === valStr.toLowerCase()) || (r.name && r.name.toLowerCase() === valStr.toLowerCase()));
+    return found || null;
+  };
+  const rankObj = resolveRank(me.rank);
 
   const handleFile = async (e) => {
     const file = (e.target && e.target.files && e.target.files[0]) || null;
@@ -143,7 +156,12 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
           <form onSubmit={saveProfile} className="player-form">
             <div>
               <label>Rank</label>
-              <div style={{ padding: '6px 8px', background: 'var(--panel)', borderRadius: 6 }}>{me.rank || '-'}</div>
+              <div style={{ padding: '6px 8px', background: 'var(--panel)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+                {rankObj && rankObj.icon ? (
+                  <img src={rankObj.icon} alt={rankObj.name} style={{ width: 40, height: 40, objectFit: 'contain' }} />
+                ) : null}
+                <div>{(rankObj && rankObj.name) || me.rank || '-'}</div>
+              </div>
             </div>
             <div>
               <label>Status</label>

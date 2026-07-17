@@ -868,6 +868,7 @@ app.post('/api/ops/:id/load-template', authMiddleware, async (req, res) => {
 
 app.post('/api/ops/:id/join', authMiddleware, async (req, res) => {
   try {
+    console.log('[server] POST /api/ops/:id/join', { opId: req.params.id, slotId: req.body.slotId, user: req.user?.id });
     const opsRepo = await import('./repositories/ops.js');
     const op = await opsRepo.getOpById(Number(req.params.id));
     if (!op) return res.status(404).json({ error: 'Operation not found' });
@@ -877,8 +878,12 @@ app.post('/api/ops/:id/join', authMiddleware, async (req, res) => {
     const existingSlot = op.payload.sections.flatMap((s) => s.slots).find((other) => other.assignedUserId === req.user.id);
     if (existingSlot && existingSlot.id !== slot.id) return res.status(409).json({ error: 'You are already signed up to another slot for this operation' });
     if (slot.assignedUserId && slot.assignedUserId !== req.user.id) return res.status(409).json({ error: 'This slot is already taken' });
-    const updated = await opsRepo.joinSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
-    res.json({ op: updated });
+    await opsRepo.joinSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
+    // Return the op in the same normalized shape as /api/public-data (sections at top-level)
+    const dataAfter = await getData();
+    const opAfter = findOp(dataAfter, Number(req.params.id));
+    console.log('[server] join result', { opId: opAfter?.id });
+    res.json({ op: opAfter });
   } catch (err) {
     console.error('Join slot error', err);
     res.status(500).json({ error: err.message || 'Server error' });
@@ -887,9 +892,14 @@ app.post('/api/ops/:id/join', authMiddleware, async (req, res) => {
 
 app.post('/api/ops/:id/signoff', authMiddleware, async (req, res) => {
   try {
+    console.log('[server] POST /api/ops/:id/signoff', { opId: req.params.id, slotId: req.body.slotId, user: req.user?.id });
     const opsRepo = await import('./repositories/ops.js');
-    const updated = await opsRepo.signoffSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
-    res.json({ op: updated });
+    await opsRepo.signoffSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
+    // Return normalized op shape so client UI receives `sections` at top-level
+    const dataAfter = await getData();
+    const opAfter = findOp(dataAfter, Number(req.params.id));
+    console.log('[server] signoff result', { opId: opAfter?.id });
+    res.json({ op: opAfter });
   } catch (err) {
     console.error('Signoff slot error', err);
     res.status(500).json({ error: err.message || 'Server error' });
