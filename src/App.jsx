@@ -2363,6 +2363,7 @@ function App() {
   return (
     <div className={isWideCanvasPage ? 'app-shell app-shell-builder' : 'app-shell'}>
       <header>
+        <img src="/tfo-emoji.png" alt="TFO" className="header-logo" height="40" width="40" />
         <h1>TFO Attendance</h1>
         <div className="header-actions">
           <button className="theme-toggle" onClick={toggleTheme}>
