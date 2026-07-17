@@ -75,10 +75,18 @@
       const fileInput = document.getElementById('fileInput');
       const jsonInput = document.getElementById('jsonInput');
 
+      // API base: when running the static page from Vite (port 5173/5175),
+      // requests to '/' would target the dev server which doesn't implement
+      // the backend routes. In that case point requests to the backend on
+      // port 3001. When the page is served from the backend (port 3001),
+      // leave paths unchanged.
+      const API_BASE = (location.port && Number(location.port) !== 3001) ? `${location.protocol}//${location.hostname}:3001` : '';
+
       async function postJson(path, body) {
+        const full = (path && path.startsWith('http')) ? path : (API_BASE ? (API_BASE + path) : path);
         status.textContent = 'Working...';
         try {
-          const res = await fetch(path, { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body), headers: body instanceof FormData ? {} : { 'Content-Type': 'application/json' } });
+          const res = await fetch(full, { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body), headers: body instanceof FormData ? {} : { 'Content-Type': 'application/json' } });
           if (!res.ok) {
             const body = await res.json().catch(() => ({}));
             status.textContent = 'Error: ' + (body && body.error ? body.error : res.statusText);
@@ -92,6 +100,7 @@
           return null;
         }
       }
+      
 
       initBtn.addEventListener('click', (e) => { e.preventDefault(); postJson('/init', {}); });
       demoBtn.addEventListener('click', (e) => { e.preventDefault(); postJson('/init/demo', {}); });

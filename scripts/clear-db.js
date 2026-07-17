@@ -1,7 +1,16 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
-const mysql = require('mysql2/promise');
+import fs from 'fs';
+import path from 'path';
+import mysql from 'mysql2/promise';
+import readline from 'readline';
+import { spawnSync } from 'child_process';
+
+function askConfirmation(prompt) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(prompt, (answer) => { rl.close(); resolve(answer); });
+  });
+}
 
 async function loadConfig() {
   const envHost = process.env.DB_HOST;
@@ -24,13 +33,6 @@ async function loadConfig() {
   return { host, user, password, database, port };
 }
 
-function askConfirmation(prompt) {
-  return new Promise((resolve) => {
-    const rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(prompt, (answer) => { rl.close(); resolve(answer); });
-  });
-}
-
 (async () => {
   const args = process.argv.slice(2);
   const force = args.includes('-Force') || args.includes('--force');
@@ -42,16 +44,13 @@ function askConfirmation(prompt) {
   if (args.includes('--truncate') || args.includes('-t')) mode = 'truncate';
   if (args.includes('--drop') || args.includes('-d')) mode = 'drop';
   if (args.includes('--recreate') || args.includes('-r')) {
-    // If recreate requested without explicit drop flag, treat as drop-recreate
     if (mode === 'truncate') {
-      // contradictory flags; prefer explicit drop-recreate
       mode = 'drop-recreate';
     } else {
       mode = mode === 'drop' ? 'drop-recreate' : (mode || 'drop-recreate');
     }
   }
 
-  // If no mode specified, present interactive menu
   if (!mode) {
     console.log('Select an action:');
     console.log('  1) Drop all tables (remove schema and data)');
@@ -127,10 +126,9 @@ function askConfirmation(prompt) {
 
       if (mode === 'drop-recreate') {
         try {
-          const { spawnSync } = require('child_process');
           const scriptPath = path.join(process.cwd(), 'scripts', 'init-schema.mjs');
           console.log('Recreating tables (empty schema) because drop-recreate was selected...');
-          const res = spawnSync('node', [scriptPath], { stdio: 'inherit' });
+          const res = spawnSync(process.execPath, [scriptPath], { stdio: 'inherit' });
           if (res.status !== 0) {
             console.error('Schema initialization failed with exit code', res.status);
             process.exit(3);
