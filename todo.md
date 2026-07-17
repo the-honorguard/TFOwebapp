@@ -44,8 +44,9 @@
 
 ### Branding
 
-- [ ] **Favicon** — add `tfo-emoji.png` (or a trimmed variant) as favicon in `index.html`; set a meaningful `<title>` tag
-- [ ] **Logo on pages** — display the TFO logo in the login screen, top header/nav, and empty states
+- [x] **Favicon** — add `tfo-emoji.png` (or a trimmed variant) as favicon in `index.html`; set a meaningful `<title>` tag
+- [x] **Logo on pages** — display the TFO logo in the login screen, top header/nav, and empty states
+- [x] **Rank icons** — rank icon URLs populated in DB from task-force-omega/mkdocs raw GitHub assets; seed source updated
 - [ ] **Align with taskforceomega.eu design language** — reuse the color palette, typography, and visual style already established on the main site; the app should feel like a natural extension of it
 
 ### CSS & Spacing
@@ -109,3 +110,6 @@
 - [x] Avatar upload + profile persistence
 - [x] Deployed to production on cPanel Node.js hosting
 - [x] HTTPS enabled
+- [x] Favicon — `tfo-emoji.png` added to `index.html`
+- [x] Page logo — TFO icon added to header/nav
+- [x] Rank icons — populated from task-force-omega/mkdocs raw assets
