@@ -37,8 +37,7 @@ body {
 [data-theme='dark'] body {
   background: linear-gradient(135deg, var(--bg), #111827);
 }
-[data-theme='light'] .slot-badge.occupied { color: #991b1b; }
-[data-theme='light'] .slot-badge.free { color: #14532d; }
+/* Ensure badges keep consistent sizing for free/occupied actions */
 * { box-sizing: border-box; }
 button { cursor: pointer; }
 .app-shell { max-width: 960px; margin: 0 auto; padding: 2rem; }
@@ -91,7 +90,9 @@ button.btn-danger:hover { background: #991b1b; }
   .orbat-blueprint { display: none; }
 }
 .orbat-node { position: absolute; width: 280px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }
-.orbat-node-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.2rem; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); background: rgba(148,163,184,0.08); cursor: grab; }
+.orbat-node-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.2rem; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); background: rgba(148,163,184,0.08); cursor: default; }
+/* Only show grab cursor when the canvas explicitly allows dragging */
+.drag-canvas .orbat-node-head { cursor: grab; }
 .orbat-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.45rem; min-width: 0; min-height: 34px; }
 .orbat-edit-button { padding: 0.2rem 0.45rem; font-size: 0.72rem; line-height: 1.1; }
 .orbat-connector { position: absolute; left: 50%; width: 12px; height: 12px; padding: 0; min-width: 0; border-radius: 999px; border: 2px solid #3b82f6; background: #0f172a; transform: translate(-50%, -50%); pointer-events: none; z-index: 2; }
@@ -102,8 +103,17 @@ button.btn-danger:hover { background: #991b1b; }
 .orbat-parent-select { width: calc(100% - 1.2rem); margin: 0.55rem 0.6rem 0; padding: 0.45rem; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
 .orbat-slot-list { display: grid; gap: 0.4rem; padding: 0.65rem; }
 .orbat-slot-item { display: flex; align-items: center; gap: 0.45rem; }
+.orbat-slot-item { position: relative; }
 .orbat-slot-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.86rem; }
 .orbat-slot-join { margin-left: auto; padding: 0.2rem 0.45rem; font-size: 0.72rem; line-height: 1; }
+.orbat-slot-join { opacity: 0; transform: translateY(4px); transition: opacity 120ms ease, transform 120ms ease; }
+.orbat-slot-item:hover .orbat-slot-join { opacity: 1; transform: translateY(0); }
+.avatar-wrap { position: relative; display: inline-flex; align-items: center; }
+.avatar-button { padding: 0; border: none; background: transparent; cursor: pointer; }
+.avatar-button .slot-avatar { display: block; }
+.signoff-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); color: white; border-radius: 6px; }
+.avatar-wrap:hover .signoff-overlay { display: flex; }
+.signoff-overlay { padding: 0.35rem 0.6rem; font-size: 0.8rem; }
 .orbat-slot-more { font-size: 0.78rem; opacity: 0.75; }
 .flow-layout { display: grid; gap: 0.7rem; align-items: start; width: 100%; }
 .flow-layout.flow-fullscreen { width: 100%; }
@@ -153,13 +163,36 @@ button.btn-danger:hover { background: #991b1b; }
 .slot-footer { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; }
 .builder-slot.compact .slot-footer { margin-top: 0.5rem; }
 .slot-status-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; }
-.slot-badge { border-radius: 999px; padding: 0.15rem 0.5rem; border: 1px solid var(--border); text-transform: uppercase; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; }
-.slot-badge.occupied { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #fecaca; }
-.slot-badge.free { background: rgba(34,197,94,0.15); border-color: #22c55e; color: #bbf7d0; }
+/* Compact square badge for slot avatars/actions */
+.slot-badge { position: relative; display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 40px; height: 40px; min-width: 40px; gap: 0; border-radius: 0; overflow: hidden; background: transparent; }
+.slot-badge.occupied { background: transparent; color: #fecaca; }
+.slot-badge.free { background: transparent; color: #fff; }
+.lot-badge-fallback { display: none; }
+.slot-badge .badge-default { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 0; margin: 0; background: transparent; z-index: 0; }
+.slot-badge .badge-action { display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; margin: 0; border-radius: 0; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; z-index: 1; }
+/* On hover or keyboard focus show the action and hide the default label */
+.slot-badge:hover .badge-default,
+.slot-badge:focus-within .badge-default { opacity: 0; transform: translateY(-2px); transition: opacity 120ms ease, transform 120ms ease; }
+.slot-badge:hover .badge-action,
+.slot-badge:focus-within .badge-action { display: flex; }
+.slot-badge .badge-action.join { background: #16a34a !important; color: #ffffff !important; border: 0 !important; box-shadow: none !important; }
+.slot-badge .badge-action.signoff { background: #ef4444 !important; color: #ffffff !important; border: 0 !important; box-shadow: none !important; }
+
+/* Ensure button element inside badge has no inner default background or border */
+.slot-badge .badge-action,
+.slot-badge .badge-action:focus {
+  outline: none;
+}
 /* Small avatar thumbnail for slots */
-.slot-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); }
-/* Avatar used inside the small slot badge */
-.slot-badge-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; display: inline-block; vertical-align: middle; border: 1px solid var(--border); }
+.slot-avatar { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border); }
+/* Avatar used inside the slot badge; fill the badge and be square */
+.slot-badge-avatar { width: 100%; height: 100%; border-radius: 0; object-fit: cover; display: block; vertical-align: middle; border: 0; }
+/* When slot is free show a green square with 'FREE' */
+.slot-badge.free .badge-default { background: #16a34a; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; }
+/* remove blurred background pseudo */
+.slot-badge .badge-default::before { display: none; }
+.orbat-slot-username { margin-left: 0.5rem; font-size: 0.85rem; opacity: 0.9; color: var(--text); }
+.slot-username { font-size: 0.95rem; opacity: 0.95; color: var(--text); }
 /* Marker badge styles */
 .marker-badge { border-radius: 999px; padding: 0.15rem 0.5rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.03em; margin-left: 0.5rem; display: inline-block; border: 1px solid var(--panel-border); }
 .marker-badge.marker-infantry { background: rgba(59,130,246,0.12); color: #bfdbfe; border-color: rgba(59,130,246,0.35); }

@@ -98,7 +98,7 @@ export default function OrbatOverview({
           return (
             <div className="orbat-wrapper">
               <div
-                className="orbat-canvas drag-canvas"
+                className="orbat-canvas"
                 style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
               >
                 <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
@@ -171,40 +171,31 @@ export default function OrbatOverview({
                         const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
                         const allowedRoles = slot.allowedRoles || [];
                         const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
-                        const isOwnSlot = Boolean(auth && slot.assignedUserId === auth.id);
+                        const isOwnSlot = Boolean(auth && slot.assignedUserId != null && String(slot.assignedUserId) === String(auth.id));
+                        const crop = assignedUser?.profile?.avatarCrop || null;
+                        const bgPosition = crop ? `${crop.x}% ${crop.y}%` : 'center';
+                        const bgSize = crop && crop.zoom ? `${crop.zoom * 100}%` : 'cover';
+                        const badgeStyle = assignedUser && avatarUrl ? { backgroundImage: `url(${avatarUrl})`, backgroundSize: bgSize, backgroundPosition: bgPosition, backgroundRepeat: 'no-repeat' } : undefined;
                         return (
                           <div key={slot.id} className="orbat-slot-item">
-                            <span className={`slot-badge ${assignedUser ? 'occupied avatar' : 'free'}`}>
-                              {assignedUser && avatarUrl ? (
-                                <img src={avatarUrl} alt={`${assignedUser.username} avatar`} className="slot-badge-avatar" />
-                              ) : (assignedUser ? 'Occupied' : 'Free')}
-                            </span>
-                            <span className="orbat-slot-text">{slot.name}</span>
-                            {isOwnSlot ? (
-                              <button
-                                type="button"
-                                className="secondary small orbat-slot-join"
-                                onClick={() => signOffOpSlot(op.id, slot.id)}
-                              >
-                                Sign off
-                              </button>
-                            ) : auth && canJoin ? (
-                              <button
-                                type="button"
-                                className="secondary small orbat-slot-join"
-                                onClick={() => joinOpSlot(op.id, slot.id)}
-                              >
-                                Join
-                              </button>
-                            ) : !auth && !assignedUser ? (
-                              <button
-                                type="button"
-                                className="secondary small orbat-slot-join"
-                                onClick={() => setShowLoginPanel(true)}
-                              >
-                                Login
-                              </button>
-                            ) : null}
+                              <span className={`slot-badge ${assignedUser ? 'occupied avatar' : 'free'}`}>
+                                <span className="badge-default" style={badgeStyle}>
+                                  {assignedUser && avatarUrl ? (
+                                    <img src={avatarUrl} alt={`${assignedUser.username} avatar`} className="slot-badge-avatar" />
+                                  ) : (assignedUser ? 'Occupied' : 'Free')}
+                                </span>
+                                {isOwnSlot ? (
+                                  <button type="button" className="badge-action signoff" onClick={() => signOffOpSlot(op.id, slot.id)} title="Sign off">Sign off</button>
+                                ) : auth && canJoin ? (
+                                  <button type="button" className="badge-action join" onClick={() => joinOpSlot(op.id, slot.id)}>Join</button>
+                                ) : !auth && !assignedUser ? (
+                                  <button type="button" className="badge-action join" onClick={() => setShowLoginPanel(true)}>Login</button>
+                                ) : null}
+                              </span>
+                              <span className="orbat-slot-text">{slot.name}</span>
+                              {assignedUser ? (
+                                <span className="orbat-slot-username">{assignedUser.username}</span>
+                              ) : null}
                           </div>
                         );
                       })}
@@ -286,8 +277,9 @@ export default function OrbatOverview({
                           )}
                         </div>
                         {assignedUser && avatarUrl ? (
-                          <div style={{ marginLeft: 12 }}>
-                            <img src={avatarUrl} alt="avatar" className="slot-avatar" />
+                          <div style={{ marginLeft: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <img src={avatarUrl} alt={`${assignedUser.username} avatar`} className="slot-avatar" />
+                            <span className="slot-username">{assignedUser.username}</span>
                           </div>
                         ) : null}
                         <div className="slot-footer">
