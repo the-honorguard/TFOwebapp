@@ -51,7 +51,7 @@ export default function OrbatScheduler({
   signOffOpSlot,
   setShowLoginPanel,
   flowLinkSource,
-  addSectionQuick,
+  addOpSection,
   clearTemplateFlowEdges,
   resetTemplateCanvasLayout,
   handleFlowConnectorClick,
@@ -70,6 +70,7 @@ export default function OrbatScheduler({
   addSlot,
   dragSnapPreview,
   autoLayoutTemplate,
+  squadTypes = []
 }) {
   const [builderFlowMode, setBuilderFlowMode] = useState(true); // exact copy of OrbatTemplate's own Flow/Form toggle, local to the scheduler
   const builderCompact = false;
@@ -105,8 +106,10 @@ export default function OrbatScheduler({
   };
 
   // Pseudo-template object so the copied Template Builder code can operate on this operation's
-  // current sections (which come from selectedOp.templateId).
-  const template = { id: selectedOp.templateId, sections: selectedOp.sections || [] };
+  // current sections. For the scheduler we treat the operation itself as the
+  // template key (use `selectedOp.id`) so canvas layout and flow edges are
+  // stored separately per-operation and do not affect the original template.
+  const template = { id: selectedOp.id, sections: selectedOp.sections || [] };
   const fileInputs = {};
   const triggerFileInput = (sectionId) => {
     const el = document.getElementById(`scheduler-marker-upload-${sectionId}`);
@@ -128,16 +131,9 @@ export default function OrbatScheduler({
     setLocalTsAddress(selectedOp.tsAddress || '');
   }, [selectedOp.id]);
   const canUpload = Boolean(isAdmin || isMissionmaker);
-  const builtins = [
-    { label: 'Infantry', value: 'Infantry', file: 'infantry' },
-    { label: 'Armor', value: 'Armor', file: 'armor' },
-    { label: 'Artillery', value: 'Artillery', file: 'artillery' },
-    { label: 'HQ', value: 'HQ', file: 'hq' },
-    { label: 'Logistics', value: 'Logistics', file: 'logistics' },
-    { label: 'Medic', value: 'Medic', file: 'medic' },
-    { label: 'Recon', value: 'Recon', file: 'recon' },
-    { label: 'Engineer', value: 'Engineer', file: 'engineer' }
-  ];
+  const builtins = Array.isArray(squadTypes) && squadTypes.length > 0
+    ? squadTypes.map((s) => ({ label: s.name, value: s.name, icon: s.icon }))
+    : [];
 
   // Precompute canvas nodes/edges when showing the ORBAT canvas to avoid IIFE in JSX.
   // Reuses the exact same flow edges (getTemplateFlowEdges) the admin drew in the Template Builder,
@@ -259,11 +255,11 @@ export default function OrbatScheduler({
       {builderFlowMode ? (
         <div className="flow-layout flow-fullscreen">
           <div className="orbat-wrapper flow-fullscreen-wrapper">
-            <div className="flow-canvas-controls">
+              <div className="flow-canvas-controls">
               <button
                 type="button"
                 className="secondary small"
-                onClick={() => addSectionQuick(template.id, template.sections.length)}
+                onClick={() => addOpSection(selectedOp.id, template.sections.length)}
               >
                 + Section
               </button>
@@ -377,16 +373,19 @@ export default function OrbatScheduler({
                             <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
                               <div style={{display:'flex',flexDirection:'column',gap:6}}>
                                 <button className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
-                                {builtins.map((b) => (
-                                  <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
-                                    <img src={`/markers/${b.file}.svg`} alt={b.label} style={{width:20,height:20}} />
-                                    {b.label}
-                                  </button>
-                                ))}
+                                {builtins.map((b) => {
+                                  const iconSrc = b.icon ? (b.icon.startsWith('/') || b.icon.startsWith('http') ? b.icon : `/markers/${b.icon}`) : null;
+                                  return (
+                                    <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
+                                      {iconSrc ? <img src={iconSrc} alt={b.label} style={{width:20,height:20}} /> : <span style={{width:20,height:20,display:'inline-block'}} />}
+                                      {b.label}
+                                    </button>
+                                  );
+                                })}
                                 <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                                   <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
                                   {builtins.map((b) => (
-                                    <button key={b.value+'-text'} className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                    <button key={b.value + '-text'} className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
                                   ))}
                                 </div>
                               </div>
@@ -586,16 +585,19 @@ export default function OrbatScheduler({
                               <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
                                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
                                   <button className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
-                                  {builtins.map((b) => (
-                                    <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
-                                      <img src={`/markers/${b.file}.svg`} alt={b.label} style={{width:20,height:20}} />
-                                      {b.label}
-                                    </button>
-                                  ))}
+                                  {builtins.map((b) => {
+                                    const iconSrc = b.icon ? (b.icon.startsWith('/') || b.icon.startsWith('http') ? b.icon : `/markers/${b.icon}`) : null;
+                                    return (
+                                      <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
+                                        {iconSrc ? <img src={iconSrc} alt={b.label} style={{width:20,height:20}} /> : <span style={{width:20,height:20,display:'inline-block'}} />}
+                                        {b.label}
+                                      </button>
+                                    );
+                                  })}
                                   <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                                     <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
                                     {builtins.map((b) => (
-                                      <button key={b.value+'-text'} className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                      <button key={b.value + '-text'} className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
                                     ))}
                                   </div>
                                 </div>

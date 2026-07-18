@@ -64,6 +64,17 @@
         </div>
         <div id="dbLastChecked" style="margin-top:8px;color:#666;font-size:13px">-</div>
         <div id="dbInfo" style="font-family:monospace;margin-top:8px">Loading...</div>
+        <hr />
+        <h3>Logging</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="startLogs">Start logs</button>
+          <button id="stopLogs" style="margin-left:8px">Stop logs</button>
+          <button id="clearLogs" style="margin-left:8px">Clear output</button>
+        </div>
+        <div style="margin-top:8px">
+          <div id="logStatus" style="font-size:13px;color:#666">Collector: unknown</div>
+          <pre id="logOutput" style="height:240px;overflow:auto;background:#111;color:#0f0;padding:12px;border-radius:6px;margin-top:8px;font-size:12px;white-space:pre-wrap"></pre>
+        </div>
       </div>
     </div>
     <script>
@@ -398,6 +409,61 @@
         }
       }
       fetchInitStatus();
+      // --- Logging UI ---
+      const startLogsBtn = document.getElementById('startLogs');
+      const stopLogsBtn = document.getElementById('stopLogs');
+      const clearLogsBtn = document.getElementById('clearLogs');
+      const logOutput = document.getElementById('logOutput');
+      const logStatus = document.getElementById('logStatus');
+      let es = null;
+
+      async function startLogs() {
+        try {
+          const res = await fetch(apiUrl('/api/logs/start'), { method: 'POST' });
+          if (!res.ok) { logStatus.textContent = 'Collector: failed to start'; return; }
+          const j = await res.json().catch(() => ({}));
+          logStatus.textContent = 'Collector: running' + (j && j.pid ? ' (pid ' + j.pid + ')' : '');
+          connectLogStream();
+        } catch (e) {
+          logStatus.textContent = 'Collector: start error';
+        }
+      }
+
+      async function stopLogs() {
+        try {
+          const res = await fetch(apiUrl('/api/logs/stop'), { method: 'POST' });
+          if (!res.ok) { logStatus.textContent = 'Collector: failed to stop'; return; }
+          logStatus.textContent = 'Collector: stopped';
+          if (es) { es.close(); es = null; }
+        } catch (e) {
+          logStatus.textContent = 'Collector: stop error';
+        }
+      }
+
+      function clearLogs() { logOutput.textContent = ''; }
+
+      function appendLogLine(line) {
+        logOutput.textContent += line + '\n';
+        // keep scrolled to bottom
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+
+      function connectLogStream() {
+        try {
+          if (es) { es.close(); es = null; }
+          es = new EventSource(apiUrl('/api/logs/stream'));
+          es.onopen = () => { /*noop*/ };
+          es.onmessage = (ev) => { appendLogLine(ev.data); };
+          es.onerror = () => { /* try reconnect after short delay */ setTimeout(() => { if (!es || es.readyState === EventSource.CLOSED) connectLogStream(); }, 2000); };
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      startLogsBtn.addEventListener('click', (e) => { e.preventDefault(); startLogs(); });
+      stopLogsBtn.addEventListener('click', (e) => { e.preventDefault(); stopLogs(); });
+      clearLogsBtn.addEventListener('click', (e) => { e.preventDefault(); clearLogs(); });
+
       setInterval(fetchInitStatus, 2500);
     </script>
   </body>

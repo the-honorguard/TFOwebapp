@@ -4,10 +4,12 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
 import crypto from 'crypto';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import pool, { testConnection } from './db.js';
+import logger from './lib/logger.js';
 import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential } from './lib/dataStore.js';
 
 dotenv.config();
@@ -15,9 +17,9 @@ dotenv.config();
 async function testDb() {
   try {
     const [rows] = await pool.query('SELECT 1 AS ok');
-    console.log('DB connected:', rows);
+    logger.info('DB connected', { rows });
   } catch (err) {
-    console.error('DB connection error:', err.message);
+    logger.error('DB connection error', { message: err && err.message ? err.message : String(err) });
   }
 }
 
@@ -65,6 +67,19 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Endpoint for client-side logs (frontend sends errors/warnings here)
+app.post('/api/client-log', (req, res) => {
+  try {
+    const { level = 'info', message = '', meta = {} } = req.body || {};
+    if (typeof logger[level] === 'function') logger[level](message, meta);
+    else logger.info(message, meta);
+    return res.json({ ok: true });
+  } catch (e) {
+    logger.error('Failed to write client log', { err: e && e.message ? e.message : String(e) });
+    return res.status(500).json({ ok: false });
+  }
+});
+
 // Lightweight health endpoint to detect DB availability
 app.get('/health', async (req, res) => {
   try {
@@ -89,6 +104,7 @@ app.get('/api/db-health', async (req, res) => {
     }
     return res.json({ ok: true, connected: true, version });
   } catch (err) {
+    logger.warn('DB health check failed', { err: err && err.message ? err.message : String(err) });
     return res.status(503).json({ ok: false, connected: false, error: err && err.message ? err.message : String(err) });
   }
 });
@@ -176,6 +192,95 @@ app.post('/init', async (req, res) => {
     console.error('Init error', err && err.stack ? err.stack : err);
     return res.status(500).json({ error: 'Initialization failed', details: err && err.message ? err.message : String(err) });
   }
+});
+
+// --- Log collector management (start/stop) and live stream ---
+let logCollectorProc = null;
+
+app.post('/api/logs/start', (req, res) => {
+  try {
+    if (logCollectorProc && !logCollectorProc.killed) {
+      return res.json({ ok: true, running: true, pid: logCollectorProc.pid });
+    }
+    const nodeExec = process.execPath || 'node';
+    const proc = spawn(nodeExec, ['scripts/collect-logs.js'], { cwd: process.cwd(), stdio: 'ignore', detached: true });
+    proc.unref();
+    logCollectorProc = proc;
+    logger.info('Log collector started', { pid: proc.pid });
+    return res.json({ ok: true, pid: proc.pid });
+  } catch (e) {
+    logger.error('Failed to start log collector', { err: e && e.message ? e.message : String(e) });
+    return res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+  }
+});
+
+app.post('/api/logs/stop', (req, res) => {
+  try {
+    if (!logCollectorProc) return res.json({ ok: true, running: false });
+    try {
+      process.kill(logCollectorProc.pid);
+    } catch (e) {
+      // may already be dead
+    }
+    logger.info('Log collector stopped', { pid: logCollectorProc.pid });
+    logCollectorProc = null;
+    return res.json({ ok: true });
+  } catch (e) {
+    logger.error('Failed to stop log collector', { err: e && e.message ? e.message : String(e) });
+    return res.status(500).json({ ok: false });
+  }
+});
+
+// SSE endpoint to stream appended lines from logs/combined.log
+app.get('/api/logs/stream', (req, res) => {
+  const logPath = path.join(process.cwd(), 'logs', 'combined.log');
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  });
+
+  let pos = 0;
+  try {
+    if (fs.existsSync(logPath)) pos = fs.statSync(logPath).size;
+  } catch (e) {
+    pos = 0;
+  }
+
+  const sendChunk = (chunk) => {
+    const lines = chunk.toString().split(/\r?\n/);
+    for (const line of lines) {
+      if (!line) continue;
+      // SSE data line
+      res.write('data: ' + line.replace(/\n/g, '\\n') + '\n\n');
+    }
+  };
+
+  // watch file for changes
+  const dir = path.dirname(logPath);
+  let watcher = null;
+  try {
+    watcher = fs.watch(dir, (eventType, filename) => {
+      if (!filename || path.basename(filename) !== path.basename(logPath)) return;
+      try {
+        const st = fs.statSync(logPath);
+        if (st.size > pos) {
+          const rs = fs.createReadStream(logPath, { start: pos, end: st.size });
+          rs.on('data', sendChunk);
+          rs.on('end', () => { pos = st.size; });
+        }
+      } catch (e) {
+        // ignore
+      }
+    });
+  } catch (e) {
+    // fallback: file may not exist yet
+  }
+
+  req.on('close', () => {
+    try { if (watcher) watcher.close(); } catch (e) {}
+    res.end();
+  });
 });
 
 // Reset database: DROP all tables and re-create schema
@@ -361,22 +466,32 @@ function findOpSlot(op, slotId) {
  * Existing section data (like assignedUserId) can be preserved when provided.
  */
 function buildOpSectionsFromTemplate(template, existingSections = []) {
-  // Map each template section into an op section, keeping lr/sr/marker defaults
+  // Create a fully independent copy of template sections/slots for an operation.
+  // New ids are generated for op sections and slots; we record the original
+  // template ids on `originalSectionId` / `originalSlotId` so the client can
+  // map template flow edges to the operation copy if desired.
   return (template.sections || []).map((section, index) => {
-    const existingSection = existingSections.find((item) => item.id === section.id);
+    // Try to find an existing op section that corresponds to this template section
+    // by matching `originalSectionId` if present (preserve previous op-specific ids/assignments).
+    const existingSection = existingSections.find((item) => item.originalSectionId === section.id) || null;
+
+    const opSectionId = existingSection ? existingSection.id : (Date.now() + Math.floor(Math.random() * 1000) + index);
 
     return {
-      id: section.id,
+      id: opSectionId,
+      originalSectionId: section.id,
       title: section.title,
-        lrChannel: section.lrChannel ?? existingSection?.lrChannel ?? 1,
-        srChannel: section.srChannel ?? existingSection?.srChannel ?? (index + 1),
-        marker: section.marker ?? existingSection?.marker ?? null,
-        markerIconUrl: section.markerIconUrl ?? existingSection?.markerIconUrl ?? null,
-      slots: (section.slots || []).map((slot) => {
-        const existingSlot = existingSection?.slots?.find((item) => item.id === slot.id);
+      lrChannel: section.lrChannel ?? existingSection?.lrChannel ?? 1,
+      srChannel: section.srChannel ?? existingSection?.srChannel ?? (index + 1),
+      marker: section.marker ?? existingSection?.marker ?? null,
+      markerIconUrl: section.markerIconUrl ?? existingSection?.markerIconUrl ?? null,
+      slots: (section.slots || []).map((slot, sIndex) => {
+        const existingSlot = existingSection?.slots?.find((item) => item.originalSlotId === slot.id) || null;
+        const opSlotId = existingSlot ? existingSlot.id : (Date.now() + Math.floor(Math.random() * 1000) + index * 100 + sIndex);
 
         return {
-          id: slot.id,
+          id: opSlotId,
+          originalSlotId: slot.id,
           name: slot.name,
           role: slot.role,
           allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
@@ -798,10 +913,17 @@ app.post('/api/ops', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const tplRepo = await import('./repositories/templates.js');
     const opsRepo = await import('./repositories/ops.js');
-    const template = await tplRepo.getTemplateById(Number(req.body.templateId));
-    if (!template) return res.status(404).json({ error: 'Template not found' });
+    const tplId = (req.body.templateId === null || req.body.templateId === undefined || req.body.templateId === '') ? null : Number(req.body.templateId);
+    let sections = [];
+    if (tplId) {
+      const template = await tplRepo.getTemplateById(tplId);
+      if (!template) return res.status(404).json({ error: 'Template not found' });
+      sections = buildOpSectionsFromTemplate({ sections: template.data.sections || [] });
+    } else {
+      // No template selected: create an op with empty sections instead of throwing
+      sections = [];
+    }
     const recurrence = req.body.recurrence || 'none';
-    const sections = buildOpSectionsFromTemplate({ sections: template.data.sections || [] });
     const payload = {
       id: Date.now(),
       name: req.body.name || 'New operation',
@@ -1175,6 +1297,43 @@ app.delete('/api/ranks/:id', authMiddleware, requireAdmin, async (req, res) => {
   res.status(204).end();
 });
 
+// Squad types API: CRUD stored in DB (exposed to admins for edit)
+app.get('/api/squad-types', async (req, res) => {
+  const data = await getData();
+  const squadTypes = Array.isArray(data.squadTypes) ? data.squadTypes : [];
+  res.json({ squadTypes });
+});
+
+app.post('/api/squad-types', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
+  const name = (req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const st = { id: Date.now(), name, icon: typeof req.body.icon === 'string' ? req.body.icon : null };
+  data.squadTypes = data.squadTypes || [];
+  data.squadTypes.push(st);
+  await persistData(data);
+  res.json({ squadType: st });
+});
+
+app.put('/api/squad-types/:id', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
+  const st = (data.squadTypes || []).find((s) => s.id === Number(req.params.id));
+  if (!st) return res.status(404).json({ error: 'Squad type not found' });
+  if (typeof req.body.name === 'string') st.name = req.body.name.trim();
+  if ('icon' in req.body) st.icon = req.body.icon || null;
+  await persistData(data);
+  res.json({ squadType: st });
+});
+
+app.delete('/api/squad-types/:id', authMiddleware, requireAdmin, async (req, res) => {
+  const data = await getData();
+  const idx = (data.squadTypes || []).findIndex((s) => s.id === Number(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: 'Squad type not found' });
+  data.squadTypes.splice(idx, 1);
+  await persistData(data);
+  res.status(204).end();
+});
+
 app.delete('/api/recurrences/:id', authMiddleware, requireAdmin, async (req, res) => {
   const data = await getData();
   const recurrenceIndex = (data.recurrences || []).findIndex((recurrence) => recurrence.id === Number(req.params.id));
@@ -1305,6 +1464,40 @@ app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, asyn
 
   await persistData(data);
   res.json({ op });
+});
+
+app.post('/api/ops/:opId/sections', authMiddleware, async (req, res) => {
+  try {
+    const isAdminUser = req.user?.role === 'admin';
+    const isMissionmaker = req.user?.role === 'missionmaker';
+    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
+    const opsRepo = await import('./repositories/ops.js');
+    const op = await opsRepo.addSection(Number(req.params.opId), req.body.title || null);
+    if (!op) return res.status(404).json({ error: 'Operation not found' });
+    res.json({ op });
+  } catch (err) {
+    console.error('Add op section error', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+app.delete('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const opsRepo = await import('./repositories/ops.js');
+    const op = await opsRepo.getOpById(Number(req.params.opId));
+    if (!op) return res.status(404).json({ error: 'Operation not found' });
+    const sections = op.payload.sections || [];
+    const idx = sections.findIndex((s) => s.id === Number(req.params.sectionId));
+    if (idx === -1) return res.status(404).json({ error: 'Section not found' });
+    sections.splice(idx, 1);
+    op.payload.sections = sections;
+    await opsRepo.updateOp(Number(req.params.opId), { payload: op.payload });
+    const updated = await opsRepo.getOpById(Number(req.params.opId));
+    res.json({ op: updated });
+  } catch (err) {
+    console.error('Delete op section error', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
 });
 
 app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
@@ -1649,5 +1842,5 @@ app.get('*', (req, res) => {
 
 // Attempt to ensure DB initialization at startup, but do not crash server if DB is unavailable.
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  logger.info(`Server running on http://localhost:${PORT}`);
 });

@@ -42,12 +42,18 @@ export default function OrbatTemplate({
   
   uploadCustomMarker
   
+  ,
+  squadTypes = []
 }) {
   
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
   const canvasScrollRef = useRef(null);
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
   const [isPanning, setIsPanning] = useState(false);
+
+  // Defensive defaults: allow opening Template Builder with no templates/demo data
+  if (!template) template = { id: null, sections: [] };
+  if (!Array.isArray(template.sections)) template.sections = [];
 
   const handleCanvasPanStart = (event) => {
     if (event.button !== 0) return;
@@ -78,16 +84,9 @@ export default function OrbatTemplate({
     setIsPanning(false);
   };
 
-  const builtins = [
-    { label: 'Infantry', value: 'Infantry', file: 'infantry' },
-    { label: 'Armor', value: 'Armor', file: 'armor' },
-    { label: 'Artillery', value: 'Artillery', file: 'artillery' },
-    { label: 'HQ', value: 'HQ', file: 'hq' },
-    { label: 'Logistics', value: 'Logistics', file: 'logistics' },
-    { label: 'Medic', value: 'Medic', file: 'medic' },
-    { label: 'Recon', value: 'Recon', file: 'recon' },
-    { label: 'Engineer', value: 'Engineer', file: 'engineer' }
-  ];
+  const builtins = Array.isArray(squadTypes) && squadTypes.length > 0
+    ? squadTypes.map((s) => ({ label: s.name, value: s.name, icon: s.icon }))
+    : [];
   return (
     <div>
       {/* template-level override UI removed */}
@@ -250,16 +249,19 @@ export default function OrbatTemplate({
                                 <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
                                   <div style={{display:'flex',flexDirection:'column',gap:6}}>
                                     <button className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
-                                    {builtins.map((b) => (
-                                      <button key={b.file} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSectionMeta(template.id, node.section.id, { markerIconUrl: `/markers/${b.file}.svg`, marker: null }); setOpenMarkerDropdown(null); }}>
-                                        <img src={`/markers/${b.file}.svg`} alt={b.label} style={{width:20,height:20}} />
-                                        {b.label}
-                                      </button>
-                                    ))}
+                                    {builtins.map((b) => {
+                                      const iconSrc = b.icon ? (b.icon.startsWith('/') || b.icon.startsWith('http') ? b.icon : `/markers/${b.icon}`) : null;
+                                      return (
+                                        <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSectionMeta(template.id, node.section.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
+                                          {iconSrc ? <img src={iconSrc} alt={b.label} style={{width:20,height:20}} /> : <span style={{width:20,height:20,display:'inline-block'}} />}
+                                          {b.label}
+                                        </button>
+                                      );
+                                    })}
                                     <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                                       <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
                                       {builtins.map((b) => (
-                                        <button key={b.value+'-text'} className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                        <button key={b.value + '-text'} className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
                                       ))}
                                     </div>
                                   </div>

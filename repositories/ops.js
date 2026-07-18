@@ -103,6 +103,25 @@ export async function updateSection(opId, sectionId, patch) {
   return getOpById(opId);
 }
 
+export async function addSection(opId, title) {
+  const op = await getOpById(opId);
+  if (!op) throw new Error('Op not found');
+  const sections = op.payload.sections || [];
+  const section = {
+    id: Date.now(),
+    title: title || `Section ${sections.length + 1}`,
+    lrChannel: 1,
+    srChannel: sections.length + 1,
+    marker: null,
+    markerIconUrl: null,
+    slots: []
+  };
+  sections.push(section);
+  op.payload.sections = sections;
+  await _savePayload(opId, op.payload);
+  return getOpById(opId);
+}
+
 export async function updateSlot(opId, slotId, patch) {
   const op = await getOpById(opId);
   if (!op) throw new Error('Op not found');

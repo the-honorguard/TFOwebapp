@@ -79,6 +79,23 @@ export default function Settings({
     });
   }, [defaultOpSettings]);
 
+  // Load squad types from server (DB-backed list)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/squad-types');
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!mounted) return;
+        setLocal((s) => ({ ...s, squadTypes: Array.isArray(j.squadTypes) ? j.squadTypes : [] }));
+      } catch (err) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   const save = (e) => {
     e.preventDefault();
     setDefaultOpSettings({
@@ -105,42 +122,7 @@ export default function Settings({
     'medic.svg',
     'recon.svg'
   ];
-
-  const addSquadType = () => {
-    setLocal((s) => ({
-      ...s,
-      squadTypes: [
-        ...(s.squadTypes || []),
-        { id: Date.now(), name: '', icon: AVAILABLE_MARKERS[0] }
-      ]
-    }));
-  };
-
-  const updateSquadType = (idx, patch) => {
-    setLocal((s) => {
-      const next = (s.squadTypes || []).slice();
-      next[idx] = { ...next[idx], ...patch };
-      return { ...s, squadTypes: next };
-    });
-  };
-
-  const removeSquadType = (idx) => {
-    setLocal((s) => ({ ...s, squadTypes: (s.squadTypes || []).filter((_, i) => i !== idx) }));
-  };
-
-  const uploadForSquadType = async (idx, file) => {
-    if (!file) return;
-    try {
-      if (!uploadCustomMarker) {
-        alert('Upload not available');
-        return;
-      }
-      const url = await uploadCustomMarker(file);
-      if (url) updateSquadType(idx, { icon: url });
-    } catch (err) {
-      alert('Upload failed: ' + (err.message || err));
-    }
-  };
+  
 
   
 
@@ -188,6 +170,7 @@ export default function Settings({
       <div className="settings-subnav" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
         <button className={subpage === 'general' ? 'tab active' : 'tab'} onClick={() => setSubpage('general')}>General</button>
         <button className={subpage === 'ranks' ? 'tab active' : 'tab'} onClick={() => setSubpage('ranks')}>Ranks</button>
+        <button className={subpage === 'squadtypes' ? 'tab active' : 'tab'} onClick={() => setSubpage('squadtypes')}>Squad types</button>
         <button className={subpage === 'roles' ? 'tab active' : 'tab'} onClick={() => setSubpage('roles')}>Roles</button>
       </div>
 
@@ -264,47 +247,8 @@ export default function Settings({
         </div>
       </form>
 
-      <section className="card" style={{ marginTop: '1rem' }}>
-        <h3>Squad types</h3>
-
-        <div className="form-row">
-          <button type="button" onClick={addSquadType}>Add squad type</button>
-        </div>
-
-        {(local.squadTypes || []).map((st, idx) => {
-          const inputId = `squad-icon-${st.id || idx}`;
-          const src = st.icon ? (st.icon.startsWith('/') ? st.icon : `/markers/${st.icon}`) : null;
-          return (
-            <div key={st.id || idx} className="form-row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <label style={{ minWidth: 38 }}>Type</label>
-              <input value={st.name} onChange={(e) => updateSquadType(idx, { name: e.target.value })} placeholder="Name" style={{ flex: '1 1 200px', maxWidth: 320 }} />
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const f = e.dataTransfer.files && e.dataTransfer.files[0];
-                  if (f) uploadForSquadType(idx, f);
-                }}
-                style={{ width: 56, height: 56, border: '2px dashed #666', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}
-                title="Drop an image file here or click to choose"
-                onClick={() => document.getElementById(inputId)?.click()}
-              >
-                {src ? (
-                  <img src={src} alt="icon" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ width: 28, height: 28, background: '#333', borderRadius: 4 }} />
-                )}
-              </div>
-              <input id={inputId} type="file" accept=".svg,.png,.jpg,.jpeg,.gif" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) uploadForSquadType(idx, f); }} />
-              <button type="button" onClick={() => removeSquadType(idx)} style={{ marginLeft: 8 }}>Remove</button>
-            </div>
-          );
-        })}
-
-        <div className="form-row">
-          <small>Define squad type names and their default map icon. These values will be used as defaults for new operations.</small>
-        </div>
-      </section>
+      
+      
 
       <section className="card" style={{ marginTop: '1.5rem' }}>
         <h3>Change password</h3>
@@ -324,6 +268,89 @@ export default function Settings({
       
     </section>
     )}
+
+      {subpage === 'squadtypes' && (
+        <section className="card">
+          <h3>Squad types</h3>
+
+          <div className="form-row">
+            <button type="button" onClick={async () => {
+              try {
+                const token = localStorage.getItem('token');
+                const res = await fetch('/api/squad-types', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ name: '', icon: `/markers/${AVAILABLE_MARKERS[0]}` }) });
+                if (!res.ok) { const j = await res.json().catch(() => ({})); alert('Add failed: ' + (j && j.error ? j.error : res.statusText)); return; }
+                const j = await res.json();
+                setLocal((s) => ({ ...s, squadTypes: [...(s.squadTypes || []), j.squadType] }));
+              } catch (err) { alert('Add failed: ' + (err && err.message ? err.message : err)); }
+            }}>Add squad type</button>
+          </div>
+
+          {(local.squadTypes || []).map((st, idx) => {
+            const inputId = `squad-icon-${st.id || idx}`;
+            const src = st.icon ? (st.icon.startsWith('/') ? st.icon : `/markers/${st.icon}`) : null;
+            return (
+              <div key={st.id || idx} className="form-row" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <label style={{ minWidth: 38 }}>Type</label>
+                <input value={st.name} onChange={async (e) => {
+                    const name = e.target.value;
+                    setLocal((s) => { const next = (s.squadTypes || []).slice(); next[idx] = { ...next[idx], name }; return { ...s, squadTypes: next }; });
+                    try {
+                      if (!st.id) return;
+                      const token = localStorage.getItem('token');
+                      await fetch(`/api/squad-types/${st.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ name }) });
+                    } catch (err) { /* ignore */ }
+                }} placeholder="Name" style={{ flex: '1 1 200px', maxWidth: 320 }} />
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+                    if (f) (async () => {
+                      try {
+                        if (!uploadCustomMarker) { alert('Upload not available'); return; }
+                        const url = await uploadCustomMarker(f);
+                        if (!url) return;
+                        setLocal((s) => { const next = (s.squadTypes || []).slice(); next[idx] = { ...next[idx], icon: url }; return { ...s, squadTypes: next }; });
+                        if (st.id) {
+                          const token = localStorage.getItem('token');
+                          await fetch(`/api/squad-types/${st.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ icon: url }) });
+                        }
+                      } catch (err) { alert('Upload failed: ' + (err && err.message ? err.message : err)); }
+                    })();
+                  }}
+                  style={{ width: 56, height: 56, border: '2px dashed #666', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}
+                  title="Drop an image file here or click to choose"
+                  onClick={() => document.getElementById(inputId)?.click()}
+                >
+                  {src ? (
+                    <img src={src} alt="icon" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: 28, height: 28, background: '#333', borderRadius: 4 }} />
+                  )}
+                </div>
+                <input id={inputId} type="file" accept=".svg,.png,.jpg,.jpeg,.gif" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; try { if (!uploadCustomMarker) { alert('Upload not available'); return; } const url = await uploadCustomMarker(f); if (url) { setLocal((s) => { const next = (s.squadTypes || []).slice(); next[idx] = { ...next[idx], icon: url }; return { ...s, squadTypes: next }; }); if (st.id) { const token = localStorage.getItem('token'); await fetch(`/api/squad-types/${st.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ icon: url }) }); } } } catch (err) { alert('Upload failed: ' + (err && err.message ? err.message : err)); } }} />
+                <button type="button" onClick={async () => {
+                  if (!st.id) {
+                    // local-only entry: remove locally
+                    setLocal((s) => ({ ...s, squadTypes: (s.squadTypes || []).filter((_, i) => i !== idx) }));
+                    return;
+                  }
+                  try {
+                    const token = localStorage.getItem('token');
+                    const res = await fetch(`/api/squad-types/${st.id}`, { method: 'DELETE', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+                    if (!res.ok) { const j = await res.json().catch(() => ({})); alert('Delete failed: ' + (j && j.error ? j.error : res.statusText)); return; }
+                    setLocal((s) => ({ ...s, squadTypes: (s.squadTypes || []).filter((_, i) => i !== idx) }));
+                  } catch (err) { alert('Delete failed: ' + (err && err.message ? err.message : err)); }
+                }} style={{ marginLeft: 8 }}>Remove</button>
+              </div>
+            );
+          })}
+
+          <div className="form-row">
+            <small>Define squad type names and their default map icon. These values will be used as defaults for new operations.</small>
+          </div>
+        </section>
+      )}
 
       {subpage === 'ranks' && (
         <section className="card">

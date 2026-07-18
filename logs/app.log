@@ -1,0 +1,121 @@
+2026-07-18T09:44:16.645Z INFO Server running on http://localhost:3001 
+2026-07-18T09:44:16.663Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T09:44:18.718Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.108Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.459Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.461Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:28.769Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:30.619Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:30.625Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:35.138Z INFO Log collector started {"pid":26408}
+2026-07-18T09:45:14.649Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:15.204Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:19.209Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:20.808Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:36.838Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:42.901Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:46:00.918Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.920Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.922Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.924Z ERROR The above error occurred in the <App> component:
+
+App@http://localhost:5173/src/App.jsx:32:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:46:04.749Z INFO Log collector stopped {"pid":26408}
+2026-07-18T09:54:14.565Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:04.312Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:36.839Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:38.297Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:41.935Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:42.308Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:42.310Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:56:09.908Z INFO Log collector started {"pid":10728}
+2026-07-18T09:56:10.166Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:56:12.880Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:56:21.403Z INFO Log collector stopped {"pid":10728}
+2026-07-18T09:56:21.507Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:58:35.213Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:58:37.919Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:58:37.921Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:58:42.472Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:58:53.503Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:58:53.505Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:59:50.903Z INFO Server running on http://localhost:3001 
+2026-07-18T09:59:50.943Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T09:59:52.091Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:00:34.867Z INFO Server running on http://localhost:3001 
+2026-07-18T10:00:34.907Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T10:01:10.060Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:01:10.065Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:01:43.537Z INFO Server running on http://localhost:3001 
+2026-07-18T10:01:43.559Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T10:01:51.811Z INFO Server running on http://localhost:3001 
+2026-07-18T10:01:51.858Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T10:01:52.065Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:01:52.521Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:01:52.522Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:02:25.429Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:02:25.433Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:02:25.436Z ERROR The above error occurred in the <OrbatTemplate> component:
+
+OrbatTemplate@http://localhost:5173/src/OrbatTemplate.jsx:19:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx:32:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:02:25.440Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:05:40.126Z ERROR Delete section failed 404 {"error":"Template not found"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:05:40.179Z ERROR Delete section failed 404 {"error":"Template not found"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:10:25.228Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:10:25.231Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:11:22.591Z INFO Server running on http://localhost:3001 
+2026-07-18T10:11:22.638Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T10:11:35.330Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:11:35.873Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:11:35.874Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:12:00.094Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:12:00.406Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:12:00.409Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:12:54.785Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:04.833Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:08.777Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:08.779Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:13.801Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:21.821Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:21.824Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:32.267Z ERROR The above error occurred in the <OrbatTemplate> component:
+
+OrbatTemplate@http://localhost:5173/src/OrbatTemplate.jsx:19:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx:39:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:32.271Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:13:32.274Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:13:34.130Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:15:22.363Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:15:43.337Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:03.347Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:07.959Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:15.408Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:15.410Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:43.666Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:49.278Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:49.280Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:18:02.128Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:22:08.803Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:22:08.806Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:22:30.965Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:22:32.845Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:22:36.934Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:22:36.936Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}

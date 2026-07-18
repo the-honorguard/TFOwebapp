@@ -20,6 +20,16 @@ const CANVAS_GRID_UNIT = 40;
 const snapToCanvasGrid = (value) => Math.round(value / CANVAS_GRID_UNIT) * CANVAS_GRID_UNIT;
 
 function App() {
+  // Normalize op objects returned by different server paths (DB-backed repo vs file store)
+  const normalizeOp = (raw) => {
+    if (!raw) return raw;
+    const op = { ...raw };
+    // some endpoints return op.payload.sections (DB repo), others return op.sections
+    op.sections = op.sections || (op.payload && op.payload.sections) || [];
+    // unify template id key
+    op.templateId = op.templateId ?? op.template_id ?? null;
+    return op;
+  };
   const [auth, setAuth] = useState(null);
   const [users, setUsers] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -27,6 +37,7 @@ function App() {
   const [ops, setOps] = useState([]);
   const [recurrences, setRecurrences] = useState([]);
   const [ranks, setRanks] = useState([]);
+  const [squadTypes, setSquadTypes] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [schedulerLoadTemplateId, setSchedulerLoadTemplateId] = useState('');
   const [selectedOpId, setSelectedOpId] = useState(null);
@@ -344,6 +355,14 @@ function App() {
       loadPublicData();
     }
     loadRanks();
+    (async () => {
+      try {
+        const data = await apiFetch('/squad-types');
+        setSquadTypes(data.squadTypes || []);
+      } catch (e) {
+        console.error('loadSquadTypes error', e);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -586,10 +605,11 @@ function App() {
       });
       const data = await res.json();
       if (data.op) {
-        setOps((prev) => [...prev, data.op]);
+        const op = normalizeOp(data.op);
+        setOps((prev) => [...prev, op]);
         if (data.recurrence) setRecurrences((prev) => [...prev, data.recurrence]);
         // open the newly created op in the scheduler/detail view
-        showOpInScheduler(data.op.id, data.recurrence ? data.recurrence.id : null);
+        showOpInScheduler(op.id, data.recurrence ? data.recurrence.id : null);
       } else {
         throw new Error(data.error || 'Could not create operation');
       }
@@ -692,7 +712,8 @@ function App() {
       const data = await res.json();
       console.debug('[joinOpSlot] response', { status: res.status, data });
       if (data.op) {
-        setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+        const op = normalizeOp(data.op);
+        setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
       } else {
         throw new Error(data.error || 'Could not update slot');
       }
@@ -733,7 +754,8 @@ function App() {
       const data = await res.json();
       console.debug('[signOffOpSlot] response', { status: res.status, data });
       if (data.op) {
-        setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+        const op = normalizeOp(data.op);
+        setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
       } else {
         throw new Error(data.error || 'Could not sign off');
       }
@@ -771,7 +793,8 @@ function App() {
       });
       const data = await res.json();
       if (data.op) {
-        setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+        const op = normalizeOp(data.op);
+        setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
       } else {
         throw new Error(data.error || 'Could not update operation slot');
       }
@@ -837,7 +860,8 @@ function App() {
     });
     const data = await res.json();
     if (data.op) {
-      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+      const op = normalizeOp(data.op);
+      setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
     } else {
       alert(data.error || 'Could not update operation');
     }
@@ -855,7 +879,8 @@ function App() {
     });
     const data = await res.json();
     if (data.op) {
-      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+      const op = normalizeOp(data.op);
+      setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
     } else {
       alert(data.error || 'Could not update section');
     }
@@ -1105,7 +1130,31 @@ function App() {
     });
     const data = await res.json();
     if (data.op) {
-      setOps((prev) => prev.map((op) => (op.id === data.op.id ? data.op : op)));
+      const op = normalizeOp(data.op);
+      setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
+      // If a template was loaded, map any existing template flow edges into an
+      // op-specific flowEdges entry so the scheduler canvas can render the same
+      // visual layout but using the op's new (decoupled) section ids.
+      if (templateId && flowEdges && flowEdges[templateId]) {
+        const templateEdges = flowEdges[templateId] || [];
+        const opSections = op.sections || [];
+        const mapped = templateEdges.map((edge) => {
+          const src = opSections.find((s) => s.originalSectionId === edge.sourceId);
+          const tgt = opSections.find((s) => s.originalSectionId === edge.targetId);
+          if (!src || !tgt) return null;
+          return {
+            id: Date.now() + Math.floor(Math.random() * 1000000),
+            sourceId: src.id,
+            targetId: tgt.id,
+            sourceAnchor: edge.sourceAnchor || 'bottom',
+            targetAnchor: edge.targetAnchor || 'top'
+          };
+        }).filter(Boolean);
+
+        if (mapped.length) {
+          setFlowEdges((prev) => ({ ...(prev || {}), [data.op.id]: mapped }));
+        }
+      }
     } else {
       alert(data.error || 'Could not reload template into operation');
     }
@@ -1131,17 +1180,27 @@ function App() {
         },
         body: JSON.stringify({ title })
       });
-      const data = await res.json();
-      if (res.status === 401) {
-        throw new Error(data.error || 'Login expired, please log in again');
+
+      // parse response defensively: server may return non-JSON (HTML/error page)
+      let data = null;
+      const text = await res.text().catch(() => null);
+      if (text) {
+        try { data = JSON.parse(text); } catch (e) { /* non-JSON response */ }
       }
-      if (data.section) {
+
+      if (res.status === 401) {
+        const msg = data?.error || text || 'Login expired, please log in again';
+        throw new Error(msg);
+      }
+
+      if (data && data.section) {
         setTemplates((prev) => prev.map((template) => {
           if (template.id !== templateId) return template;
           return { ...template, sections: template.sections.map((s) => (s.id === tempId ? data.section : s)) };
         }));
       } else {
-        throw new Error(data.error || 'Could not add section');
+        const msg = data?.error || text || `Could not add section (status ${res.status})`;
+        throw new Error(msg);
       }
     } catch (err) {
       alert(err.message || 'Could not add section');
@@ -1172,16 +1231,24 @@ function App() {
         },
         body: JSON.stringify({ title })
       });
-      const data = await res.json();
-      if (data.section) {
+
+      let data = null;
+      const text = await res.text().catch(() => null);
+      if (text) {
+        try { data = JSON.parse(text); } catch (e) { /* non-JSON response */ }
+      }
+
+      if (data && data.section) {
         setTemplates((prev) => prev.map((template) => {
           if (template.id !== templateId) return template;
           return { ...template, sections: template.sections.map((s) => (s.id === tempId ? data.section : s)) };
         }));
       } else if (res.status === 401) {
-        throw new Error(data.error || 'Login expired, please log in again');
+        const msg = data?.error || text || 'Login expired, please log in again';
+        throw new Error(msg);
       } else {
-        throw new Error(data.error || 'Could not add section');
+        const msg = data?.error || text || `Could not add section (status ${res.status})`;
+        throw new Error(msg);
       }
     } catch (err) {
       alert(err.message || 'Could not add section');
@@ -1192,6 +1259,46 @@ function App() {
       if (err.message?.toLowerCase().includes('log in again')) {
         logout();
       }
+    }
+  };
+
+  const addOpSection = async (opId, currentSectionCount) => {
+    const title = `Section ${currentSectionCount + 1}`;
+    const tempId = `tmp-sec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempSection = { id: tempId, title, slots: [], _pendingCreate: true };
+
+    // optimistic local update on ops
+    const prevOps = ops;
+    setOps((prev) => prev.map((op) => (op.id !== opId ? op : { ...op, sections: [...(op.sections || []), tempSection] })));
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/ops/${opId}/sections`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ title })
+      });
+
+      let data = null;
+      const text = await res.text().catch(() => null);
+      if (text) {
+        try { data = JSON.parse(text); } catch (e) { /* non-JSON response */ }
+      }
+
+      if (data && data.op) {
+        const op = normalizeOp(data.op);
+        setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
+      } else {
+        const msg = data?.error || text || `Could not add section (status ${res.status})`;
+        throw new Error(msg);
+      }
+    } catch (err) {
+      alert(err.message || 'Could not add section');
+      setOps(prevOps);
+      if (err.message?.toLowerCase().includes('log in again')) logout();
     }
   };
 
@@ -1287,54 +1394,100 @@ function App() {
 
   const deleteSection = async (templateId, sectionId) => {
     if (!window.confirm('Are you sure you want to delete this section?')) return;
+    // determine whether this id belongs to a template or an op
+    const isTemplate = templates.some((t) => String(t.id) === String(templateId));
+
     // If sectionId is a temporary id (client-only), just remove locally and return
     if (Number.isNaN(Number(sectionId))) {
-      setTemplates((prev) => prev.map((template) => {
-        if (template.id !== templateId) return template;
-        return { ...template, sections: template.sections.filter((section) => section.id !== sectionId) };
-      }));
+      if (isTemplate) {
+        setTemplates((prev) => prev.map((template) => {
+          if (String(template.id) !== String(templateId)) return template;
+          return { ...template, sections: template.sections.filter((section) => section.id !== sectionId) };
+        }));
+      } else {
+        setOps((prev) => prev.map((op) => {
+          if (String(op.id) !== String(templateId)) return op;
+          return { ...op, sections: (op.sections || []).filter((section) => section.id !== sectionId) };
+        }));
+      }
       return;
     }
 
-    // optimistic: remove locally first
-    const prevTemplates = templates;
-    setTemplates((prev) => prev.map((template) => {
-      if (template.id !== templateId) return template;
-      return { ...template, sections: template.sections.filter((section) => section.id !== sectionId) };
-    }));
+    if (isTemplate) {
+      // optimistic: remove locally first
+      const prevTemplates = templates;
+      setTemplates((prev) => prev.map((template) => {
+        if (String(template.id) !== String(templateId)) return template;
+        return { ...template, sections: template.sections.filter((section) => section.id !== Number(sectionId)) };
+      }));
 
-    try {
-      const token = localStorage.getItem('token');
-      console.debug('Deleting section', { templateId, sectionId });
-      const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) {
-        let msg = `Could not delete section (status ${res.status})`;
-        try {
-          const text = await res.text();
-          console.error('Delete section failed', res.status, text);
-          // try parse json
-          const data = JSON.parse(text || '{}');
-          if (res.status === 401) {
-            msg = data.error || 'Login expired, please log in again';
-            throw new Error(msg);
+      try {
+        const token = localStorage.getItem('token');
+        console.debug('Deleting template section', { templateId, sectionId });
+        const res = await fetch(`${API}/templates/${templateId}/sections/${sectionId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`
           }
-          msg = data.error || msg;
-        } catch (e) {
-          console.error('Error reading delete section response', e);
+        });
+        if (!res.ok) {
+          let msg = `Could not delete section (status ${res.status})`;
+          try {
+            const text = await res.text();
+            console.error('Delete section failed', res.status, text);
+            const data = JSON.parse(text || '{}');
+            if (res.status === 401) {
+              msg = data.error || 'Login expired, please log in again';
+              throw new Error(msg);
+            }
+            msg = data.error || msg;
+          } catch (e) {
+            console.error('Error reading delete section response', e);
+          }
+          throw new Error(msg);
         }
-        throw new Error(msg);
+        console.debug('Delete section response ok', res.status);
+      } catch (err) {
+        alert(err.message || 'Could not delete section');
+        // revert
+        setTemplates(prevTemplates);
+        if (err.message?.toLowerCase().includes('log in again')) logout();
       }
-      console.debug('Delete section response ok', res.status);
-    } catch (err) {
-      alert(err.message || 'Could not delete section');
-      // revert
-      setTemplates(prevTemplates);
-      if (err.message?.toLowerCase().includes('log in again')) logout();
+    } else {
+      // deleting a section from an operation (scheduler)
+      const prevOps = ops;
+      setOps((prev) => prev.map((op) => {
+        if (String(op.id) !== String(templateId)) return op;
+        return { ...op, sections: (op.sections || []).filter((section) => section.id !== Number(sectionId)) };
+      }));
+
+      try {
+        const token = localStorage.getItem('token');
+        console.debug('Deleting op section', { opId: templateId, sectionId });
+        const res = await fetch(`${API}/ops/${templateId}/sections/${sectionId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        // prefer JSON response with updated op; tolerate 204/no body
+        if (res.status === 204) return;
+        let data = null;
+        const text = await res.text().catch(() => null);
+        if (text) {
+          try { data = JSON.parse(text); } catch (e) { /* ignore */ }
+        }
+        if (data && data.op) {
+          const op = normalizeOp(data.op);
+          setOps((prev) => prev.map((opItem) => (String(opItem.id) === String(op.id) ? op : opItem)));
+        } else if (!res.ok) {
+          const msg = data?.error || text || `Could not delete section (status ${res.status})`;
+          throw new Error(msg);
+        }
+      } catch (err) {
+        alert(err.message || 'Could not delete section');
+        setOps(prevOps);
+        if (err.message?.toLowerCase().includes('log in again')) logout();
+      }
     }
   };
 
@@ -2728,10 +2881,32 @@ function App() {
                   <div className="empty-state">No operations scheduled yet.</div>
                 ) : (
                   [
-                    ...sortedOps.map((op) => ({ type: 'op', id: op.id, name: op.name, date: op.date, time: op.time, templateId: op.templateId, recurrenceId: null, sortKey: op.date + op.time })),
-                    ...recurrences.map((rec) => ({ type: 'recurrence', id: rec.id, name: rec.name, date: rec.startDate || '', time: rec.time || '', templateId: rec.templateId, recurrenceId: rec.id, sortKey: (rec.startDate || '') + (rec.time || '') }))
+                    ...sortedOps.map((op) => ({
+                      type: 'op',
+                      id: op.id,
+                      name: op.name,
+                      date: op.date,
+                      time: op.time,
+                      templateId: op.templateId,
+                      recurrenceId: null,
+                      sortKey: String(op.date || '') + String(op.time || '')
+                    })),
+                    ...recurrences.map((rec) => ({
+                      type: 'recurrence',
+                      id: rec.id,
+                      name: rec.name,
+                      date: rec.startDate || '',
+                      time: rec.time || '',
+                      templateId: rec.templateId,
+                      recurrenceId: rec.id,
+                      sortKey: String(rec.startDate || '') + String(rec.time || '')
+                    }))
                   ]
-                    .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+                    .sort((a, b) => {
+                      const sa = a.sortKey || '';
+                      const sb = b.sortKey || '';
+                      return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
+                    })
                     .map((item) => (
                       <button
                         key={item.type + item.id}
@@ -2823,7 +2998,7 @@ function App() {
                 signOffOpSlot={signOffOpSlot}
                 setShowLoginPanel={setShowLoginPanel}
                 flowLinkSource={flowLinkSource}
-                addSectionQuick={addSectionQuick}
+                addOpSection={addOpSection}
                 clearTemplateFlowEdges={clearTemplateFlowEdges}
                 resetTemplateCanvasLayout={resetTemplateCanvasLayout}
                 handleFlowConnectorClick={handleFlowConnectorClick}
@@ -2841,6 +3016,7 @@ function App() {
                 addSlot={addSlot}
                 dragSnapPreview={dragSnapPreview}
                 autoLayoutTemplate={autoLayoutTemplate}
+                squadTypes={squadTypes}
               />
             </section>
           ) : null}
@@ -2953,6 +3129,7 @@ function App() {
                           isAdmin={isAdmin}
                           isMissionmaker={isMissionmaker}
                           uploadCustomMarker={uploadCustomMarker}
+                          squadTypes={squadTypes}
                         />
                       ))
                     ) : (

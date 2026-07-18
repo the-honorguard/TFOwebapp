@@ -1,0 +1,493 @@
+2026-07-18T09:38:02.857Z [db] 2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-14 18:14:32+00:00 [Note] [Entrypoint]: Initializing database files
+2026-07-14 18:14:43+00:00 [Note] [Entrypoint]: Database files initialized
+2026-07-14 18:14:43+00:00 [Note] [Entrypoint]: Starting temporary server
+
+2026-07-18T09:38:02.859Z [db:err] 2026-07-14T18:14:32.254604Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:32.254750Z 0 [System] [MY-013169] [Server] /usr/sbin/mysqld (mysqld 8.0.46) initializing of server in progress as process 80
+2026-07-14T18:14:32.279050Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:33.754346Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:35.973636Z 6 [Warning] [MY-010453] [Server] root@localhost is created with an empty password ! Please consider switching off the --initialize-insecure option.
+2026-07-14T18:14:44.220195Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:44.224570Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 124
+2026-07-14T18:14:44.260348Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:44.555062Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:44.885839Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-14T18:14:44.885897Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-14T18:14:44.888890Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-14T18:14:44.916108Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Socket: /var/run/mysqld/mysqlx.sock
+2026-07-14T18:14:44.916631Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 0  MySQL Community Server - GPL.
+Warning: Unable to load '/usr/share/zoneinfo/iso3166.tab' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/leap-seconds.list' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/leapseconds' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/tzdata.zi' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/zone.tab' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/zone1970.tab' as time zone. Skipping it.
+2026-07-14T18:14:48.812013Z 13 [System] [MY-013172] [Server] Received SHUTDOWN from user root. Shutting down mysqld (Version: 8.0.46).
+2026-07-14T18:14:50.759480Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.0.46)  MySQL Community Server - GPL.
+2026-07-14T18:14:51.074951Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:51.077555Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-14T18:14:51.098843Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:51.331360Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:51.572756Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-14T18:14:51.572839Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-14T18:14:51.578197Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-14T18:14:51.597842Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-14T18:14:51.598308Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+2026-07-15T19:23:47.415742Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-15T19:23:47.446385Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-15T19:23:47.545894Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-15T19:23:49.782459Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-15T19:23:50.174115Z 0 [System] [MY-010229] [Server] Starting XA crash recovery...
+2026-07-15T19:23:50.207842Z 0 [System] [MY-010232] [Server] XA crash recovery finished.
+2026-07-15T19:23:50.338555Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-15T19:23:50.338653Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-15T19:23:50.343184Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-15T19:23:50.374531Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-15T19:23:50.374641Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+2026-07-18T09:27:15.401701Z 0 [System] [MY-013172] [Server] Received SHUTDOWN from user <via user signal>. Shutting down mysqld (Version: 8.0.46).
+2026-07-18T09:27:16.996373Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.0.46)  MySQL Community Server - GPL.
+2026-07-18T09:28:19.227240Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-18T09:28:19.229355Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-18T09:28:19.238437Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-18T09:28:19.483886Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-18T09:28:19.656893Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-18T09:28:19.657009Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-18T09:28:19.660846Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-18T09:28:19.694326Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-18T09:28:19.694385Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+
+2026-07-18T09:38:02.860Z [db] 2026-07-14 18:14:44+00:00 [Note] [Entrypoint]: Temporary server started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Creating database tfowebapp
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Creating user tfo
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Giving user tfo access to schema tfowebapp
+
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Stopping temporary server
+2026-07-14 18:14:50+00:00 [Note] [Entrypoint]: Temporary server stopped
+
+2026-07-14 18:14:50+00:00 [Note] [Entrypoint]: MySQL init process done. Ready for start up.
+
+2026-07-15 19:23:42+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-15 19:23:46+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-15 19:23:46+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+
+2026-07-18T09:44:17.116Z [backend] 2026-07-18T09:44:16.645Z INFO Server running on http://localhost:3001 
+2026-07-18T09:44:16.663Z INFO DB connected {"rows":[{"ok":1}]}
+
+2026-07-18T09:44:19.119Z [backend] 2026-07-18T09:44:18.718Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.108Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:44:20.121Z [backend] 2026-07-18T09:44:19.459Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.461Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:44:29.161Z [backend] 2026-07-18T09:44:28.769Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:44:31.182Z [backend] 2026-07-18T09:44:30.619Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:30.625Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:44:35.209Z [backend] 2026-07-18T09:44:16.645Z INFO Server running on http://localhost:3001 
+2026-07-18T09:44:16.663Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T09:44:18.718Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.108Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.459Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.461Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:28.769Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:30.619Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:30.625Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:35.138Z INFO Log collector started {"pid":26408}
+
+2026-07-18T09:44:35.213Z [backend] 2026-07-18T09:44:35.138Z INFO Log collector started {"pid":26408}
+
+2026-07-18T09:44:35.931Z [db] 2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-14 18:14:32+00:00 [Note] [Entrypoint]: Initializing database files
+
+2026-07-18T09:44:35.933Z [db:err] 2026-07-14T18:14:32.254604Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:32.254750Z 0 [System] [MY-013169] [Server] /usr/sbin/mysqld (mysqld 8.0.46) initializing of server in progress as process 80
+2026-07-14T18:14:32.279050Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:33.754346Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:35.973636Z 6 [Warning] [MY-010453] [Server] root@localhost is created with an empty password ! Please consider switching off the --initialize-insecure option.
+2026-07-14T18:14:44.220195Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:44.224570Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 124
+2026-07-14T18:14:44.260348Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:44.555062Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:44.885839Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-14T18:14:44.885897Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-14T18:14:44.888890Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-14T18:14:44.916108Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Socket: /var/run/mysqld/mysqlx.sock
+2026-07-14T18:14:44.916631Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 0  MySQL Community Server - GPL.
+Warning: Unable to load '/usr/share/zoneinfo/iso3166.tab' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/leap-seconds.list' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/leapseconds' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/tzdata.zi' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/zone.tab' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/zone1970.tab' as time zone. Skipping it.
+2026-07-14T18:14:48.812013Z 13 [System] [MY-013172] [Server] Received SHUTDOWN from user root. Shutting down mysqld (Version: 8.0.46).
+2026-07-14T18:14:50.759480Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.0.46)  MySQL Community Server - GPL.
+2026-07-14T18:14:51.074951Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:51.077555Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-14T18:14:51.098843Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:51.331360Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:51.572756Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-14T18:14:51.572839Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-14T18:14:51.578197Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-14T18:14:51.597842Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-14T18:14:51.598308Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+2026-07-15T19:23:47.415742Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-15T19:23:47.446385Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-15T19:23:47.545894Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-15T19:23:49.782459Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-15T19:23:50.174115Z 0 [System] [MY-010229] [Server] Starting XA crash recovery...
+2026-07-15T19:23:50.207842Z 0 [System] [MY-010232] [Server] XA crash recovery finished.
+2026-07-15T19:23:50.338555Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-15T19:23:50.338653Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-15T19:23:50.343184Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-15T19:23:50.374531Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-15T19:23:50.374641Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+2026-07-18T09:27:15.401701Z 0 [System] [MY-013172] [Server] Received SHUTDOWN from user <via user signal>. Shutting down mysqld (Version: 8.0.46).
+2026-07-18T09:27:16.996373Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.0.46)  MySQL Community Server - GPL.
+2026-07-18T09:28:19.227240Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-18T09:28:19.229355Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-18T09:28:19.238437Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-18T09:28:19.483886Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-18T09:28:19.656893Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-18T09:28:19.657009Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-18T09:28:19.660846Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-18T09:28:19.694326Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-18T09:28:19.694385Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+
+2026-07-18T09:44:35.933Z [db] 2026-07-14 18:14:43+00:00 [Note] [Entrypoint]: Database files initialized
+2026-07-14 18:14:43+00:00 [Note] [Entrypoint]: Starting temporary server
+2026-07-14 18:14:44+00:00 [Note] [Entrypoint]: Temporary server started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Creating database tfowebapp
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Creating user tfo
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Giving user tfo access to schema tfowebapp
+
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Stopping temporary server
+2026-07-14 18:14:50+00:00 [Note] [Entrypoint]: Temporary server stopped
+
+2026-07-14 18:14:50+00:00 [Note] [Entrypoint]: MySQL init process done. Ready for start up.
+
+2026-07-15 19:23:42+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-15 19:23:46+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-15 19:23:46+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+
+2026-07-18T09:45:15.553Z [backend] 2026-07-18T09:45:14.649Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:15.204Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:15.554Z [backend] 2026-07-18T09:45:14.649Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:15.204Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:19.576Z [backend] 2026-07-18T09:45:19.209Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:19.575Z [backend] 2026-07-18T09:45:19.209Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:21.581Z [backend] 2026-07-18T09:45:20.808Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:21.581Z [backend] 2026-07-18T09:45:20.808Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:37.731Z [backend] 2026-07-18T09:45:36.838Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:37.731Z [backend] 2026-07-18T09:45:36.838Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:43.772Z [backend] 2026-07-18T09:45:42.901Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:45:43.787Z [backend] 2026-07-18T09:45:42.901Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:46:01.882Z [backend] 2026-07-18T09:46:00.918Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.920Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.922Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.924Z ERROR The above error occurred in the <App> component:
+
+App@http://localhost:5173/src/App.jsx:32:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:46:01.897Z [backend] 2026-07-18T09:46:00.918Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.920Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.922Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.924Z ERROR The above error occurred in the <App> component:
+
+App@http://localhost:5173/src/App.jsx:32:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:46:04.930Z [backend] 2026-07-18T09:46:04.749Z INFO Log collector stopped {"pid":26408}
+
+2026-07-18T09:54:14.759Z [backend] 2026-07-18T09:54:14.565Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:55:05.059Z [backend] 2026-07-18T09:55:04.312Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:55:37.296Z [backend] 2026-07-18T09:55:36.839Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:55:38.310Z [backend] 2026-07-18T09:55:38.297Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:55:42.338Z [backend] 2026-07-18T09:55:41.935Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:42.308Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:42.310Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:56:09.977Z [backend] 2026-07-18T09:44:16.645Z INFO Server running on http://localhost:3001 
+2026-07-18T09:44:16.663Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T09:44:18.718Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.108Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.459Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:19.461Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:28.769Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:30.619Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:30.625Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:44:35.138Z INFO Log collector started {"pid":26408}
+2026-07-18T09:45:14.649Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:15.204Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:19.209Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:20.808Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:36.838Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:45:42.901Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:46:00.918Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.920Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.922Z ERROR TypeError: a.sortKey.localeCompare is not a function {"filename":"http://localhost:5173/src/App.jsx","lineno":3023,"colno":38}
+2026-07-18T09:46:00.924Z ERROR The above error occurred in the <App> component:
+
+App@http://localhost:5173/src/App.jsx:32:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:46:04.749Z INFO Log collector stopped {"pid":26408}
+2026-07-18T09:54:14.565Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:04.312Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:36.839Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:38.297Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:41.935Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:42.308Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:55:42.310Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:56:09.908Z INFO Log collector started {"pid":10728}
+
+2026-07-18T09:56:10.541Z [backend] 2026-07-18T09:56:09.908Z INFO Log collector started {"pid":10728}
+2026-07-18T09:56:10.166Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:56:10.629Z [db] 2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-14 18:14:31+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-14 18:14:32+00:00 [Note] [Entrypoint]: Initializing database files
+
+2026-07-18T09:56:10.630Z [db:err] 2026-07-14T18:14:32.254604Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:32.254750Z 0 [System] [MY-013169] [Server] /usr/sbin/mysqld (mysqld 8.0.46) initializing of server in progress as process 80
+2026-07-14T18:14:32.279050Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:33.754346Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:35.973636Z 6 [Warning] [MY-010453] [Server] root@localhost is created with an empty password ! Please consider switching off the --initialize-insecure option.
+2026-07-14T18:14:44.220195Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:44.224570Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 124
+2026-07-14T18:14:44.260348Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:44.555062Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:44.885839Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-14T18:14:44.885897Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-14T18:14:44.888890Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-14T18:14:44.916108Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Socket: /var/run/mysqld/mysqlx.sock
+2026-07-14T18:14:44.916631Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 0  MySQL Community Server - GPL.
+Warning: Unable to load '/usr/share/zoneinfo/iso3166.tab' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/leap-seconds.list' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/leapseconds' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/tzdata.zi' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/zone.tab' as time zone. Skipping it.
+Warning: Unable to load '/usr/share/zoneinfo/zone1970.tab' as time zone. Skipping it.
+2026-07-14T18:14:48.812013Z 13 [System] [MY-013172] [Server] Received SHUTDOWN from user root. Shutting down mysqld (Version: 8.0.46).
+2026-07-14T18:14:50.759480Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.0.46)  MySQL Community Server - GPL.
+2026-07-14T18:14:51.074951Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-14T18:14:51.077555Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-14T18:14:51.098843Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-14T18:14:51.331360Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-14T18:14:51.572756Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-14T18:14:51.572839Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-14T18:14:51.578197Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-14T18:14:51.597842Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-14T18:14:51.598308Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+2026-07-15T19:23:47.415742Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-15T19:23:47.446385Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-15T19:23:47.545894Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-15T19:23:49.782459Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-15T19:23:50.174115Z 0 [System] [MY-010229] [Server] Starting XA crash recovery...
+2026-07-15T19:23:50.207842Z 0 [System] [MY-010232] [Server] XA crash recovery finished.
+2026-07-15T19:23:50.338555Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-15T19:23:50.338653Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-15T19:23:50.343184Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-15T19:23:50.374531Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-15T19:23:50.374641Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+2026-07-18T09:27:15.401701Z 0 [System] [MY-013172] [Server] Received SHUTDOWN from user <via user signal>. Shutting down mysqld (Version: 8.0.46).
+2026-07-18T09:27:16.996373Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.0.46)  MySQL Community Server - GPL.
+2026-07-18T09:28:19.227240Z 0 [Warning] [MY-011068] [Server] The syntax '--skip-host-cache' is deprecated and will be removed in a future release. Please use SET GLOBAL host_cache_size=0 instead.
+2026-07-18T09:28:19.229355Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.0.46) starting as process 1
+2026-07-18T09:28:19.238437Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+2026-07-18T09:28:19.483886Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+2026-07-18T09:28:19.656893Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+2026-07-18T09:28:19.657009Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+2026-07-18T09:28:19.660846Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+2026-07-18T09:28:19.694326Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+2026-07-18T09:28:19.694385Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.0.46'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
+
+2026-07-18T09:56:10.630Z [db] 2026-07-14 18:14:43+00:00 [Note] [Entrypoint]: Database files initialized
+2026-07-14 18:14:43+00:00 [Note] [Entrypoint]: Starting temporary server
+2026-07-14 18:14:44+00:00 [Note] [Entrypoint]: Temporary server started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Creating database tfowebapp
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Creating user tfo
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Giving user tfo access to schema tfowebapp
+
+2026-07-14 18:14:48+00:00 [Note] [Entrypoint]: Stopping temporary server
+2026-07-14 18:14:50+00:00 [Note] [Entrypoint]: Temporary server stopped
+
+2026-07-14 18:14:50+00:00 [Note] [Entrypoint]: MySQL init process done. Ready for start up.
+
+2026-07-15 19:23:42+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-15 19:23:46+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-15 19:23:46+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+2026-07-18 09:28:18+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.0.46-1.el9 started.
+'/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+
+2026-07-18T09:56:10.986Z [backend] 2026-07-18T09:56:10.166Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:56:13.006Z [backend] 2026-07-18T09:56:12.880Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:56:13.551Z [backend] 2026-07-18T09:56:12.880Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:56:21.610Z [backend] 2026-07-18T09:56:21.403Z INFO Log collector stopped {"pid":10728}
+2026-07-18T09:56:21.507Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:58:35.406Z [backend] 2026-07-18T09:58:35.213Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:58:38.423Z [backend] 2026-07-18T09:58:37.919Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:58:37.921Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:58:43.449Z [backend] 2026-07-18T09:58:42.472Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:58:53.509Z [backend] 2026-07-18T09:58:53.503Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T09:58:53.505Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T09:59:51.855Z [backend] 2026-07-18T09:59:50.903Z INFO Server running on http://localhost:3001 
+2026-07-18T09:59:50.943Z INFO DB connected {"rows":[{"ok":1}]}
+
+2026-07-18T09:59:52.856Z [backend] 2026-07-18T09:59:52.091Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:00:35.022Z [backend] 2026-07-18T10:00:34.867Z INFO Server running on http://localhost:3001 
+2026-07-18T10:00:34.907Z INFO DB connected {"rows":[{"ok":1}]}
+
+2026-07-18T10:01:10.213Z [backend] 2026-07-18T10:01:10.060Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:01:10.065Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:01:44.417Z [backend] 2026-07-18T10:01:43.537Z INFO Server running on http://localhost:3001 
+2026-07-18T10:01:43.559Z INFO DB connected {"rows":[{"ok":1}]}
+
+2026-07-18T10:01:52.487Z [backend] 2026-07-18T10:01:51.811Z INFO Server running on http://localhost:3001 
+2026-07-18T10:01:51.858Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-18T10:01:52.065Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:01:53.489Z [backend] 2026-07-18T10:01:52.521Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:01:52.522Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:02:25.654Z [backend] 2026-07-18T10:02:25.429Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:02:25.433Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:02:25.436Z ERROR The above error occurred in the <OrbatTemplate> component:
+
+OrbatTemplate@http://localhost:5173/src/OrbatTemplate.jsx:19:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx:32:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:02:25.440Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+
+2026-07-18T10:05:40.852Z [backend] 2026-07-18T10:05:40.126Z ERROR Delete section failed 404 {"error":"Template not found"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:05:40.179Z ERROR Delete section failed 404 {"error":"Template not found"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:10:25.631Z [backend] 2026-07-18T10:10:25.228Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:10:25.231Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:11:23.019Z [backend] 2026-07-18T10:11:22.591Z INFO Server running on http://localhost:3001 
+2026-07-18T10:11:22.638Z INFO DB connected {"rows":[{"ok":1}]}
+
+2026-07-18T10:11:36.082Z [backend] 2026-07-18T10:11:35.330Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:11:35.873Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:11:35.874Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:12:00.244Z [backend] 2026-07-18T10:12:00.094Z INFO [vite] server connection lost. Polling for restart... {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:12:01.248Z [backend] 2026-07-18T10:12:00.406Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:12:00.409Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:12:55.786Z [backend] 2026-07-18T10:12:54.785Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:13:04.878Z [backend] 2026-07-18T10:13:04.833Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:13:08.910Z [backend] 2026-07-18T10:13:08.777Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:08.779Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:13:13.968Z [backend] 2026-07-18T10:13:13.801Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:13:22.019Z [backend] 2026-07-18T10:13:21.821Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:21.824Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:13:33.112Z [backend] 2026-07-18T10:13:32.267Z ERROR The above error occurred in the <OrbatTemplate> component:
+
+OrbatTemplate@http://localhost:5173/src/OrbatTemplate.jsx:19:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx:39:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:13:32.271Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+2026-07-18T10:13:32.274Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+
+2026-07-18T10:13:35.124Z [backend] 2026-07-18T10:13:34.130Z ERROR TypeError: can't access property "map", template.sections is undefined {"filename":"http://localhost:5173/src/OrbatTemplate.jsx","lineno":97,"colno":19}
+
+2026-07-18T10:15:22.806Z [backend] 2026-07-18T10:15:22.363Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:15:43.958Z [backend] 2026-07-18T10:15:43.337Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:17:03.534Z [backend] 2026-07-18T10:17:03.347Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:17:08.589Z [backend] 2026-07-18T10:17:07.959Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:17:15.651Z [backend] 2026-07-18T10:17:15.408Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:15.410Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:17:43.869Z [backend] 2026-07-18T10:17:43.666Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:17:49.915Z [backend] 2026-07-18T10:17:49.278Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:17:49.280Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:18:03.003Z [backend] 2026-07-18T10:18:02.128Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:22:09.479Z [backend] 2026-07-18T10:22:08.803Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:22:08.806Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:22:31.628Z [backend] 2026-07-18T10:22:30.965Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:22:33.639Z [backend] 2026-07-18T10:22:32.845Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+
+2026-07-18T10:22:37.665Z [backend] 2026-07-18T10:22:36.934Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-18T10:22:36.936Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+

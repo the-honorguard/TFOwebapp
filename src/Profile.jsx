@@ -288,9 +288,7 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
                     alt="avatar"
                     style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
                   />
-                  {me.profile?.avatarCrop ? (
-                    <div style={{ position: 'absolute', left: `calc(${me.profile.avatarCrop.x}% - 10px)`, top: `calc(${me.profile.avatarCrop.y}% - 10px)`, width: 20, height: 20, borderRadius: 10, background: 'rgba(255,255,255,0.9)', border: '2px solid rgba(0,0,0,0.6)', pointerEvents: 'none' }} />
-                  ) : null}
+                  {/* removed center focus marker per user request */}
                 </div>
               ) : (
                 <div style={{ color: '#999', padding: 12 }}>No avatar</div>
@@ -316,10 +314,8 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
                               {cropImageUrl ? (
                                 <img ref={cropImgRef} src={cropImageUrl} alt="crop" style={{ position: 'absolute', left: cropState.posX + 'px', top: cropState.posY + 'px', transform: `scale(${cropState.baseScale * cropState.scale})`, transformOrigin: 'top left', willChange: 'transform' }} />
                               ) : null}
-                              {/* dim outside area */}
-                                <div style={{ position: 'absolute', inset: 0, boxShadow: 'inset 0 0 0 9999px rgba(0,0,0,0.55)', pointerEvents: 'none' }} />
-                                {/* square overlay (sharp frame) */}
-                                <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 320, height: 320, borderRadius: 0, border: '6px solid rgba(255,255,255,0.95)', boxSizing: 'border-box', pointerEvents: 'none' }} />
+                              {/* overlay that darkens only the area outside the square (keeps center clear) */}
+                                <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 320, height: 320, borderRadius: 0, border: '6px solid rgba(255,255,255,0.95)', boxSizing: 'border-box', pointerEvents: 'none', boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)' }} />
                             </div>
                           </div>
                         </div>
