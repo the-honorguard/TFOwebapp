@@ -82,6 +82,12 @@
       // leave paths unchanged.
       const API_BASE = (location.port && Number(location.port) !== 3001) ? `${location.protocol}//${location.hostname}:3001` : '';
 
+      function apiUrl(path) {
+        if (!path) return API_BASE || path;
+        if (path.startsWith('http')) return path;
+        return API_BASE ? (API_BASE + path) : path;
+      }
+
       async function postJson(path, body) {
         const full = (path && path.startsWith('http')) ? path : (API_BASE ? (API_BASE + path) : path);
         status.textContent = 'Working...';
@@ -114,10 +120,22 @@
         e.preventDefault();
         status.textContent = '';
         try {
-          const res = await fetch('/init/create-admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: 'admin' }) });
-          if (res.status === 409) { status.textContent = 'admin user already exists'; return; }
-          if (!res.ok) { const b = await res.json().catch(() => ({})); status.textContent = 'Error: ' + (b.error || res.statusText); return; }
-          status.textContent = 'Default admin created (admin/admin)';
+          const res = await fetch(apiUrl('/init/create-admin'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: 'admin' }) });
+          if (res.status === 409) { status.textContent = 'admin user already exists'; }
+          else if (!res.ok) { const b = await res.json().catch(() => ({})); status.textContent = 'Error: ' + (b.error || res.statusText); return; }
+          // Attempt to login immediately so the token becomes available for export
+          try {
+            const lr = await fetch(apiUrl('/api/login'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: 'admin' }) });
+            if (lr.ok) {
+              const lj = await lr.json();
+              if (lj && lj.token) localStorage.setItem('token', lj.token);
+              status.textContent = 'Default admin created and logged in (admin/admin)';
+            } else {
+              status.textContent = 'Default admin created (login failed)';
+            }
+          } catch (inner) {
+            status.textContent = 'Default admin created (login error)';
+          }
         } catch (err) {
           status.textContent = 'Request failed: ' + (err && err.message ? err.message : String(err));
         }
@@ -217,7 +235,7 @@
           const token = localStorage.getItem('token');
           const headers = { 'Content-Type': 'application/json' };
           if (token) headers['Authorization'] = 'Bearer ' + token;
-          const res = await fetch('/api/backup/import', { method: 'POST', headers, body: JSON.stringify(payload) });
+          const res = await fetch(apiUrl('/api/backup/import'), { method: 'POST', headers, body: JSON.stringify(payload) });
           if (!res.ok) {
             const body = await res.json().catch(() => ({}));
             status.textContent = 'Restore failed: ' + (body && body.error ? body.error : res.statusText);
@@ -236,9 +254,19 @@
         try {
           const token = localStorage.getItem('token');
           const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
-          const res = await fetch('/api/backup', { headers });
-          if (!res.ok) { status.textContent = 'Failed to export backup'; return; }
-          const j = await res.json();
+          const res = await fetch(apiUrl('/api/backup'), { headers });
+          const text = await res.text().catch(() => '');
+          let j = null;
+          try { j = text ? JSON.parse(text) : null; } catch (e) { j = { text }; }
+          if (!res.ok) {
+            const errMsg = j && j.error ? j.error : res.statusText || 'Failed to export backup';
+            status.textContent = 'Failed to export backup: ' + errMsg;
+            return;
+          }
+          if (!j || !j.data || (Object.keys(j.data).length === 0 && (!Array.isArray(j.uploads) || j.uploads.length === 0))) {
+            status.textContent = 'No data to export';
+            return;
+          }
           const fname = `tfo-backup-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
           const blob = new Blob([JSON.stringify(j, null, 2)], { type: 'application/json' });
           const url = URL.createObjectURL(blob);
@@ -251,7 +279,7 @@
 
       async function fetchDbInfo() {
         try {
-          const res = await fetch('/api/db-info');
+          const res = await fetch(apiUrl('/api/db-info'));
           if (!res.ok) { document.getElementById('dbInfo').textContent = 'Could not fetch DB info'; return; }
           const j = await res.json();
           const div = document.getElementById('dbInfo');
@@ -287,7 +315,7 @@
 
       async function fetchDbHealth() {
         try {
-          const res = await fetch('/api/db-health');
+          const res = await fetch(apiUrl('/api/db-health'));
           if (!res.ok) {
             dbStatusEl.textContent = 'DB: unreachable';
             dbStatusEl.style.color = '#900';
@@ -320,7 +348,7 @@
       async function fetchDbHealthAndInfo() {
         await fetchDbHealth();
         try {
-          const res = await fetch('/api/db-info');
+          const res = await fetch(apiUrl('/api/db-info'));
           if (!res.ok) {
             document.getElementById('dbInfo').textContent = 'Could not fetch DB info';
             return;
@@ -351,7 +379,7 @@
       // Poll init status and update UI so actions reflect current DB state
       async function fetchInitStatus() {
         try {
-          const res = await fetch('/api/init-status');
+          const res = await fetch(apiUrl('/api/init-status'));
           if (!res.ok) return;
           const j = await res.json();
           const initialized = Boolean(j.initialized);

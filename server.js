@@ -1528,6 +1528,18 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
         }
       }
 
+      // If the data object contains no meaningful items and there are no uploads,
+      // return a clear client error so the UI can present a helpful message.
+      const keysToCheck = ['users','templates','ops','recurrences','campaigns','ranks','customRoles','modlists','files','backups','roles'];
+      let hasAny = false;
+      for (const k of keysToCheck) {
+        if (Array.isArray(data[k]) && data[k].length > 0) { hasAny = true; break; }
+        if (data[k] && typeof data[k] === 'object' && Object.keys(data[k]).length > 0) { hasAny = true; break; }
+      }
+      if (!hasAny && (!Array.isArray(uploads) || uploads.length === 0)) {
+        return res.status(400).json({ error: 'No data available to export' });
+      }
+
       res.json({ data, uploads });
     } catch (e) {
       console.error('Backup export error', e);
