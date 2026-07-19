@@ -259,7 +259,7 @@ function App() {
     }));
     setUsers(data.users || []);
     setTemplates(templateList);
-    setOps(data.ops || []);
+    setOps((data.ops || []).map(normalizeOp));
     console.debug('[applyLoadedData] loaded ops count', (data.ops || []).length);
     setRecurrences(data.recurrences || []);
     setCampaigns(data.campaigns || []);

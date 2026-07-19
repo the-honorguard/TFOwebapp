@@ -1,3 +1,22 @@
+process.on('uncaughtException', (err) => {
+  try {
+    require('fs').writeFileSync(
+        __dirname + '/crash.log',
+        String(err && err.stack ? err.stack : err)
+    );
+  } catch (e) {}
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  try {
+    require('fs').writeFileSync(
+        __dirname + '/crash.log',
+        'unhandledRejection: ' + String(err && err.stack ? err.stack : err)
+    );
+  } catch (e) {}
+  process.exit(1);
+});
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
@@ -1841,6 +1860,12 @@ app.get('*', (req, res) => {
 });
 
 // Attempt to ensure DB initialization at startup, but do not crash server if DB is unavailable.
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   logger.info(`Server running on http://localhost:${PORT}`);
+  try {
+    await ensureDbInitialized();
+    logger.info('Schema check complete');
+  } catch (e) {
+    logger.error('Schema check failed', { err: e.message });
+  }
 });
