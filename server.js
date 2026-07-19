@@ -459,8 +459,8 @@ function findTemplate(data, id) {
 }
 
 function findSlot(template, slotId) {
-  for (const section of template.sections) {
-    const slot = section.slots.find((s) => s.id === Number(slotId));
+  for (const squad of template.squads) {
+    const slot = squad.slots.find((s) => s.id === Number(slotId));
     if (slot) return slot;
   }
   return null;
@@ -471,41 +471,41 @@ function findOp(data, id) {
 }
 
 function findOpSlot(op, slotId) {
-  for (const section of op.sections || []) {
-    const slot = (section.slots || []).find((item) => item.id === Number(slotId));
+  for (const squad of op.squads || []) {
+    const slot = (squad.slots || []).find((item) => item.id === Number(slotId));
     if (slot) return slot;
   }
   return null;
 }
 
-// Helper: build operation sections by copying template section/slot structure
+// Helper: build operation squads by copying template squad/slot structure
 
 /**
- * Create a copy of the template sections suitable for an operation instance.
- * Existing section data (like assignedUserId) can be preserved when provided.
+ * Create a copy of the template squads suitable for an operation instance.
+ * Existing squad data (like assignedUserId) can be preserved when provided.
  */
-function buildOpSectionsFromTemplate(template, existingSections = []) {
-  // Create a fully independent copy of template sections/slots for an operation.
-  // New ids are generated for op sections and slots; we record the original
-  // template ids on `originalSectionId` / `originalSlotId` so the client can
+function buildOpSquadsFromTemplate(template, existingSquads = []) {
+  // Create a fully independent copy of template squads/slots for an operation.
+  // New ids are generated for op squads and slots; we record the original
+  // template ids on `originalSquadId` / `originalSlotId` so the client can
   // map template flow edges to the operation copy if desired.
-  return (template.sections || []).map((section, index) => {
-    // Try to find an existing op section that corresponds to this template section
-    // by matching `originalSectionId` if present (preserve previous op-specific ids/assignments).
-    const existingSection = existingSections.find((item) => item.originalSectionId === section.id) || null;
+  return (template.squads || []).map((squad, index) => {
+    // Try to find an existing op squad that corresponds to this template squad
+    // by matching `originalSquadId` if present (preserve previous op-specific ids/assignments).
+    const existingSquad = existingSquads.find((item) => item.originalSquadId === squad.id) || null;
 
-    const opSectionId = existingSection ? existingSection.id : (Date.now() + Math.floor(Math.random() * 1000) + index);
+    const opSquadId = existingSquad ? existingSquad.id : (Date.now() + Math.floor(Math.random() * 1000) + index);
 
     return {
-      id: opSectionId,
-      originalSectionId: section.id,
-      title: section.title,
-      lrChannel: section.lrChannel ?? existingSection?.lrChannel ?? 1,
-      srChannel: section.srChannel ?? existingSection?.srChannel ?? (index + 1),
-      marker: section.marker ?? existingSection?.marker ?? null,
-      markerIconUrl: section.markerIconUrl ?? existingSection?.markerIconUrl ?? null,
-      slots: (section.slots || []).map((slot, sIndex) => {
-        const existingSlot = existingSection?.slots?.find((item) => item.originalSlotId === slot.id) || null;
+      id: opSquadId,
+      originalSquadId: squad.id,
+      title: squad.title,
+      lrChannel: squad.lrChannel ?? existingSquad?.lrChannel ?? 1,
+      srChannel: squad.srChannel ?? existingSquad?.srChannel ?? (index + 1),
+      marker: squad.marker ?? existingSquad?.marker ?? null,
+      markerIconUrl: squad.markerIconUrl ?? existingSquad?.markerIconUrl ?? null,
+      slots: (squad.slots || []).map((slot, sIndex) => {
+        const existingSlot = existingSquad?.slots?.find((item) => item.originalSlotId === slot.id) || null;
         const opSlotId = existingSlot ? existingSlot.id : (Date.now() + Math.floor(Math.random() * 1000) + index * 100 + sIndex);
 
         return {
@@ -532,38 +532,46 @@ function normalizeStorage(data) {
     permissions: user.permissions || {}
   }));
 
-  data.templates = (data.templates || []).map((template) => ({
+  data.templates = (data.templates || []).map((template) => {
+    const squads = template.squads || template.sections || [];
+    return {
     ...template,
-    sections: (template.sections || []).map((section, index) => ({
-      ...section,
-      marker: section.marker ?? null,
-      markerIconUrl: section.markerIconUrl ?? null,
-      lrChannel: section.lrChannel ?? 1,
-      srChannel: section.srChannel ?? (index + 1),
-      slots: (section.slots || []).map((slot) => ({
+    squads: squads.map((squad, index) => ({
+      ...squad,
+      originalSquadId: squad.originalSquadId ?? squad.originalSectionId,
+      marker: squad.marker ?? null,
+      markerIconUrl: squad.markerIconUrl ?? null,
+      lrChannel: squad.lrChannel ?? 1,
+      srChannel: squad.srChannel ?? (index + 1),
+      slots: (squad.slots || []).map((slot) => ({
         ...slot,
         allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
         notes: slot.notes || '',
         assignedUserId: slot.assignedUserId ?? null
       }))
     }))
-  }));
+  };
+  });
 
-  data.ops = (data.ops || []).map((op) => ({
+  data.ops = (data.ops || []).map((op) => {
+    const squads = op.squads || op.sections || [];
+    return {
     ...op,
     serverName: op.serverName || '',
     modlist: op.modlist || '',
     modlistPlayer: op.modlistPlayer || '',
     modlistServer: op.modlistServer || '',
     tsAddress: op.tsAddress || '',
-      sections: (op.sections || []).map((section, index) => ({
-      ...section,
-      marker: section.marker ?? null,
-      markerIconUrl: section.markerIconUrl ?? null,
-      lrChannel: section.lrChannel ?? 1,
-      srChannel: section.srChannel ?? (index + 1)
+      squads: squads.map((squad, index) => ({
+      ...squad,
+      originalSquadId: squad.originalSquadId ?? squad.originalSectionId,
+      marker: squad.marker ?? null,
+      markerIconUrl: squad.markerIconUrl ?? null,
+      lrChannel: squad.lrChannel ?? 1,
+      srChannel: squad.srChannel ?? (index + 1)
     }))
-  }));
+  };
+  });
   data.recurrences = data.recurrences || [];
   data.campaigns = (data.campaigns || []).map((c) => ({
     id: c.id,
@@ -669,10 +677,10 @@ async function generateRecurringOps(data) {
         time: nextDate.toISOString().slice(11, 16),
         createdAt: new Date().toISOString(),
         recurrenceId: recurrence.id,
-        sections: recurrence.sections.map((section) => ({
-          id: section.id,
-          title: section.title,
-          slots: section.slots.map((slot) => ({ ...slot }))
+        squads: recurrence.squads.map((squad) => ({
+          id: squad.id,
+          title: squad.title,
+          slots: squad.slots.map((slot) => ({ ...slot }))
         }))
       };
       data.ops.push(op);
@@ -812,7 +820,7 @@ app.put('/api/users/me/password', authMiddleware, async (req, res) => {
 app.post('/api/templates', authMiddleware, requireAdmin, (req, res) => {
   (async () => {
     try {
-      const t = await (await import('./repositories/templates.js')).createTemplate({ id: Date.now(), name: req.body.name, ownerId: req.user?.id || null, data: { sections: [] } });
+      const t = await (await import('./repositories/templates.js')).createTemplate({ id: Date.now(), name: req.body.name, ownerId: req.user?.id || null, data: { squads: [] } });
       res.json({ template: t });
     } catch (err) {
       console.error('Create template error', err);
@@ -843,14 +851,14 @@ app.post('/api/templates/:id/duplicate', authMiddleware, requireAdmin, (req, res
       if (!source) return res.status(404).json({ error: 'Template not found' });
       const nextId = () => Date.now() + Math.floor(Math.random() * 10000);
       const newTemplateData = {
-        sections: (source.data.sections || []).map((section) => ({
+        squads: (source.data.squads || []).map((squad) => ({
           id: nextId(),
-          title: section.title,
-          lrChannel: section.lrChannel || 1,
-          srChannel: section.srChannel || 1,
-          marker: section.marker || null,
-          markerIconUrl: section.markerIconUrl || null,
-          slots: (section.slots || []).map((slot) => ({
+          title: squad.title,
+          lrChannel: squad.lrChannel || 1,
+          srChannel: squad.srChannel || 1,
+          marker: squad.marker || null,
+          markerIconUrl: squad.markerIconUrl || null,
+          slots: (squad.slots || []).map((slot) => ({
             id: nextId(),
             name: slot.name,
             role: slot.role,
@@ -933,14 +941,14 @@ app.post('/api/ops', authMiddleware, requireAdmin, async (req, res) => {
     const tplRepo = await import('./repositories/templates.js');
     const opsRepo = await import('./repositories/ops.js');
     const tplId = (req.body.templateId === null || req.body.templateId === undefined || req.body.templateId === '') ? null : Number(req.body.templateId);
-    let sections = [];
+    let squads = [];
     if (tplId) {
       const template = await tplRepo.getTemplateById(tplId);
       if (!template) return res.status(404).json({ error: 'Template not found' });
-      sections = buildOpSectionsFromTemplate({ sections: template.data.sections || [] });
+      squads = buildOpSquadsFromTemplate({ squads: template.data.squads || [] });
     } else {
-      // No template selected: create an op with empty sections instead of throwing
-      sections = [];
+      // No template selected: create an op with empty squads instead of throwing
+      squads = [];
     }
     const recurrence = req.body.recurrence || 'none';
     const payload = {
@@ -955,7 +963,7 @@ app.post('/api/ops', authMiddleware, requireAdmin, async (req, res) => {
       modlistServer: req.body.modlistServer || '',
       tsAddress: req.body.tsAddress || '',
       createdAt: new Date().toISOString(),
-      sections
+      squads
     };
 
     if (recurrence === 'none') {
@@ -996,8 +1004,8 @@ app.post('/api/ops/:id/load-template', authMiddleware, async (req, res) => {
     if (!templateId) return res.status(400).json({ error: 'No templateId provided' });
     const template = data.templates.find((t) => t.id === templateId);
     if (!template) return res.status(404).json({ error: 'Template not found' });
-    const existingSections = op.sections || [];
-    op.sections = buildOpSectionsFromTemplate({ sections: template.sections || [] }, existingSections);
+    const existingSquads = op.squads || [];
+    op.squads = buildOpSquadsFromTemplate({ squads: template.squads || [] }, existingSquads);
     op.templateId = templateId;
     await persistData(data);
     res.json({ op });
@@ -1013,14 +1021,14 @@ app.post('/api/ops/:id/join', authMiddleware, async (req, res) => {
     const opsRepo = await import('./repositories/ops.js');
     const op = await opsRepo.getOpById(Number(req.params.id));
     if (!op) return res.status(404).json({ error: 'Operation not found' });
-    const slot = op.payload.sections.flatMap((s) => s.slots).find((sl) => sl.id === Number(req.body.slotId));
+    const slot = op.payload.squads.flatMap((s) => s.slots).find((sl) => sl.id === Number(req.body.slotId));
     if (!slot) return res.status(404).json({ error: 'Slot not found' });
     if (!slot.allowedRoles.includes(req.user.role) && req.user.role !== 'admin') return res.status(403).json({ error: 'No permission for this slot' });
-    const existingSlot = op.payload.sections.flatMap((s) => s.slots).find((other) => other.assignedUserId === req.user.id);
+    const existingSlot = op.payload.squads.flatMap((s) => s.slots).find((other) => other.assignedUserId === req.user.id);
     if (existingSlot && existingSlot.id !== slot.id) return res.status(409).json({ error: 'You are already signed up to another slot for this operation' });
     if (slot.assignedUserId && slot.assignedUserId !== req.user.id) return res.status(409).json({ error: 'This slot is already taken' });
     await opsRepo.joinSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
-    // Return the op in the same normalized shape as /api/public-data (sections at top-level)
+    // Return the op in the same normalized shape as /api/public-data (squads at top-level)
     const dataAfter = await getData();
     const opAfter = findOp(dataAfter, Number(req.params.id));
     console.log('[server] join result', { opId: opAfter?.id });
@@ -1036,7 +1044,7 @@ app.post('/api/ops/:id/signoff', authMiddleware, async (req, res) => {
     console.log('[server] POST /api/ops/:id/signoff', { opId: req.params.id, slotId: req.body.slotId, user: req.user?.id });
     const opsRepo = await import('./repositories/ops.js');
     await opsRepo.signoffSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
-    // Return normalized op shape so client UI receives `sections` at top-level
+    // Return normalized op shape so client UI receives `squads` at top-level
     const dataAfter = await getData();
     const opAfter = findOp(dataAfter, Number(req.params.id));
     console.log('[server] signoff result', { opId: opAfter?.id });
@@ -1047,7 +1055,7 @@ app.post('/api/ops/:id/signoff', authMiddleware, async (req, res) => {
   }
 });
 
-app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, async (req, res) => {
+app.put('/api/ops/:opId/squads/:squadId', authMiddleware, async (req, res) => {
   try {
     const isAdminUser = req.user?.role === 'admin';
     const isMissionmaker = req.user?.role === 'missionmaker';
@@ -1058,10 +1066,10 @@ app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, async (req, res) =
     if ('srChannel' in req.body) { if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' }); patch.srChannel = Number(req.body.srChannel); }
     if ('marker' in req.body) { patch.marker = req.body.marker === null ? null : (typeof req.body.marker === 'string' ? req.body.marker.trim() : undefined); }
     if ('markerIconUrl' in req.body) { patch.markerIconUrl = req.body.markerIconUrl === null ? null : (typeof req.body.markerIconUrl === 'string' ? req.body.markerIconUrl.trim() : undefined); }
-    const updated = await opsRepo.updateSection(Number(req.params.opId), Number(req.params.sectionId), patch);
+    const updated = await opsRepo.updateSquad(Number(req.params.opId), Number(req.params.squadId), patch);
     res.json({ op: updated });
   } catch (err) {
-    console.error('Update op section error', err);
+    console.error('Update op squad error', err);
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
@@ -1098,7 +1106,7 @@ app.put('/api/ops/:id', authMiddleware, async (req, res) => {
     const payloadFields = ['date', 'time', 'serverName', 'modlist', 'modlistPlayer', 'modlistServer', 'tsAddress'];
     const hasPayloadChange = payloadFields.some((f) => typeof req.body[f] === 'string');
     if (hasPayloadChange) {
-      // Merge into existing payload to avoid destroying stored fields (name, sections, etc.)
+      // Merge into existing payload to avoid destroying stored fields (name, squads, etc.)
       patch.payload = { ...(existing.payload || {}) };
       if (typeof req.body.date === 'string') patch.payload.date = req.body.date;
       if (typeof req.body.time === 'string') patch.payload.time = req.body.time;
@@ -1144,13 +1152,13 @@ app.put('/api/roles/rename', authMiddleware, requireAdmin, async (req, res) => {
     });
   };
 
-  const renameInSections = (sections) => {
-    (sections || []).forEach((section) => renameInSlots(section.slots));
+  const renameInSquads = (squads) => {
+    (squads || []).forEach((squad) => renameInSlots(squad.slots));
   };
 
-  data.templates.forEach((t) => renameInSections(t.sections));
-  (data.ops || []).forEach((op) => renameInSections(op.sections));
-  (data.recurrences || []).forEach((rec) => renameInSections(rec.sections));
+  data.templates.forEach((t) => renameInSquads(t.squads));
+  (data.ops || []).forEach((op) => renameInSquads(op.squads));
+  (data.recurrences || []).forEach((rec) => renameInSquads(rec.squads));
 
   data.users.forEach((user) => {
     if (user.permissions && user.permissions[oldName] !== undefined) {
@@ -1402,28 +1410,28 @@ app.delete('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
   })();
 });
 
-app.post('/api/templates/:templateId/sections', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/templates/:templateId/squads', authMiddleware, requireAdmin, (req, res) => {
   (async () => {
     try {
-      console.debug('POST /api/templates/:templateId/sections', { templateId: req.params.templateId, body: req.body });
+      console.debug('POST /api/templates/:templateId/squads', { templateId: req.params.templateId, body: req.body });
       const tplRepo = await import('./repositories/templates.js');
       const template = await tplRepo.getTemplateById(Number(req.params.templateId));
       if (!template) return res.status(404).json({ error: 'Template not found' });
-      const section = {
+      const squad = {
         id: Date.now(),
-        title: req.body.title || 'New section',
+        title: req.body.title || 'New squad',
         lrChannel: 1,
-        srChannel: (template.data.sections || []).length + 1,
+        srChannel: (template.data.squads || []).length + 1,
         marker: req.body.marker || null,
         markerIconUrl: req.body.markerIconUrl || null,
         slots: []
       };
-      template.data.sections = template.data.sections || [];
-      template.data.sections.push(section);
+      template.data.squads = template.data.squads || [];
+      template.data.squads.push(squad);
       const updated = await tplRepo.updateTemplate(template.id, { data: template.data });
-      res.json({ section });
+      res.json({ squad });
     } catch (err) {
-      console.error('Add section error', err && err.stack ? err.stack : err);
+      console.error('Add squad error', err && err.stack ? err.stack : err);
       res.status(500).json({ error: err.message || 'Server error' });
     }
   })();
@@ -1434,50 +1442,50 @@ function isValidChannel(value) {
   return Number.isInteger(num) && num >= 0 && num <= 99;
 }
 
-app.put('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/templates/:templateId/squads/:squadId', authMiddleware, requireAdmin, async (req, res) => {
     try {
       const tplRepo = await import('./repositories/templates.js');
       const template = await tplRepo.getTemplateById(Number(req.params.templateId));
       if (!template) return res.status(404).json({ error: 'Template not found' });
-      const section = (template.data.sections || []).find((item) => item.id === Number(req.params.sectionId));
-      if (!section) return res.status(404).json({ error: 'Section not found' });
-      if (typeof req.body.title === 'string' && req.body.title.trim()) section.title = req.body.title.trim();
-      if ('lrChannel' in req.body) { if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' }); section.lrChannel = Number(req.body.lrChannel); }
-      if ('srChannel' in req.body) { if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' }); section.srChannel = Number(req.body.srChannel); }
-      if ('marker' in req.body) { if (req.body.marker === null) section.marker = null; else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim(); else return res.status(400).json({ error: 'marker must be a string or null' }); }
-      if ('markerIconUrl' in req.body) { if (req.body.markerIconUrl === null) section.markerIconUrl = null; else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim(); else return res.status(400).json({ error: 'markerIconUrl must be a string or null' }); }
+      const squad = (template.data.squads || []).find((item) => item.id === Number(req.params.squadId));
+      if (!squad) return res.status(404).json({ error: 'Squad not found' });
+      if (typeof req.body.title === 'string' && req.body.title.trim()) squad.title = req.body.title.trim();
+      if ('lrChannel' in req.body) { if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' }); squad.lrChannel = Number(req.body.lrChannel); }
+      if ('srChannel' in req.body) { if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' }); squad.srChannel = Number(req.body.srChannel); }
+      if ('marker' in req.body) { if (req.body.marker === null) squad.marker = null; else if (typeof req.body.marker === 'string') squad.marker = req.body.marker.trim(); else return res.status(400).json({ error: 'marker must be a string or null' }); }
+      if ('markerIconUrl' in req.body) { if (req.body.markerIconUrl === null) squad.markerIconUrl = null; else if (typeof req.body.markerIconUrl === 'string') squad.markerIconUrl = req.body.markerIconUrl.trim(); else return res.status(400).json({ error: 'markerIconUrl must be a string or null' }); }
       await tplRepo.updateTemplate(template.id, { data: template.data });
-      res.json({ section });
+      res.json({ squad });
     } catch (err) {
-      console.error('Update section error', err);
+      console.error('Update squad error', err);
       res.status(500).json({ error: 'Server error' });
     }
 });
 
-app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/ops/:opId/squads/:squadId', authMiddleware, requireAdmin, async (req, res) => {
   const data = await getData();
   const op = findOp(data, req.params.opId);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
 
-  const section = (op.sections || []).find((item) => item.id === Number(req.params.sectionId));
-  if (!section) return res.status(404).json({ error: 'Section not found' });
+  const squad = (op.squads || []).find((item) => item.id === Number(req.params.squadId));
+  if (!squad) return res.status(404).json({ error: 'Squad not found' });
 
   if ('lrChannel' in req.body) {
     if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' });
-    section.lrChannel = Number(req.body.lrChannel);
+    squad.lrChannel = Number(req.body.lrChannel);
   }
   if ('srChannel' in req.body) {
     if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
-    section.srChannel = Number(req.body.srChannel);
+    squad.srChannel = Number(req.body.srChannel);
   }
   if ('marker' in req.body) {
-    if (req.body.marker === null) section.marker = null;
-    else if (typeof req.body.marker === 'string') section.marker = req.body.marker.trim();
+    if (req.body.marker === null) squad.marker = null;
+    else if (typeof req.body.marker === 'string') squad.marker = req.body.marker.trim();
     else return res.status(400).json({ error: 'marker must be a string or null' });
   }
   if ('markerIconUrl' in req.body) {
-    if (req.body.markerIconUrl === null) section.markerIconUrl = null;
-    else if (typeof req.body.markerIconUrl === 'string') section.markerIconUrl = req.body.markerIconUrl.trim();
+    if (req.body.markerIconUrl === null) squad.markerIconUrl = null;
+    else if (typeof req.body.markerIconUrl === 'string') squad.markerIconUrl = req.body.markerIconUrl.trim();
     else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
   }
 
@@ -1485,85 +1493,85 @@ app.put('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, asyn
   res.json({ op });
 });
 
-app.post('/api/ops/:opId/sections', authMiddleware, async (req, res) => {
+app.post('/api/ops/:opId/squads', authMiddleware, async (req, res) => {
   try {
     const isAdminUser = req.user?.role === 'admin';
     const isMissionmaker = req.user?.role === 'missionmaker';
     if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
     const opsRepo = await import('./repositories/ops.js');
-    const op = await opsRepo.addSection(Number(req.params.opId), req.body.title || null);
+    const op = await opsRepo.addSquad(Number(req.params.opId), req.body.title || null);
     if (!op) return res.status(404).json({ error: 'Operation not found' });
     res.json({ op });
   } catch (err) {
-    console.error('Add op section error', err && err.stack ? err.stack : err);
+    console.error('Add op squad error', err && err.stack ? err.stack : err);
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
-app.delete('/api/ops/:opId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/ops/:opId/squads/:squadId', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const opsRepo = await import('./repositories/ops.js');
     const op = await opsRepo.getOpById(Number(req.params.opId));
     if (!op) return res.status(404).json({ error: 'Operation not found' });
-    const sections = op.payload.sections || [];
-    const idx = sections.findIndex((s) => s.id === Number(req.params.sectionId));
-    if (idx === -1) return res.status(404).json({ error: 'Section not found' });
-    sections.splice(idx, 1);
-    op.payload.sections = sections;
+    const squads = op.payload.squads || [];
+    const idx = squads.findIndex((s) => s.id === Number(req.params.squadId));
+    if (idx === -1) return res.status(404).json({ error: 'Squad not found' });
+    squads.splice(idx, 1);
+    op.payload.squads = squads;
     await opsRepo.updateOp(Number(req.params.opId), { payload: op.payload });
     const updated = await opsRepo.getOpById(Number(req.params.opId));
     res.json({ op: updated });
   } catch (err) {
-    console.error('Delete op section error', err && err.stack ? err.stack : err);
+    console.error('Delete op squad error', err && err.stack ? err.stack : err);
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
-app.delete('/api/templates/:templateId/sections/:sectionId', authMiddleware, requireAdmin, async (req, res) => {
-  console.debug('DELETE /api/templates/:templateId/sections/:sectionId', { templateId: req.params.templateId, sectionId: req.params.sectionId });
+app.delete('/api/templates/:templateId/squads/:squadId', authMiddleware, requireAdmin, async (req, res) => {
+  console.debug('DELETE /api/templates/:templateId/squads/:squadId', { templateId: req.params.templateId, squadId: req.params.squadId });
   const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
-  const sectionIndex = template.sections.findIndex((item) => item.id === Number(req.params.sectionId));
-  if (sectionIndex === -1) return res.status(404).json({ error: 'Section not found' });
+  const squadIndex = template.squads.findIndex((item) => item.id === Number(req.params.squadId));
+  if (squadIndex === -1) return res.status(404).json({ error: 'Squad not found' });
 
-  template.sections.splice(sectionIndex, 1);
+  template.squads.splice(squadIndex, 1);
   try {
     await persistData(data);
     res.status(204).end();
   } catch (err) {
-    console.error('Delete section persist error', err && err.stack ? err.stack : err);
+    console.error('Delete squad persist error', err && err.stack ? err.stack : err);
     res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 
-app.put('/api/templates/:templateId/sections/:sectionId/slots/reorder', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/templates/:templateId/squads/:squadId/slots/reorder', authMiddleware, requireAdmin, async (req, res) => {
   const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
-  const section = template.sections.find((item) => item.id === Number(req.params.sectionId));
-  if (!section) return res.status(404).json({ error: 'Section not found' });
+  const squad = template.squads.find((item) => item.id === Number(req.params.squadId));
+  if (!squad) return res.status(404).json({ error: 'Squad not found' });
 
   const slotIds = Array.isArray(req.body.slotIds) ? req.body.slotIds.map(Number) : null;
   if (!slotIds) return res.status(400).json({ error: 'slotIds must be an array' });
 
-  const currentIds = section.slots.map((slot) => Number(slot.id));
+  const currentIds = squad.slots.map((slot) => Number(slot.id));
   const uniqueSlotIds = new Set(slotIds);
   if (
     slotIds.length !== currentIds.length
     || uniqueSlotIds.size !== slotIds.length
     || currentIds.some((id) => !uniqueSlotIds.has(id))
   ) {
-    return res.status(400).json({ error: 'slotIds do not match section slots' });
+    return res.status(400).json({ error: 'slotIds do not match squad slots' });
   }
 
-  const slotMap = new Map(section.slots.map((slot) => [Number(slot.id), slot]));
-  section.slots = slotIds.map((slotId) => slotMap.get(slotId));
+  const slotMap = new Map(squad.slots.map((slot) => [Number(slot.id), slot]));
+  squad.slots = slotIds.map((slotId) => slotMap.get(slotId));
 
   await persistData(data);
-  res.json({ section });
+  res.json({ squad });
 });
 
 app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, async (req, res) => {
@@ -1572,8 +1580,8 @@ app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, async (req, r
     const data = await getData();
     const template = findTemplate(data, req.params.id);
     if (!template) return res.status(404).json({ error: 'Template not found' });
-    const section = template.sections.find((section) => section.id === Number(req.body.sectionId));
-    if (!section) return res.status(404).json({ error: 'Section not found' });
+    const squad = template.squads.find((squad) => squad.id === Number(req.body.squadId));
+    if (!squad) return res.status(404).json({ error: 'Squad not found' });
 
     const slot = {
       id: Date.now(),
@@ -1583,7 +1591,7 @@ app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, async (req, r
       notes: req.body.notes || '',
       assignedUserId: null
     };
-    section.slots.push(slot);
+    squad.slots.push(slot);
     await persistData(data);
     res.json({ slot });
   } catch (err) {
@@ -1611,10 +1619,10 @@ app.delete('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAd
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   let slotRemoved = false;
-  template.sections.forEach((section) => {
-    const index = section.slots.findIndex((slot) => slot.id === Number(req.params.slotId));
+  template.squads.forEach((squad) => {
+    const index = squad.slots.findIndex((slot) => slot.id === Number(req.params.slotId));
     if (index !== -1) {
-      section.slots.splice(index, 1);
+      squad.slots.splice(index, 1);
       slotRemoved = true;
     }
   });
@@ -1632,7 +1640,7 @@ app.post('/api/templates/:templateId/join', authMiddleware, async (req, res) => 
   if (!slot.allowedRoles.includes(req.user.role) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'No permission for this slot' });
   }
-  const existingSlot = template.sections.flatMap((section) => section.slots).find((other) => other.assignedUserId === req.user.id);
+  const existingSlot = template.squads.flatMap((squad) => squad.slots).find((other) => other.assignedUserId === req.user.id);
   if (existingSlot && existingSlot.id !== slot.id) {
     return res.status(409).json({ error: 'You are already signed up to another slot for this template' });
   }
