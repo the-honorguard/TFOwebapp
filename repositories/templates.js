@@ -1,8 +1,15 @@
 import db from '../db.js';
 
+function normalizeTemplateData(data = {}) {
+  return {
+    ...data,
+    squads: data.squads || data.sections || []
+  };
+}
+
 export async function listTemplates() {
   const [rows] = await db.query('SELECT * FROM templates');
-  return rows.map((r) => ({ id: r.id, name: r.name, ownerId: r.owner_id, description: r.description, data: r.data }));
+  return rows.map((r) => ({ id: r.id, name: r.name, ownerId: r.owner_id, description: r.description, data: normalizeTemplateData(r.data) }));
 }
 
 export async function createTemplate({ id, name, ownerId, description, data }) {
@@ -16,7 +23,7 @@ export async function getTemplateById(id) {
   const t = rows[0];
   let data = {};
   try { data = typeof t.data === 'string' ? JSON.parse(t.data) : t.data || {}; } catch (e) { data = t.data || {}; }
-  return { id: t.id, name: t.name, ownerId: t.owner_id, description: t.description, data };
+  return { id: t.id, name: t.name, ownerId: t.owner_id, description: t.description, data: normalizeTemplateData(data) };
 }
 
 export async function updateTemplate(id, { name, description, data }) {

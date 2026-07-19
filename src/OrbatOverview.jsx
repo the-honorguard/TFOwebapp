@@ -17,14 +17,14 @@ export default function OrbatOverview({
   getTemplateName,
   getCanvasSize,
   getCanvasNode,
-  resolveSectionParentId,
+  resolveSquadParentId,
   nodeHeights,
   setNodeHeightRef,
   moveCanvasDrag,
   stopCanvasDrag,
   startCanvasDrag,
-  updateSectionParent,
-  sectionStats,
+  updateSquadParent,
+  squadStats,
   joinOpSlot,
   signOffOpSlot,
   updateOpSlot,
@@ -63,31 +63,31 @@ export default function OrbatOverview({
           ) : null}
         </div>
       </div>
-      {(op.sections?.length ?? 0) === 0 ? (
-        <div className="empty-state">This operation has no sections.</div>
+      {(op.squads?.length ?? 0) === 0 ? (
+        <div className="empty-state">This operation has no squads.</div>
       ) : effectiveOverviewMode === 'orbat' ? (
         (() => {
-          const canvasTemplate = { id: op.templateId, sections: op.sections };
+          const canvasTemplate = { id: op.templateId, squads: op.squads };
           const canvasSize = getCanvasSize(canvasTemplate);
-          const nodes = op.sections.map((section, index) => {
-            const node = getCanvasNode(op.templateId, section.id, index);
+          const nodes = op.squads.map((squad, index) => {
+            const node = getCanvasNode(op.templateId, squad.id, index);
             return {
-              section,
+              squad,
               index,
-              nodeKey: `overview-${op.id}-${section.id}`,
+              nodeKey: `overview-${op.id}-${squad.id}`,
               x: node.x,
               y: node.y,
-              parentId: resolveSectionParentId(op.templateId, op.sections, section.id, index)
+              parentId: resolveSquadParentId(op.templateId, op.squads, squad.id, index)
             };
           });
 
-          const nodeMap = new Map(nodes.map((node) => [node.section.id, node]));
+          const nodeMap = new Map(nodes.map((node) => [node.squad.id, node]));
           const links = nodes
             .filter((node) => node.parentId && nodeMap.has(node.parentId))
             .map((node) => {
               const parent = nodeMap.get(node.parentId);
               return {
-                id: `${parent.section.id}-${node.section.id}`,
+                id: `${parent.squad.id}-${node.squad.id}`,
                 x1: parent.x + 140,
                 y1: parent.y + (nodeHeights[parent.nodeKey] || 172),
                 x2: node.x + 140,
@@ -126,7 +126,7 @@ export default function OrbatOverview({
                 </div>
                 {nodes.map((node) => (
                   <div
-                    key={node.section.id}
+                    key={node.squad.id}
                     className="orbat-node"
                     style={{ left: `${node.x}px`, top: `${node.y}px` }}
                     ref={setNodeHeightRef(node.nodeKey)}
@@ -136,15 +136,15 @@ export default function OrbatOverview({
                     <div
                       className="orbat-node-head"
                     >
-                      <strong>{node.section.title}</strong>
-                      <span className="section-count">
-                        {sectionStats(node.section).occupied}/{sectionStats(node.section).total} filled
+                      <strong>{node.squad.title}</strong>
+                      <span className="squad-count">
+                        {squadStats(node.squad).occupied}/{squadStats(node.squad).total} filled
                       </span>
-                      <span className="slot-meta">LR {node.section.lrChannel ?? '-'} · SR {node.section.srChannel ?? '-'}</span>
-                      {node.section.markerIconUrl ? (
-                        <img src={node.section.markerIconUrl} alt="marker" className="marker-icon" />
-                      ) : node.section.marker ? (
-                        <span className={`marker-badge marker-${String(node.section.marker).toLowerCase().replace(/\s+/g,'-')}`}>{node.section.marker}</span>
+                      <span className="slot-meta">LR {node.squad.lrChannel ?? '-'} · SR {node.squad.srChannel ?? '-'}</span>
+                      {node.squad.markerIconUrl ? (
+                        <img src={node.squad.markerIconUrl} alt="marker" className="marker-icon" />
+                      ) : node.squad.marker ? (
+                        <span className={`marker-badge marker-${String(node.squad.marker).toLowerCase().replace(/\s+/g,'-')}`}>{node.squad.marker}</span>
                       ) : null}
                     </div>
 
@@ -152,21 +152,21 @@ export default function OrbatOverview({
                       <select
                         className="orbat-parent-select"
                         value={node.parentId || ''}
-                        onChange={(event) => updateSectionParent(op.templateId, node.section.id, event.target.value || null)}
+                        onChange={(event) => updateSquadParent(op.templateId, node.squad.id, event.target.value || null)}
                       >
                         <option value="">Top command</option>
-                        {op.sections
-                          .filter((section) => section.id !== node.section.id)
-                          .map((section) => (
-                            <option key={section.id} value={section.id}>
-                              Reports to {section.title}
+                        {op.squads
+                          .filter((squad) => squad.id !== node.squad.id)
+                          .map((squad) => (
+                            <option key={squad.id} value={squad.id}>
+                              Reports to {squad.title}
                             </option>
                           ))}
                       </select>
                     ) : null}
 
                     <div className="orbat-slot-list">
-                      {node.section.slots.slice(0, 6).map((slot) => {
+                      {node.squad.slots.slice(0, 6).map((slot) => {
                         const assignedUser = users.find((user) => user.id === slot.assignedUserId);
                         const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
                         const allowedRoles = slot.allowedRoles || [];
@@ -199,8 +199,8 @@ export default function OrbatOverview({
                           </div>
                         );
                       })}
-                      {node.section.slots.length > 6 ? (
-                        <div className="orbat-slot-more">+{node.section.slots.length - 6} more slots</div>
+                      {node.squad.slots.length > 6 ? (
+                        <div className="orbat-slot-more">+{node.squad.slots.length - 6} more slots</div>
                       ) : null}
                     </div>
                   </div>
@@ -211,18 +211,18 @@ export default function OrbatOverview({
         })()
       ) : (
         <div className="builder-grid">
-          {op.sections.map((section, index) => (
-            <div key={section.id} className={`builder-panel panel-${index % 5}`}>
+          {op.squads.map((squad, index) => (
+            <div key={squad.id} className={`builder-panel panel-${index % 5}`}>
                 <div className="panel-title">
-                <strong>{section.title}</strong>
-                <span className="slot-meta">LR {section.lrChannel ?? '-'} · SR {section.srChannel ?? '-'}</span>
-                {section.markerIconUrl ? <img src={section.markerIconUrl} alt="marker" className="marker-icon" /> : section.marker ? <span className={`marker-badge marker-${String(section.marker).toLowerCase().replace(/\s+/g,'-')}`}>{section.marker}</span> : null}
+                <strong>{squad.title}</strong>
+                <span className="slot-meta">LR {squad.lrChannel ?? '-'} · SR {squad.srChannel ?? '-'}</span>
+                {squad.markerIconUrl ? <img src={squad.markerIconUrl} alt="marker" className="marker-icon" /> : squad.marker ? <span className={`marker-badge marker-${String(squad.marker).toLowerCase().replace(/\s+/g,'-')}`}>{squad.marker}</span> : null}
               </div>
               <div className="panel-content">
-                {section.slots.length === 0 ? (
-                  <p className="panel-empty">No slots in this section.</p>
+                {squad.slots.length === 0 ? (
+                  <p className="panel-empty">No slots in this squad.</p>
                 ) : (
-                      section.slots.map((slot) => {
+                      squad.slots.map((slot) => {
                     const assignedUser = users.find((user) => user.id === slot.assignedUserId);
                     const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
                     const allowedRoles = slot.allowedRoles || [];
