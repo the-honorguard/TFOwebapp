@@ -68,7 +68,7 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
   if (!me) return <div>Could not load profile. {error ? <div style={{color:'var(--accent)'}}>{error}</div> : null}</div>;
 
   const attendedCount = ops.reduce((count, op) => {
-    const found = (op.sections || []).some((section) => (section.slots || []).some((s) => s.assignedUserId === me.id));
+    const found = (op.squads || []).some((squad) => (squad.slots || []).some((s) => s.assignedUserId === me.id));
     return count + (found ? 1 : 0);
   }, 0);
 

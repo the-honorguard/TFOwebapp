@@ -51,7 +51,7 @@ Create, edit, and manage operations with full recurrence support — daily, week
 <td width="50%">
 
 **Template Builder**\
-Design reusable section and slot presets. Templates define structure and default markers, and load into operations via the scheduler.
+Design reusable squad and slot presets. Templates define structure and default markers, and load into operations via the scheduler.
 
 </td>
 <td width="50%">
@@ -85,7 +85,7 @@ Marker icons, avatars, and admin assets. Extension-validated, 5 MB cap, UUID-nam
 <td width="50%">
 
 **Backup / Restore**\
-Section-level export and import from Settings. Select individual data sections (users, templates, ops, ranks, etc.) to restore independently.
+Squad-level export and import from Settings. Select individual data sections (users, templates, ops, ranks, etc.) to restore independently.
 
 </td>
 </tr>
@@ -267,13 +267,13 @@ POST    /api/templates
 PUT     /api/templates/:id
 DELETE  /api/templates/:id
 POST    /api/templates/:id/duplicate
-POST    /api/templates/:id/sections
-PUT     /api/templates/:templateId/sections/:sectionId
-DELETE  /api/templates/:templateId/sections/:sectionId
+POST    /api/templates/:id/squads
+PUT     /api/templates/:templateId/squads/:squadId
+DELETE  /api/templates/:templateId/squads/:squadId
 POST    /api/templates/:id/slots
 PUT     /api/templates/:templateId/slots/:slotId
 DELETE  /api/templates/:templateId/slots/:slotId
-PUT     /api/templates/:templateId/sections/:sectionId/slots/reorder
+PUT     /api/templates/:templateId/squads/:squadId/slots/reorder
 ```
 
 ### Operations
@@ -286,7 +286,7 @@ PUT     /api/templates/:templateId/sections/:sectionId/slots/reorder
 | `POST` | `/api/ops/:id/join` | required | Sign up to a slot |
 | `POST` | `/api/ops/:id/signoff` | required | Sign off from a slot |
 | `PUT` | `/api/ops/:opId/slots/:slotId` | admin / missionmaker | Update slot metadata |
-| `PUT` | `/api/ops/:opId/sections/:sectionId` | admin / missionmaker | Update section metadata |
+| `PUT` | `/api/ops/:opId/squads/:squadId` | admin / missionmaker | Update squad metadata |
 
 ### Uploads
 

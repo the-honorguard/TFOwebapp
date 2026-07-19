@@ -39,7 +39,7 @@ export default function Roles({ allRoles = [], templates = [], customRoles = [],
         </div>
       </div>
 
-      <section className="card role-add-section">
+      <section className="card role-add-squad">
         <h4>Add new role</h4>
         <form className="role-add-form" onSubmit={onAddRole}>
           <input
@@ -57,18 +57,18 @@ export default function Roles({ allRoles = [], templates = [], customRoles = [],
         <div className="role-grid">
           {allRoles.map((role) => {
             const assignedCount = templates.reduce((count, template) => {
-              return count + (template.sections?.reduce((sectionCount, section) => {
-                return sectionCount + (section.slots?.filter((slot) => slot.role === role && slot.assignedUserId).length || 0);
+              return count + (template.squads?.reduce((squadCount, squad) => {
+                return squadCount + (squad.slots?.filter((slot) => slot.role === role && slot.assignedUserId).length || 0);
               }, 0) || 0);
             }, 0);
             const slotCount = templates.reduce((count, template) => {
-              return count + (template.sections?.reduce((sectionCount, section) => {
-                return sectionCount + (section.slots?.filter((slot) => slot.role === role).length || 0);
+              return count + (template.squads?.reduce((squadCount, squad) => {
+                return squadCount + (squad.slots?.filter((slot) => slot.role === role).length || 0);
               }, 0) || 0);
             }, 0);
             const allowedCount = templates.reduce((count, template) => {
-              return count + (template.sections?.reduce((sectionCount, section) => {
-                return sectionCount + (section.slots?.filter((slot) => slot.allowedRoles?.includes(role)).length || 0);
+              return count + (template.squads?.reduce((squadCount, squad) => {
+                return squadCount + (squad.slots?.filter((slot) => slot.allowedRoles?.includes(role)).length || 0);
               }, 0) || 0);
             }, 0);
             const isRemovable = customRoles.some((item) => normalizeRoleKey(item.name) === normalizeRoleKey(role));
