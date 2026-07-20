@@ -1,0 +1,84 @@
+{
+  "source": {
+    "name": "TFO main docs",
+    "capturedAt": "2026-07-20",
+    "sheets": ["Playerlist", "Rolelist", "Thursday Operation"]
+  },
+  "roleNames": [
+    "PLT leader", "Medic", "SQL", "AR", "Marksman", "Rifleman",
+    "Anti-tank", "Engineer", "Grenadier", "JTAC/FO", "Sniper team Sniper",
+    "Spotter", "Aerial Vehicle Heli pilot", "Jet pilot",
+    "Ground vehicle Commander", "Driver", "Gunner", "Fire support FS TL",
+    "Fire support Gunner", "Zeus", "Anti air", "Drone Operator"
+  ],
+  "playerRowSchema": [
+    "username", "rank", "status", "discordId", "lastPromotion",
+    "lastTraining", "eligibleForTraining", "roleIndexes"
+  ],
+  "players": [
+    ["Gibbs, H","MAJ","LoA","219103754404888576","02/Feb/2025","24/Jun/2025",true,[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]],
+    ["Animate","CPT","Active","271345700409835520","02/Feb/2025","24/Jun/2025",true,[0,1,2,3,4,5,6,7,8,9,10,11,12,13,17,18,19,20]],
+    ["scorboutiko","CPT","Active","242821334789390337","02/Feb/2025","24/Jun/2025",true,[0,2,3,4,5,6,7,8,9,10,11,12,13,17,18,19,20,21]],
+    ["Dacie","1LT","Active","277137698085404674","02/Feb/2025","24/Jun/2025",true,[0,1,2,3,4,5,6,7,8,9,12,13,14,15,16,17,18,19,20]],
+    ["Scorpion","2LT","Active","290938615976951808","02/Feb/2025","24/Jun/2025",true,[0,1,2,4,5,8,10,11,13]],
+    ["Chayros","MSG","Active","284340422610911234","23/Aug/2025","24/Jun/2025",true,[0,1,2,4,5,8,9]],
+    ["Mikael","MSG","Active","491180598438920193","02/Feb/2025","24/Jun/2025",true,[0,2,4,5,7,8,9,10,11,14,15,16,17,18,19]],
+    ["Bones","SSG","Inactive","300275571433275393","02/Feb/2025","24/Jun/2025",true,[0,1,2,5,7,8,9,12,13,14,17,18,19]],
+    ["Nzero","SGT","Active","321386572236980224","02/Feb/2025","24/Jun/2025",true,[1,2,5,9,12,13,19]],
+    ["Pankie","SGT","Active","205208251212627978","02/Feb/2025","24/Jun/2025",true,[2,3,5,7,14,15,16,18,19]],
+    ["Rakija","SGT","Active","164702241112981504","02/Feb/2025","24/Jun/2025",true,[2,4,5,6,15,19]],
+    ["Sherlock","SGT","Active","497390420779859968","02/Feb/2025","24/Jun/2025",true,[0,2,3,4,5,6,11,14,15,16,18,19]],
+    ["Hemuli","SGT","Active","694079887039922196","22/Jun/2025","24/Jun/2025",true,[0,1,2,4,5,7,8]],
+    ["Donald, M","SGT","LoA","181778149623726080","01/Mar/2026","11/Mar/2026",true,[0,1,2,5,7,12,19,21]],
+    ["Divide","CPL","Active","645562300018982962","22/Jun/2025","24/Jun/2025",true,[1,2,3,5,8,15,16,17,18,19]],
+    ["Winters","CPL","Active","443045235585712129","02/Feb/2025","24/Jun/2025",true,[2,3,4,5]],
+    ["Gaming","CPL","Active","796721408788267008","12/Jun/2025","24/Jun/2025",true,[1,2,3,5,6]],
+    ["Alcatraz","CPL","Active","172385945138495489","16/Jul/2026","16/Jul/2026",false,[0,1,5,21]],
+    ["Arkin","SPC2","Active","207204454989037579","02/Feb/2025","24/Jun/2025",true,[1,3,5,6,7,8]],
+    ["Nordotor","SPC2","Active","262900646431293440","21/Oct/2025","24/Jun/2025",true,[1,4,5,7,8,19]],
+    ["Hartmann","SPC2","Active","374903531892768770","26/Oct/2025","11/Mar/2026",true,[5,8,18,21]],
+    ["Polka","SPC","Inactive","403574518779740161","02/Feb/2025","24/Jun/2025",true,[4,5,19]],
+    ["Benis","PFC","Active","283503640860426241","02/Feb/2025","24/Jun/2025",true,[5]],
+    ["Lao","PFC","Active","197762714196508672","02/Feb/2025","24/Jun/2025",true,[5,16]],
+    ["Theodore","PFC","Active","495521143319691264","15/Jun/2025","24/Jun/2025",true,[4,5]],
+    ["Maxo","PFC","Active","514334684185100309","02/Feb/2025","24/Jun/2025",true,[3,5,16,19]],
+    ["Coco","PFC","Active","578988936995667990","22/Feb/2026","24/Jun/2025",true,[5,6]],
+    ["Eisen","PVT","Active","165136282417102848","22/Jul/2025","24/Jun/2025",true,[5]],
+    ["Cheese","PVT","LoA","766333762497019935","02/Feb/2025","24/Jun/2025",true,[5]],
+    ["Mitch","PVT","LoA","674730512035872770","30/Sep/2025","30/Sep/2025",true,[5]],
+    ["Kolo","PVT","Active","1368924826915438644","25/Jan/2026","25/Jan/2026",true,[5]],
+    ["Fox","PVT","Active","563399771411447839","15/Feb/2026","15/Feb/2026",true,[5]],
+    ["Chaos","PVT","Active","534986576116318240","08/May/2026","08/May/2026",true,[5]],
+    ["CORE","PVT","Active","468009284429414401","28/Jun/2026","28/Jun/2026",true,[5]],
+    ["Bash","PVT","Active","131468289946812416","09/Jul/2026","09/Jul/2026",true,[5]],
+    ["Speed","PVT","Active","792065066269933588","10/Jul/2026","10/Jul/2026",true,[5]],
+    ["Tex","PVT","Active","255492797371645952","10/Jul/2026","10/Jul/2026",true,[5]],
+    ["S.Chaddy","PVT","Active","285403874431598593","10/Jul/2026","10/Jul/2026",true,[5]],
+    ["Uiuiui_Kaputt","RCT","Active","767394540968738837","03/Feb/2026","03/Feb/2026",true,[5]],
+    ["Ember","RCT","LoA","200774083107880960","12/Jul/2026","12/Jul/2026",true,[1,5,6,8]]
+  ],
+  "operationSettings": {
+    "time": "19:30",
+    "serverName": "[EU] TFO | Zeus Server | www.taskforceomega.eu",
+    "tsAddress": "server.taskforceomega.eu",
+    "recurrence": "none",
+    "minSignupAge": 17,
+    "defaultSlotRole": "Rifleman"
+  },
+  "template": {
+    "name": "Thursday Operation",
+    "description": "TFO Thursday Operation template from the main spreadsheet",
+    "squads": [
+      {"title":"HQ","srChannel":1,"marker":"hq","slots":[{"name":"HQ","role":"Zeus"},{"name":"Co-Zeus","role":"Zeus"}]},
+      {"title":"X-Ray","srChannel":1,"marker":"hq","slots":[{"name":"PLT leader","role":"PLT leader"},{"name":"Grenadier 60mm","role":"Grenadier"}]},
+      {"title":"Platoon Support","srChannel":1,"marker":"logistics","slots":[{"name":"Medic","role":"Medic"},{"name":"AA","role":"Anti air"},{"name":"Drone Operator","role":"Drone Operator"},{"name":"JTAC/FO","role":"JTAC/FO"}]},
+      {"title":"Alpha","srChannel":2,"marker":"infantry","slots":[{"name":"SQL","role":"SQL"},{"name":"Medic","role":"Medic"},{"name":"Rifleman (LAT)","role":"Anti-tank"},{"name":"Grenadier","role":"Grenadier"},{"name":"Marksman","role":"Marksman"},{"name":"AR","role":"AR"},{"name":"Reserve Rifleman 1","role":"Rifleman"},{"name":"Reserve Rifleman 2","role":"Rifleman"},{"name":"Reserve Rifleman 3","role":"Rifleman"}]},
+      {"title":"Bravo","srChannel":3,"marker":"infantry","slots":[{"name":"SQL","role":"SQL"},{"name":"Medic","role":"Medic"},{"name":"Rifleman","role":"Rifleman"},{"name":"Engineer/EOD","role":"Engineer"},{"name":"Rifleman","role":"Rifleman"},{"name":"AT","role":"Anti-tank"},{"name":"Reserve Rifleman 1","role":"Rifleman"},{"name":"Reserve Rifleman 2","role":"Rifleman"},{"name":"Reserve Rifleman 3","role":"Rifleman"}]},
+      {"title":"Charlie","srChannel":4,"marker":"infantry","slots":[{"name":"SQL","role":"SQL"},{"name":"Medic","role":"Medic"},{"name":"Rifleman (LAT)","role":"Anti-tank"},{"name":"Grenadier","role":"Grenadier"},{"name":"Marksman","role":"Marksman"},{"name":"AR","role":"AR"},{"name":"Reserve Rifleman 1","role":"Rifleman"},{"name":"Reserve Rifleman 2","role":"Rifleman"},{"name":"Reserve Rifleman 3","role":"Rifleman"}]},
+      {"title":"Dagger","srChannel":5,"marker":"recon","slots":[{"name":"Heli Pilot","role":"Aerial Vehicle Heli pilot"},{"name":"Heli Co-Pilot","role":"Aerial Vehicle Heli pilot"},{"name":"CAS Pilot","role":"Jet pilot"},{"name":"CAS Co-Pilot","role":"Jet pilot"}]},
+      {"title":"Turtle","srChannel":6,"marker":"armor","slots":[{"name":"Commander","role":"Ground vehicle Commander"},{"name":"Driver","role":"Driver"},{"name":"Gunner","role":"Gunner"}]},
+      {"title":"Hammer","srChannel":7,"marker":"artillery","slots":[{"name":"Teamleader","role":"Fire support FS TL"},{"name":"Gunner 1","role":"Fire support Gunner"},{"name":"Gunner 2","role":"Fire support Gunner"}]},
+      {"title":"Echo","srChannel":8,"marker":"recon","slots":[{"name":"Sniper","role":"Sniper team Sniper"},{"name":"Spotter","role":"Spotter"}]}
+    ]
+  }
+}

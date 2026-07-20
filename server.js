@@ -30,6 +30,27 @@ import dotenv from 'dotenv';
 import pool, { testConnection } from './db.js';
 import logger from './lib/logger.js';
 import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential } from './lib/dataStore.js';
+import * as permissionGroupsRepo from './repositories/permissionGroups.js';
+
+const PERMISSION_DEFINITIONS = [
+  { key: 'view_overview', category: 'Overview', label: 'View overview' },
+  { key: 'view_operations', category: 'Operations', label: 'View operation scheduler' },
+  { key: 'edit_operations', category: 'Operations', label: 'Create and edit operations' },
+  { key: 'assign_players', category: 'Operations', label: 'Assign other players' },
+  { key: 'view_templates', category: 'Templates', label: 'View templates' },
+  { key: 'edit_templates', category: 'Templates', label: 'Create and edit templates' },
+  { key: 'view_campaigns', category: 'Campaigns', label: 'View campaigns' },
+  { key: 'edit_campaigns', category: 'Campaigns', label: 'Create and edit campaigns' },
+  { key: 'view_players', category: 'Players', label: 'View player list' },
+  { key: 'edit_players', category: 'Players', label: 'Create and edit players' },
+  { key: 'view_settings', category: 'Settings', label: 'View settings' },
+  { key: 'edit_settings', category: 'Settings', label: 'Edit general settings' },
+  { key: 'edit_roles', category: 'Settings', label: 'Edit roles' },
+  { key: 'edit_ranks', category: 'Settings', label: 'Edit ranks' },
+  { key: 'edit_squad_types', category: 'Settings', label: 'Edit squad types' },
+  { key: 'manage_backups', category: 'System', label: 'Manage backups and database' },
+  { key: 'manage_permissions', category: 'System', label: 'Manage permission groups' }
+];
 
 dotenv.config();
 
@@ -312,7 +333,7 @@ app.post('/init/reset', async (req, res) => {
       const conn = await pool.getConnection();
       try {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-        const toClear = ['recurrences','ops','templates','roles','files','modlists','backups','campaigns','ranks','user_profiles','users'];
+        const toClear = ['recurrences','ops','templates','roles','permission_groups','files','modlists','backups','campaigns','ranks','user_profiles','users'];
         for (const t of toClear) {
           try { await conn.query(`DELETE FROM \`${t}\``); } catch (e) { /* ignore */ }
         }
@@ -333,8 +354,8 @@ app.post('/init/reset', async (req, res) => {
 // Seed demo data only
 app.post('/init/demo', async (req, res) => {
   try {
-    await seedDemo();
-    return res.json({ ok: true });
+    const demo = await seedDemo();
+    return res.json({ ok: true, ...demo });
   } catch (err) {
     console.error('Demo seed error', err && err.stack ? err.stack : err);
     return res.status(500).json({ error: 'Demo seed failed', details: err && err.message ? err.message : String(err) });
@@ -346,35 +367,22 @@ app.post('/init/create-admin', async (req, res) => {
   try {
     const { username, password } = req.body || {};
     if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    await ensureDbInitialized();
+    await syncAdminPermissionGroup();
     const bcryptHash = bcrypt.hashSync(password, 10);
-    const id = Date.now();
-    try {
-      await pool.query('INSERT INTO users (id, username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, username, null, bcryptHash, 'admin', '', 'Active', JSON.stringify({})]);
-      return res.json({ ok: true, id });
-    } catch (e) {
-      if (e && e.code === 'ER_DUP_ENTRY') {
-        // If a placeholder admin was created by ensureInitialized() with
-        // password_hash='admin-disabled', convert that placeholder into a
-        // usable admin by updating the password. This lets a single-button
-        // "Create default admin" action work even when the placeholder
-        // user exists.
-        try {
-          const [rows] = await pool.query('SELECT id, password_hash FROM users WHERE username = ? LIMIT 1', [username]);
-          if (Array.isArray(rows) && rows[0]) {
-            const existing = rows[0];
-            if (existing.password_hash === 'admin-disabled') {
-              await pool.query('UPDATE users SET password_hash = ?, role = ?, status = ? WHERE id = ?', [bcryptHash, 'admin', 'Active', existing.id]);
-              return res.json({ ok: true, id: existing.id, updated: true });
-            }
-          }
-        } catch (inner) {
-          console.error('Error upgrading placeholder admin', inner && inner.stack ? inner.stack : inner);
-        }
-        return res.status(409).json({ error: 'user_exists' });
+    const [rows] = await pool.query('SELECT id, password_hash FROM users WHERE username = ? LIMIT 1', [username]);
+    if (Array.isArray(rows) && rows[0]) {
+      const existing = rows[0];
+      if (existing.password_hash === 'admin-disabled') {
+        await pool.query('UPDATE users SET password_hash = ?, role = ?, status = ? WHERE id = ?', [bcryptHash, 'admin', 'Active', existing.id]);
+      } else {
+        await pool.query('UPDATE users SET role = ?, status = ? WHERE id = ?', ['admin', 'Active', existing.id]);
       }
-      console.error('Create admin error', e && e.stack ? e.stack : e);
-      return res.status(500).json({ error: 'Could not create admin' });
+      return res.json({ ok: true, id: existing.id, updated: true, permissionsSynced: true });
     }
+    const id = Date.now();
+    await pool.query('INSERT INTO users (id, username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, username, null, bcryptHash, 'admin', '', 'Active', JSON.stringify({})]);
+    return res.json({ ok: true, id, permissionsSynced: true });
   } catch (err) {
     console.error('Create-admin endpoint error', err && err.stack ? err.stack : err);
     return res.status(500).json({ error: 'Internal error' });
@@ -448,10 +456,35 @@ function authMiddleware(req, res, next) {
   }
 }
 
-/** Middleware: ensure the current user is an admin. */
-function requireAdmin(req, res, next) {
-  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-  next();
+async function getCapabilities(role) {
+  try {
+    return (await permissionGroupsRepo.getPermissionGroup(role))?.permissions || {};
+  } catch (error) {
+    // Preserve access during first-run schema creation.
+    return role === 'admin' ? Object.fromEntries(PERMISSION_DEFINITIONS.map(({ key }) => [key, true])) : {};
+  }
+}
+
+async function syncAdminPermissionGroup() {
+  const permissions = Object.fromEntries(PERMISSION_DEFINITIONS.map(({ key }) => [key, true]));
+  await pool.query(
+    `INSERT INTO permission_groups (slug, name, is_system, permissions)
+     VALUES ('admin', 'Admin', 1, ?)
+     ON DUPLICATE KEY UPDATE name = VALUES(name), is_system = 1, permissions = VALUES(permissions)`,
+    [JSON.stringify(permissions)]
+  );
+  return permissions;
+}
+
+function requireCapability(capability) {
+  return async (req, res, next) => {
+    const capabilities = await getCapabilities(req.user?.role);
+    if (capabilities[capability] !== true) {
+      return res.status(403).json({ error: `Missing permission: ${capability}` });
+    }
+    req.capabilities = capabilities;
+    next();
+  };
 }
 
 function findTemplate(data, id) {
@@ -504,6 +537,7 @@ function buildOpSquadsFromTemplate(template, existingSquads = []) {
       srChannel: squad.srChannel ?? existingSquad?.srChannel ?? (index + 1),
       marker: squad.marker ?? existingSquad?.marker ?? null,
       markerIconUrl: squad.markerIconUrl ?? existingSquad?.markerIconUrl ?? null,
+      active: existingSquad ? existingSquad.active !== false : squad.active !== false,
       slots: (squad.slots || []).map((slot, sIndex) => {
         const existingSlot = existingSquad?.slots?.find((item) => item.originalSlotId === slot.id) || null;
         const opSlotId = existingSlot ? existingSlot.id : (Date.now() + Math.floor(Math.random() * 1000) + index * 100 + sIndex);
@@ -541,6 +575,7 @@ function normalizeStorage(data) {
       originalSquadId: squad.originalSquadId ?? squad.originalSectionId,
       marker: squad.marker ?? null,
       markerIconUrl: squad.markerIconUrl ?? null,
+      active: squad.active !== false,
       lrChannel: squad.lrChannel ?? 1,
       srChannel: squad.srChannel ?? (index + 1),
       slots: (squad.slots || []).map((slot) => ({
@@ -567,6 +602,7 @@ function normalizeStorage(data) {
       originalSquadId: squad.originalSquadId ?? squad.originalSectionId,
       marker: squad.marker ?? null,
       markerIconUrl: squad.markerIconUrl ?? null,
+      active: squad.active !== false,
       lrChannel: squad.lrChannel ?? 1,
       srChannel: squad.srChannel ?? (index + 1)
     }))
@@ -707,7 +743,8 @@ app.post('/api/login', async (req, res) => {
     const ok = bcrypt.compareSync(password, user.password_hash || user.password || '');
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET, { expiresIn: '8h' });
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    const capabilities = await getCapabilities(user.role);
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role, capabilities } });
   } catch (err) {
     console.error('Login error', err);
     res.status(500).json({ error: 'Server error' });
@@ -728,7 +765,7 @@ app.post('/api/signup', async (req, res) => {
       await db.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), bio=VALUES(bio), avatar_url=VALUES(avatar_url), settings=VALUES(settings)', [created.id, req.body.profile.displayName || null, req.body.profile.bio || null, req.body.profile.avatarUrl || null, JSON.stringify(req.body.profile.settings || {})]);
     }
     const token = jwt.sign({ id: created.id, username: created.username, role: role }, SECRET, { expiresIn: '8h' });
-    const userSafe = { id: created.id, username: created.username, role };
+    const userSafe = { id: created.id, username: created.username, role, capabilities: await getCapabilities(role) };
     res.json({ token, user: userSafe });
   } catch (err) {
     console.error('Signup error', err);
@@ -739,19 +776,82 @@ app.post('/api/signup', async (req, res) => {
 app.get('/api/public-data', async (req, res) => {
   const data = await getData();
   await generateRecurringOps(data);
-  const safeUsers = data.users.map(({ password, ...rest }) => rest);
-  res.json({ users: safeUsers, templates: data.templates, ops: data.ops || [], campaigns: data.campaigns || [], customRoles: data.customRoles || [] });
+  const publicUsers = data.users.map((user) => ({ id: user.id, username: user.username, role: user.role, rank: user.rank, status: user.status, avatarUrl: user.profile?.avatarUrl || null }));
+  const publicTemplates = (data.templates || []).map((template) => ({ id: template.id, name: template.name }));
+  res.json({ users: publicUsers, templates: publicTemplates, ops: data.ops || [], campaigns: data.campaigns || [], customRoles: [] });
 });
 
 app.get('/api/data', authMiddleware, async (req, res) => {
   const data = await getData();
   await generateRecurringOps(data);
-  const safeUsers = data.users.map(({ password, ...rest }) => rest);
-  res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role }, users: safeUsers, templates: data.templates, ops: data.ops || [], recurrences: data.recurrences || [], campaigns: data.campaigns || [], customRoles: data.customRoles || [] });
+  const capabilities = await getCapabilities(req.user.role);
+  const safeUsers = data.users.map(({ password, ...rest }) => {
+    if (capabilities.view_players === true || String(rest.id) === String(req.user.id)) return rest;
+    return { id: rest.id, username: rest.username, role: rest.role, rank: rest.rank, status: rest.status, avatarUrl: rest.profile?.avatarUrl || null };
+  });
+  const permissionGroups = await permissionGroupsRepo.listPermissionGroups();
+  const templates = capabilities.view_templates || capabilities.view_operations
+    ? data.templates
+    : (data.templates || []).map((template) => ({ id: template.id, name: template.name }));
+  res.json({
+    user: { id: req.user.id, username: req.user.username, role: req.user.role, capabilities },
+    permissionGroups: capabilities.manage_permissions
+      ? permissionGroups
+      : (capabilities.view_players ? permissionGroups.map(({ slug, name, system }) => ({ slug, name, system })) : []),
+    permissionDefinitions: capabilities.manage_permissions ? PERMISSION_DEFINITIONS : [],
+    users: safeUsers,
+    templates,
+    ops: capabilities.view_overview || capabilities.view_operations ? (data.ops || []) : [],
+    recurrences: capabilities.view_operations ? (data.recurrences || []) : [],
+    campaigns: capabilities.view_campaigns ? (data.campaigns || []) : [],
+    customRoles: capabilities.view_players || capabilities.view_settings ? (data.customRoles || []) : []
+  });
 });
 
-app.post('/api/users', authMiddleware, requireAdmin, async (req, res) => {
+app.get('/api/permission-groups', authMiddleware, requireCapability('manage_permissions'), async (req, res) => {
+  res.json({ groups: await permissionGroupsRepo.listPermissionGroups(), definitions: PERMISSION_DEFINITIONS });
+});
+
+app.post('/api/permission-groups', authMiddleware, requireCapability('manage_permissions'), async (req, res) => {
+  const name = String(req.body.name || '').trim();
+  const slug = String(req.body.slug || name).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-|-$/g, '');
+  if (!name || !slug) return res.status(400).json({ error: 'Name required' });
   try {
+    const group = await permissionGroupsRepo.createPermissionGroup({ slug, name, permissions: req.body.permissions || {} });
+    res.json({ group });
+  } catch (error) {
+    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Permission group already exists' });
+    console.error('Create permission group error', error);
+    return res.status(500).json({ error: 'Could not create permission group' });
+  }
+});
+
+app.put('/api/permission-groups/:slug', authMiddleware, requireCapability('manage_permissions'), async (req, res) => {
+  const existing = await permissionGroupsRepo.getPermissionGroup(req.params.slug);
+  if (!existing) return res.status(404).json({ error: 'Permission group not found' });
+  const permissions = { ...(req.body.permissions || existing.permissions) };
+  if (req.params.slug === 'admin') permissions.manage_permissions = true;
+  const group = await permissionGroupsRepo.updatePermissionGroup(req.params.slug, {
+    name: typeof req.body.name === 'string' ? req.body.name.trim() : undefined,
+    permissions
+  });
+  res.json({ group });
+});
+
+app.delete('/api/permission-groups/:slug', authMiddleware, requireCapability('manage_permissions'), async (req, res) => {
+  const group = await permissionGroupsRepo.getPermissionGroup(req.params.slug);
+  if (!group) return res.status(404).json({ error: 'Permission group not found' });
+  if (group.system) return res.status(400).json({ error: 'System groups cannot be deleted' });
+  const [[usage]] = await db.query('SELECT COUNT(1) c FROM users WHERE role = ?', [req.params.slug]);
+  if (usage.c > 0) return res.status(409).json({ error: 'Move users out of this group before deleting it' });
+  await permissionGroupsRepo.deletePermissionGroup(req.params.slug);
+  res.status(204).end();
+});
+
+app.post('/api/users', authMiddleware, requireCapability('edit_players'), async (req, res) => {
+  try {
+    const selectedGroup = await permissionGroupsRepo.getPermissionGroup(req.body.role || 'member');
+    if (!selectedGroup) return res.status(400).json({ error: 'Unknown permission group' });
     const hashed = bcrypt.hashSync(req.body.password || 'changeme', 10);
     const created = await usersRepo.createUser({ id: Date.now(), username: req.body.username, email: req.body.email || null, password_hash: hashed, role: req.body.role || 'member', rank: req.body.rank || '', status: req.body.status || 'Active', permissions: req.body.permissions || {} });
     const user = await usersRepo.getUserById(created.id);
@@ -763,14 +863,18 @@ app.post('/api/users', authMiddleware, requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/users/:id/permissions', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/users/:id/permissions', authMiddleware, requireCapability('edit_players'), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const patch = {};
     if (req.body.permissions !== undefined) patch.permissions = req.body.permissions;
     if (req.body.rank !== undefined) patch.rank = req.body.rank;
     if (req.body.status !== undefined) patch.status = req.body.status;
-    if (req.body.role !== undefined) patch.role = req.body.role;
+    if (req.body.role !== undefined) {
+      const selectedGroup = await permissionGroupsRepo.getPermissionGroup(req.body.role);
+      if (!selectedGroup) return res.status(400).json({ error: 'Unknown permission group' });
+      patch.role = req.body.role;
+    }
     const updated = await usersRepo.updateUser(id, patch);
     const { password_hash, ...safeUser } = updated;
     res.json({ user: safeUser });
@@ -780,7 +884,7 @@ app.put('/api/users/:id/permissions', authMiddleware, requireAdmin, async (req, 
   }
 });
 
-app.delete('/api/users/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/users/:id', authMiddleware, requireCapability('edit_players'), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const user = await usersRepo.getUserById(id);
@@ -817,7 +921,7 @@ app.put('/api/users/me/password', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/templates', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/templates', authMiddleware, requireCapability('edit_templates'), (req, res) => {
   (async () => {
     try {
       const t = await (await import('./repositories/templates.js')).createTemplate({ id: Date.now(), name: req.body.name, ownerId: req.user?.id || null, data: { squads: [] } });
@@ -829,7 +933,7 @@ app.post('/api/templates', authMiddleware, requireAdmin, (req, res) => {
   })();
 });
 
-app.put('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
+app.put('/api/templates/:id', authMiddleware, requireCapability('edit_templates'), (req, res) => {
   (async () => {
     try {
       const id = Number(req.params.id);
@@ -843,7 +947,7 @@ app.put('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
   })();
 });
 
-app.post('/api/templates/:id/duplicate', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/templates/:id/duplicate', authMiddleware, requireCapability('edit_templates'), (req, res) => {
   (async () => {
     try {
       const tplRepo = await import('./repositories/templates.js');
@@ -884,7 +988,7 @@ app.get('/api/campaigns', async (req, res) => {
   res.json({ campaigns: data.campaigns || [] });
 });
 
-app.post('/api/campaigns', authMiddleware, async (req, res) => {
+app.post('/api/campaigns', authMiddleware, requireCapability('edit_campaigns'), async (req, res) => {
   const data = await getData();
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
@@ -906,15 +1010,10 @@ app.post('/api/campaigns', authMiddleware, async (req, res) => {
   res.json({ campaign });
 });
 
-app.put('/api/campaigns/:id', authMiddleware, async (req, res) => {
+app.put('/api/campaigns/:id', authMiddleware, requireCapability('edit_campaigns'), async (req, res) => {
   const data = await getData();
   const campaign = (data.campaigns || []).find((c) => c.id === Number(req.params.id));
   if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
-
-  // allow admin or the assigned missionmaker to update
-  if (!(req.user?.role === 'admin' || req.user?.id === campaign.missionmakerUserId)) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
 
   if (typeof req.body.name === 'string') campaign.name = req.body.name.trim();
   if ('image' in req.body) campaign.image = req.body.image || '';
@@ -927,7 +1026,7 @@ app.put('/api/campaigns/:id', authMiddleware, async (req, res) => {
   res.json({ campaign });
 });
 
-app.delete('/api/campaigns/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/campaigns/:id', authMiddleware, requireCapability('edit_campaigns'), async (req, res) => {
   const data = await getData();
   const idx = (data.campaigns || []).findIndex((c) => c.id === Number(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Campaign not found' });
@@ -936,7 +1035,7 @@ app.delete('/api/campaigns/:id', authMiddleware, requireAdmin, async (req, res) 
   res.status(204).end();
 });
 
-app.post('/api/ops', authMiddleware, requireAdmin, async (req, res) => {
+app.post('/api/ops', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
     const tplRepo = await import('./repositories/templates.js');
     const opsRepo = await import('./repositories/ops.js');
@@ -992,11 +1091,8 @@ app.post('/api/ops', authMiddleware, requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/ops/:id/load-template', authMiddleware, async (req, res) => {
+app.post('/api/ops/:id/load-template', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
-    const isAdminUser = req.user?.role === 'admin';
-    const isMissionmaker = req.user?.role === 'missionmaker';
-    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
     const data = await getData();
     const op = findOp(data, req.params.id);
     if (!op) return res.status(404).json({ error: 'Operation not found' });
@@ -1021,13 +1117,32 @@ app.post('/api/ops/:id/join', authMiddleware, async (req, res) => {
     const opsRepo = await import('./repositories/ops.js');
     const op = await opsRepo.getOpById(Number(req.params.id));
     if (!op) return res.status(404).json({ error: 'Operation not found' });
-    const slot = op.payload.squads.flatMap((s) => s.slots).find((sl) => sl.id === Number(req.body.slotId));
+    const activeSquads = op.payload.squads.filter((squad) => squad.active !== false);
+    const slot = activeSquads.flatMap((s) => s.slots).find((sl) => sl.id === Number(req.body.slotId));
     if (!slot) return res.status(404).json({ error: 'Slot not found' });
-    if (!slot.allowedRoles.includes(req.user.role) && req.user.role !== 'admin') return res.status(403).json({ error: 'No permission for this slot' });
-    const existingSlot = op.payload.squads.flatMap((s) => s.slots).find((other) => other.assignedUserId === req.user.id);
+    const canManageAssignments = (await getCapabilities(req.user.role)).assign_players === true;
+    if (req.body.userId && !canManageAssignments) {
+      return res.status(403).json({ error: 'Only admins and missionmakers can assign another player' });
+    }
+    const requestedUserId = req.body.userId ? Number(req.body.userId) : req.user.id;
+    const targetUser = await (await import('./repositories/users.js')).getUserById(requestedUserId);
+    if (!targetUser) return res.status(404).json({ error: 'Player not found' });
+    const assigningAnotherPlayer = String(requestedUserId) !== String(req.user.id);
+    if (req.user.role !== 'admin' || assigningAnotherPlayer) {
+      let permissions = targetUser.permissions || {};
+      if (typeof permissions === 'string') {
+        try { permissions = JSON.parse(permissions); } catch (error) { permissions = {}; }
+      }
+      const requiredRoles = [...new Set([slot.role, ...(Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [])].filter(Boolean))];
+      const hasRequiredRole = requiredRoles.some((role) => permissions[role] === true);
+      if (!hasRequiredRole) {
+        return res.status(403).json({ error: `You are not qualified for the ${slot.role || 'selected'} role` });
+      }
+    }
+    const existingSlot = op.payload.squads.flatMap((s) => s.slots).find((other) => String(other.assignedUserId) === String(requestedUserId));
     if (existingSlot && existingSlot.id !== slot.id) return res.status(409).json({ error: 'You are already signed up to another slot for this operation' });
-    if (slot.assignedUserId && slot.assignedUserId !== req.user.id) return res.status(409).json({ error: 'This slot is already taken' });
-    await opsRepo.joinSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
+    if (slot.assignedUserId && String(slot.assignedUserId) !== String(requestedUserId)) return res.status(409).json({ error: 'This slot is already taken' });
+    await opsRepo.joinSlot(Number(req.params.id), Number(req.body.slotId), requestedUserId);
     // Return the op in the same normalized shape as /api/public-data (squads at top-level)
     const dataAfter = await getData();
     const opAfter = findOp(dataAfter, Number(req.params.id));
@@ -1055,17 +1170,18 @@ app.post('/api/ops/:id/signoff', authMiddleware, async (req, res) => {
   }
 });
 
-app.put('/api/ops/:opId/squads/:squadId', authMiddleware, async (req, res) => {
+app.put('/api/ops/:opId/squads/:squadId', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
-    const isAdminUser = req.user?.role === 'admin';
-    const isMissionmaker = req.user?.role === 'missionmaker';
-    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
     const opsRepo = await import('./repositories/ops.js');
     const patch = {};
     if ('lrChannel' in req.body) { if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' }); patch.lrChannel = Number(req.body.lrChannel); }
     if ('srChannel' in req.body) { if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' }); patch.srChannel = Number(req.body.srChannel); }
     if ('marker' in req.body) { patch.marker = req.body.marker === null ? null : (typeof req.body.marker === 'string' ? req.body.marker.trim() : undefined); }
     if ('markerIconUrl' in req.body) { patch.markerIconUrl = req.body.markerIconUrl === null ? null : (typeof req.body.markerIconUrl === 'string' ? req.body.markerIconUrl.trim() : undefined); }
+    if ('active' in req.body) {
+      if (typeof req.body.active !== 'boolean') return res.status(400).json({ error: 'active must be a boolean' });
+      patch.active = req.body.active;
+    }
     const updated = await opsRepo.updateSquad(Number(req.params.opId), Number(req.params.squadId), patch);
     res.json({ op: updated });
   } catch (err) {
@@ -1074,11 +1190,8 @@ app.put('/api/ops/:opId/squads/:squadId', authMiddleware, async (req, res) => {
   }
 });
 
-app.put('/api/ops/:opId/slots/:slotId', authMiddleware, async (req, res) => {
+app.put('/api/ops/:opId/slots/:slotId', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
-    const isAdminUser = req.user?.role === 'admin';
-    const isMissionmaker = req.user?.role === 'missionmaker';
-    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
     const opsRepo = await import('./repositories/ops.js');
     const patch = {};
     if (typeof req.body.name === 'string') patch.name = req.body.name;
@@ -1093,11 +1206,8 @@ app.put('/api/ops/:opId/slots/:slotId', authMiddleware, async (req, res) => {
   }
 });
 
-app.put('/api/ops/:id', authMiddleware, async (req, res) => {
+app.put('/api/ops/:id', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
-    const isAdminUser = req.user?.role === 'admin';
-    const isMissionmaker = req.user?.role === 'missionmaker';
-    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
     const opsRepo = await import('./repositories/ops.js');
     const existing = await opsRepo.getOpById(Number(req.params.id));
     if (!existing) return res.status(404).json({ error: 'Operation not found' });
@@ -1124,7 +1234,7 @@ app.put('/api/ops/:id', authMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/api/ops/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/ops/:id', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
     const opsRepo = await import('./repositories/ops.js');
     const op = await opsRepo.getOpById(Number(req.params.id));
@@ -1137,7 +1247,7 @@ app.delete('/api/ops/:id', authMiddleware, requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/roles/rename', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/roles/rename', authMiddleware, requireCapability('edit_roles'), async (req, res) => {
   const { oldName, newName } = req.body;
   if (!oldName || !newName || oldName === newName) return res.status(400).json({ error: 'oldName and newName required' });
 
@@ -1186,7 +1296,7 @@ app.put('/api/roles/rename', authMiddleware, requireAdmin, async (req, res) => {
 });
 
 // Admin: clear the configured database by running the clear-db script on the server
-app.post('/api/admin/clear-db', authMiddleware, requireAdmin, async (req, res) => {
+app.post('/api/admin/clear-db', authMiddleware, requireCapability('manage_backups'), async (req, res) => {
   try {
     const { execFile } = await import('child_process');
     const script = path.join(process.cwd(), 'scripts', 'clear-db.js');
@@ -1204,7 +1314,7 @@ app.post('/api/admin/clear-db', authMiddleware, requireAdmin, async (req, res) =
 });
 
 // Streamed variant: run clear-db and stream stdout/stderr to the HTTP response body
-app.post('/api/admin/clear-db-stream', authMiddleware, requireAdmin, async (req, res) => {
+app.post('/api/admin/clear-db-stream', authMiddleware, requireCapability('manage_backups'), async (req, res) => {
   try {
     const { spawn } = await import('child_process');
     const script = path.join(process.cwd(), 'scripts', 'clear-db.js');
@@ -1247,7 +1357,7 @@ app.get('/api/roles', async (req, res) => {
   }
 });
 
-app.post('/api/roles', authMiddleware, requireAdmin, async (req, res) => {
+app.post('/api/roles', authMiddleware, requireCapability('edit_roles'), async (req, res) => {
   try {
     const rolesRepo = await import('./repositories/roles.js');
     const name = (req.body.name || '').trim();
@@ -1262,7 +1372,7 @@ app.post('/api/roles', authMiddleware, requireAdmin, async (req, res) => {
   }
 });
 
-app.delete('/api/roles/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/roles/:id', authMiddleware, requireCapability('edit_roles'), async (req, res) => {
   try {
     const rolesRepo = await import('./repositories/roles.js');
     const role = await rolesRepo.getRoleById(Number(req.params.id));
@@ -1282,7 +1392,7 @@ app.get('/api/ranks', async (req, res) => {
   res.json({ ranks });
 });
 
-app.post('/api/ranks', authMiddleware, requireAdmin, async (req, res) => {
+app.post('/api/ranks', authMiddleware, requireCapability('edit_ranks'), async (req, res) => {
   const data = await getData();
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
@@ -1299,7 +1409,7 @@ app.post('/api/ranks', authMiddleware, requireAdmin, async (req, res) => {
   res.json({ rank });
 });
 
-app.put('/api/ranks/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/ranks/:id', authMiddleware, requireCapability('edit_ranks'), async (req, res) => {
   const data = await getData();
   const rank = (data.ranks || []).find((r) => r.id === Number(req.params.id));
   if (!rank) return res.status(404).json({ error: 'Rank not found' });
@@ -1311,7 +1421,7 @@ app.put('/api/ranks/:id', authMiddleware, requireAdmin, async (req, res) => {
   res.json({ rank });
 });
 
-app.delete('/api/ranks/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/ranks/:id', authMiddleware, requireCapability('edit_ranks'), async (req, res) => {
   const data = await getData();
   const idx = (data.ranks || []).findIndex((r) => r.id === Number(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Rank not found' });
@@ -1331,7 +1441,7 @@ app.get('/api/squad-types', async (req, res) => {
   res.json({ squadTypes });
 });
 
-app.post('/api/squad-types', authMiddleware, requireAdmin, async (req, res) => {
+app.post('/api/squad-types', authMiddleware, requireCapability('edit_squad_types'), async (req, res) => {
   const data = await getData();
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
@@ -1342,7 +1452,7 @@ app.post('/api/squad-types', authMiddleware, requireAdmin, async (req, res) => {
   res.json({ squadType: st });
 });
 
-app.put('/api/squad-types/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/squad-types/:id', authMiddleware, requireCapability('edit_squad_types'), async (req, res) => {
   const data = await getData();
   const st = (data.squadTypes || []).find((s) => s.id === Number(req.params.id));
   if (!st) return res.status(404).json({ error: 'Squad type not found' });
@@ -1352,7 +1462,7 @@ app.put('/api/squad-types/:id', authMiddleware, requireAdmin, async (req, res) =
   res.json({ squadType: st });
 });
 
-app.delete('/api/squad-types/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/squad-types/:id', authMiddleware, requireCapability('edit_squad_types'), async (req, res) => {
   const data = await getData();
   const idx = (data.squadTypes || []).findIndex((s) => s.id === Number(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Squad type not found' });
@@ -1361,7 +1471,7 @@ app.delete('/api/squad-types/:id', authMiddleware, requireAdmin, async (req, res
   res.status(204).end();
 });
 
-app.delete('/api/recurrences/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/recurrences/:id', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   const data = await getData();
   const recurrenceIndex = (data.recurrences || []).findIndex((recurrence) => recurrence.id === Number(req.params.id));
   if (recurrenceIndex === -1) return res.status(404).json({ error: 'Recurrence not found' });
@@ -1370,7 +1480,7 @@ app.delete('/api/recurrences/:id', authMiddleware, requireAdmin, async (req, res
   res.status(204).end();
 });
 
-app.put('/api/recurrences/:id', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/recurrences/:id', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   const data = await getData();
   const recurrence = (data.recurrences || []).find((entry) => entry.id === Number(req.params.id));
   if (!recurrence) return res.status(404).json({ error: 'Recurrence not found' });
@@ -1395,7 +1505,7 @@ app.put('/api/recurrences/:id', authMiddleware, requireAdmin, async (req, res) =
 });
 
 
-app.delete('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
+app.delete('/api/templates/:id', authMiddleware, requireCapability('edit_templates'), (req, res) => {
   (async () => {
     try {
       const tplRepo = await import('./repositories/templates.js');
@@ -1410,7 +1520,7 @@ app.delete('/api/templates/:id', authMiddleware, requireAdmin, (req, res) => {
   })();
 });
 
-app.post('/api/templates/:templateId/squads', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/templates/:templateId/squads', authMiddleware, requireCapability('edit_templates'), (req, res) => {
   (async () => {
     try {
       console.debug('POST /api/templates/:templateId/squads', { templateId: req.params.templateId, body: req.body });
@@ -1442,7 +1552,7 @@ function isValidChannel(value) {
   return Number.isInteger(num) && num >= 0 && num <= 99;
 }
 
-app.put('/api/templates/:templateId/squads/:squadId', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/templates/:templateId/squads/:squadId', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
     try {
       const tplRepo = await import('./repositories/templates.js');
       const template = await tplRepo.getTemplateById(Number(req.params.templateId));
@@ -1454,6 +1564,7 @@ app.put('/api/templates/:templateId/squads/:squadId', authMiddleware, requireAdm
       if ('srChannel' in req.body) { if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' }); squad.srChannel = Number(req.body.srChannel); }
       if ('marker' in req.body) { if (req.body.marker === null) squad.marker = null; else if (typeof req.body.marker === 'string') squad.marker = req.body.marker.trim(); else return res.status(400).json({ error: 'marker must be a string or null' }); }
       if ('markerIconUrl' in req.body) { if (req.body.markerIconUrl === null) squad.markerIconUrl = null; else if (typeof req.body.markerIconUrl === 'string') squad.markerIconUrl = req.body.markerIconUrl.trim(); else return res.status(400).json({ error: 'markerIconUrl must be a string or null' }); }
+      if ('active' in req.body) { if (typeof req.body.active !== 'boolean') return res.status(400).json({ error: 'active must be a boolean' }); squad.active = req.body.active; }
       await tplRepo.updateTemplate(template.id, { data: template.data });
       res.json({ squad });
     } catch (err) {
@@ -1462,7 +1573,7 @@ app.put('/api/templates/:templateId/squads/:squadId', authMiddleware, requireAdm
     }
 });
 
-app.put('/api/ops/:opId/squads/:squadId', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/ops/:opId/squads/:squadId', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   const data = await getData();
   const op = findOp(data, req.params.opId);
   if (!op) return res.status(404).json({ error: 'Operation not found' });
@@ -1493,11 +1604,8 @@ app.put('/api/ops/:opId/squads/:squadId', authMiddleware, requireAdmin, async (r
   res.json({ op });
 });
 
-app.post('/api/ops/:opId/squads', authMiddleware, async (req, res) => {
+app.post('/api/ops/:opId/squads', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
-    const isAdminUser = req.user?.role === 'admin';
-    const isMissionmaker = req.user?.role === 'missionmaker';
-    if (!isAdminUser && !isMissionmaker) return res.status(403).json({ error: 'Forbidden' });
     const opsRepo = await import('./repositories/ops.js');
     const op = await opsRepo.addSquad(Number(req.params.opId), req.body.title || null);
     if (!op) return res.status(404).json({ error: 'Operation not found' });
@@ -1508,7 +1616,7 @@ app.post('/api/ops/:opId/squads', authMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/api/ops/:opId/squads/:squadId', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/ops/:opId/squads/:squadId', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
     const opsRepo = await import('./repositories/ops.js');
     const op = await opsRepo.getOpById(Number(req.params.opId));
@@ -1527,7 +1635,7 @@ app.delete('/api/ops/:opId/squads/:squadId', authMiddleware, requireAdmin, async
   }
 });
 
-app.delete('/api/templates/:templateId/squads/:squadId', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/templates/:templateId/squads/:squadId', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
   console.debug('DELETE /api/templates/:templateId/squads/:squadId', { templateId: req.params.templateId, squadId: req.params.squadId });
   const data = await getData();
   const template = findTemplate(data, req.params.templateId);
@@ -1546,7 +1654,7 @@ app.delete('/api/templates/:templateId/squads/:squadId', authMiddleware, require
   }
 });
 
-app.put('/api/templates/:templateId/squads/:squadId/slots/reorder', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/templates/:templateId/squads/:squadId/slots/reorder', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
   const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
@@ -1574,7 +1682,7 @@ app.put('/api/templates/:templateId/squads/:squadId/slots/reorder', authMiddlewa
   res.json({ squad });
 });
 
-app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, async (req, res) => {
+app.post('/api/templates/:id/slots', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
   try {
     console.debug('POST /api/templates/:id/slots', { templateId: req.params.id, body: req.body });
     const data = await getData();
@@ -1600,7 +1708,7 @@ app.post('/api/templates/:id/slots', authMiddleware, requireAdmin, async (req, r
   }
 });
 
-app.put('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin, async (req, res) => {
+app.put('/api/templates/:templateId/slots/:slotId', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
   const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
@@ -1614,7 +1722,7 @@ app.put('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin
   res.json({ slot });
 });
 
-app.delete('/api/templates/:templateId/slots/:slotId', authMiddleware, requireAdmin, async (req, res) => {
+app.delete('/api/templates/:templateId/slots/:slotId', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
   const data = await getData();
   const template = findTemplate(data, req.params.templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
@@ -1652,7 +1760,7 @@ app.post('/api/templates/:templateId/join', authMiddleware, async (req, res) => 
   res.json({ slot });
 });
 
-app.post('/api/upload', authMiddleware, requireAdmin, (req, res) => {
+app.post('/api/upload', authMiddleware, requireCapability('edit_settings'), (req, res) => {
   console.log('Upload endpoint hit: /api/upload');
   upload.single('file')(req, res, (err) => {
     console.log('Multer callback for /api/upload invoked, err=', err && err.message ? err.message : null);
@@ -1675,10 +1783,7 @@ app.post('/api/upload', authMiddleware, requireAdmin, (req, res) => {
 });
 
 // Allow missionmakers to upload custom marker icons for their operations/templates
-app.post('/api/upload/custom-marker', authMiddleware, (req, res) => {
-  if (!(req.user?.role === 'admin' || req.user?.role === 'missionmaker')) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
+app.post('/api/upload/custom-marker', authMiddleware, requireCapability('edit_operations'), (req, res) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -1724,7 +1829,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
 });
 
   // Export full application data and included uploads as a single JSON payload
-  app.get('/api/backup', authMiddleware, requireAdmin, async (req, res) => {
+  app.get('/api/backup', authMiddleware, requireCapability('manage_backups'), async (req, res) => {
     try {
       const data = normalizeStorage(await _readData());
       // materialize any recurring ops into the data snapshot
@@ -1768,7 +1873,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
   });
 
   // Import application backup (JSON payload with `data` and optional `uploads` array)
-  app.post('/api/backup/import', authMiddleware, requireAdmin, async (req, res) => {
+  app.post('/api/backup/import', authMiddleware, requireCapability('manage_backups'), async (req, res) => {
     try {
       const payload = req.body;
       if (!payload || typeof payload !== 'object' || !payload.data) {

@@ -245,6 +245,15 @@ button:hover:not(:disabled) * {
     color: #ffffff !important;
 }
 
+/* The switch track provides its own background; keep the button around it invisible. */
+button.squad-switch,
+button.squad-switch:hover:not(:disabled),
+button.squad-switch:active {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none;
+}
+
 /* Secondary / outline buttons (Login, Cancel, theme toggle, ...) */
 button.secondary,
 .theme-toggle {

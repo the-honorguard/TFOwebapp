@@ -107,6 +107,7 @@ export async function updateSquad(opId, squadId, patch) {
   if ('srChannel' in patch) squad.srChannel = patch.srChannel;
   if ('marker' in patch) squad.marker = patch.marker;
   if ('markerIconUrl' in patch) squad.markerIconUrl = patch.markerIconUrl;
+  if ('active' in patch) squad.active = patch.active;
   await _savePayload(opId, op.payload);
   return getOpById(opId);
 }

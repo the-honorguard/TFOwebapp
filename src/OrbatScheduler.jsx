@@ -70,7 +70,8 @@ export default function OrbatScheduler({
   addSlot,
   dragSnapPreview,
   autoLayoutTemplate,
-  squadTypes = []
+  squadTypes = [],
+  canAssignPlayers: canAssignPlayersPermission = false
 }) {
   const [builderFlowMode, setBuilderFlowMode] = useState(true); // exact copy of OrbatTemplate's own Flow/Form toggle, local to the scheduler
   const builderCompact = false;
@@ -81,6 +82,49 @@ export default function OrbatScheduler({
   const [localTsAddress, setLocalTsAddress] = useState(selectedOp.tsAddress || '');
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const canAssignPlayers = Boolean(canAssignPlayersPermission);
+
+  const qualifiedPlayersForSlot = (slot) => {
+    const requiredRoles = [...new Set([
+      slot.role,
+      ...(Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [])
+    ].filter(Boolean))];
+    const assignedUserIds = new Set(
+      (selectedOp.squads || []).flatMap((squad) => squad.slots || [])
+        .map((operationSlot) => operationSlot.assignedUserId)
+        .filter((userId) => userId != null)
+        .map(String)
+    );
+    return users
+      .filter((user) => !assignedUserIds.has(String(user.id)))
+      .filter((user) => requiredRoles.some((role) => user.permissions?.[role] === true))
+      .sort((a, b) => String(a.username).localeCompare(String(b.username)));
+  };
+
+  const renderAssignmentPicker = (slot) => {
+    if (!canAssignPlayers || slot.assignedUserId || slot._pendingCreate) return null;
+    const qualifiedPlayers = qualifiedPlayersForSlot(slot);
+    return (
+      <select
+        className="slot-player-assignment"
+        value=""
+        aria-label={`Assign player to ${slot.name}`}
+        onChange={(event) => {
+          const userId = Number(event.target.value);
+          if (userId) joinOpSlot(selectedOp.id, slot.id, userId);
+        }}
+      >
+        <option value="">Assign qualified player...</option>
+        {qualifiedPlayers.length === 0 ? (
+          <option value="" disabled>No qualified players</option>
+        ) : qualifiedPlayers.map((user) => (
+          <option key={user.id} value={user.id}>
+            {user.username}{user.status && user.status !== 'Active' ? ` (${user.status})` : ''}
+          </option>
+        ))}
+      </select>
+    );
+  };
 
   const handleCanvasPanStart = (event) => {
     if (event.button !== 0) return;
@@ -134,6 +178,10 @@ export default function OrbatScheduler({
   const builtins = Array.isArray(squadTypes) && squadTypes.length > 0
     ? squadTypes.map((s) => ({ label: s.name, value: s.name, icon: s.icon }))
     : [];
+  const orderedSquads = [
+    ...template.squads.filter((squad) => squad.active !== false),
+    ...template.squads.filter((squad) => squad.active === false)
+  ];
 
   // Precompute canvas nodes/edges when showing the ORBAT canvas to avoid IIFE in JSX.
   // Reuses the exact same flow edges (getTemplateFlowEdges) the admin drew in the Template Builder,
@@ -172,6 +220,23 @@ export default function OrbatScheduler({
   }
   const selectedFlowSquadId = flowLinkSource?.templateId === template.id ? flowLinkSource.squadId : null;
   const selectedFlowSquad = template.squads.find((squad) => squad.id === selectedFlowSquadId);
+  const activeNodes = nodes.filter((node) => node.squad.active !== false);
+  const inactiveSeparatorY = Math.max(360, ...activeNodes.map((node) => (
+    node.y + (nodeHeights[node.nodeKey] || 124) + 60
+  )));
+  const finishCanvasDrag = () => {
+    const preview = dragSnapPreview?.templateId === template.id ? dragSnapPreview : null;
+    const draggedSquad = preview ? template.squads.find((squad) => squad.id === preview.squadId) : null;
+    const shouldBeInactive = Boolean(preview && preview.y >= inactiveSeparatorY);
+    stopCanvasDrag();
+    if (!draggedSquad) return;
+    const statusChanged = (draggedSquad.active === false) !== shouldBeInactive;
+    const nextSquads = template.squads.map((squad) => (
+      squad.id === draggedSquad.id ? { ...squad, active: !shouldBeInactive } : squad
+    ));
+    if (statusChanged) updateOpSquadMeta(selectedOp.id, draggedSquad.id, { active: !shouldBeInactive });
+    if (shouldBeInactive || statusChanged) window.setTimeout(() => autoLayoutTemplate(template.id, nextSquads), 0);
+  };
 
   return (
     <section className="card">
@@ -269,7 +334,7 @@ export default function OrbatScheduler({
               <button type="button" className="secondary small" onClick={() => resetTemplateCanvasLayout(template.id)}>
                 Reset
               </button>
-              <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id)}>
+              <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id, template.squads)}>
                 Auto-layout
               </button>
             </div>
@@ -285,8 +350,8 @@ export default function OrbatScheduler({
                 className="flow-canvas-content drag-canvas"
                 style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
                 onMouseMove={(event) => moveCanvasDrag(event, template)}
-                onMouseUp={stopCanvasDrag}
-                onMouseLeave={stopCanvasDrag}
+                onMouseUp={finishCanvasDrag}
+                onMouseLeave={finishCanvasDrag}
               >
               <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
                 <defs>
@@ -315,6 +380,10 @@ export default function OrbatScheduler({
                 ))}
               </svg>
 
+              <div className="inactive-separator" style={{ top: `${inactiveSeparatorY}px` }}>
+                <span>Inactive</span>
+              </div>
+
               {dragSnapPreview && dragSnapPreview.templateId === template.id ? (
                 (() => {
                   const h = nodeHeights[`flow-${template.id}-${dragSnapPreview.squadId}`] || 124;
@@ -333,7 +402,7 @@ export default function OrbatScheduler({
                 return (
                   <div
                     key={node.squad.id}
-                    className={`orbat-node flow-node ${isSelected ? 'selected' : ''}`}
+                    className={`orbat-node flow-node ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
                     style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${7 * 40}px` }}
                     ref={setNodeHeightRef(node.nodeKey)}
                   >
@@ -392,6 +461,28 @@ export default function OrbatScheduler({
                             </div>
                           ) : null}
                         </div>
+                        <button
+                          type="button"
+                          className={`squad-switch ${node.squad.active !== false ? 'is-active' : ''}`}
+                          role="switch"
+                          aria-checked={node.squad.active !== false}
+                          aria-label={node.squad.active === false ? 'Squad activeren' : 'Squad uitschakelen'}
+                          title={node.squad.active === false ? 'Squad activeren' : 'Squad uitschakelen'}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={(event) => { event.stopPropagation(); updateOpSquadMeta(selectedOp.id, node.squad.id, { active: node.squad.active === false }); }}
+                        >
+                          <span className="squad-switch-track" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="squad-sort-button"
+                          title="Alleen deze squad automatisch positioneren"
+                          aria-label="Alleen deze squad automatisch positioneren"
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={(event) => { event.stopPropagation(); autoLayoutTemplate(template.id, template.squads, node.squad.id); }}
+                        >
+                          Auto
+                        </button>
                         <button
                           type="button"
                           className="danger-x-button"
@@ -475,6 +566,7 @@ export default function OrbatScheduler({
                                         {assignedUser ? 'occupied' : 'free'}
                                       </span>
                                       {assignedUser ? <span className="orbat-slot-text" style={{maxWidth:'100%'}}>{assignedUser.username}</span> : null}
+                                      {renderAssignmentPicker(slot)}
                                     </span>
                                   );
                                 })()}
@@ -537,8 +629,12 @@ export default function OrbatScheduler({
         <div className="empty-state">This template has no squads yet. Add a squad to start.</div>
       ) : (
           <div className={builderCompact ? 'builder-grid compact' : 'builder-grid'}>
-            {template.squads.map((squad, index) => (
-              <div key={squad.id} className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''}`}>
+            {orderedSquads.map((squad, index) => (
+              <React.Fragment key={squad.id}>
+              {squad.active === false && orderedSquads[index - 1]?.active !== false ? (
+                <div className="inactive-separator form-separator"><span>Inactive</span></div>
+              ) : null}
+              <div className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''} ${squad.active === false ? 'squad-inactive' : ''}`}>
                 <div className="panel-title">
                   <div className="panel-title-text">
                     <input
@@ -549,6 +645,25 @@ export default function OrbatScheduler({
                       onBlur={(e) => updateOpSquadMeta(selectedOp.id, squad.id, { title: e.target.value })}
                     />
                     <div className="slot-meta-row">
+                      <button
+                        type="button"
+                        className={`squad-switch ${squad.active !== false ? 'is-active' : ''}`}
+                        role="switch"
+                        aria-checked={squad.active !== false}
+                        aria-label={squad.active === false ? 'Squad activeren' : 'Squad uitschakelen'}
+                        title={squad.active === false ? 'Squad activeren' : 'Squad uitschakelen'}
+                        onClick={() => updateOpSquadMeta(selectedOp.id, squad.id, { active: squad.active === false })}
+                      >
+                        <span className="squad-switch-track" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="squad-sort-button"
+                        title="Alleen deze squad automatisch positioneren"
+                        onClick={() => autoLayoutTemplate(template.id, template.squads, squad.id)}
+                      >
+                        Auto
+                      </button>
                       <span className="squad-count">
                         {squadStats(squad).occupied}/{squadStats(squad).total} filled
                       </span>
@@ -693,6 +808,7 @@ export default function OrbatScheduler({
                             })()}
                           </span>
                           <div className="slot-actions">
+                            {renderAssignmentPicker(slot)}
                             <button
                               type="button"
                               className="danger-x-button"
@@ -709,6 +825,7 @@ export default function OrbatScheduler({
                   )}
                 </div>
               </div>
+              </React.Fragment>
             ))}
           </div>
       )}

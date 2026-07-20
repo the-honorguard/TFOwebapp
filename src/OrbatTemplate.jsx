@@ -23,6 +23,10 @@ export default function OrbatTemplate({
   autoLayoutTemplate,
   moveCanvasDrag,
   stopCanvasDrag,
+  trimCanvasTop,
+  expandCanvas,
+  nudgeCanvasDrag,
+  prependCanvasSpace,
   startCanvasDrag,
   setNodeHeightRef,
   handleFlowConnectorClick,
@@ -49,7 +53,102 @@ export default function OrbatTemplate({
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
   const canvasScrollRef = useRef(null);
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
+  const autoScrollRef = useRef({ frame: null, dx: 0, dy: 0 });
+  const prependScrollRef = useRef(null);
   const [isPanning, setIsPanning] = useState(false);
+
+  React.useEffect(() => {
+    if (template?.id != null && typeof trimCanvasTop === 'function') {
+      trimCanvasTop(template.id, template.squads || []);
+    }
+  }, [template?.id]);
+
+  React.useEffect(() => () => {
+    if (autoScrollRef.current.frame) cancelAnimationFrame(autoScrollRef.current.frame);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const pending = prependScrollRef.current;
+    const scrollEl = canvasScrollRef.current;
+    if (!pending || !scrollEl) return;
+    scrollEl.scrollLeft += pending.x;
+    scrollEl.scrollTop += pending.y;
+    prependScrollRef.current = null;
+  });
+
+  const stopCanvasAutoScroll = () => {
+    if (autoScrollRef.current.frame) cancelAnimationFrame(autoScrollRef.current.frame);
+    autoScrollRef.current = { frame: null, dx: 0, dy: 0 };
+  };
+
+  const runCanvasAutoScroll = () => {
+    const scrollEl = canvasScrollRef.current;
+    const state = autoScrollRef.current;
+    if (!scrollEl || (!state.dx && !state.dy)) {
+      stopCanvasAutoScroll();
+      return;
+    }
+
+    const atRightEdge = state.dx > 0 && scrollEl.scrollLeft + scrollEl.clientWidth >= scrollEl.scrollWidth - 3;
+    const atBottomEdge = state.dy > 0 && scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 3;
+    const atLeftEdge = state.dx < 0 && scrollEl.scrollLeft <= 2;
+    const atTopEdge = state.dy < 0 && scrollEl.scrollTop <= 2;
+    if ((atLeftEdge || atTopEdge) && !prependScrollRef.current && typeof prependCanvasSpace === 'function') {
+      const prepend = { x: atLeftEdge ? 320 : 0, y: atTopEdge ? 280 : 0 };
+      prependScrollRef.current = prepend;
+      prependCanvasSpace(template.id, template.squads || [], prepend);
+    }
+    if ((atRightEdge || atBottomEdge) && typeof expandCanvas === 'function') {
+      expandCanvas(template.id, {
+        width: atRightEdge ? scrollEl.scrollWidth + 320 : scrollEl.scrollWidth,
+        height: atBottomEdge ? scrollEl.scrollHeight + 280 : scrollEl.scrollHeight
+      });
+    }
+
+    const previousLeft = scrollEl.scrollLeft;
+    const previousTop = scrollEl.scrollTop;
+    scrollEl.scrollBy(state.dx, state.dy);
+    if (typeof nudgeCanvasDrag === 'function') {
+      nudgeCanvasDrag(scrollEl.scrollLeft - previousLeft, scrollEl.scrollTop - previousTop);
+    }
+    autoScrollRef.current.frame = requestAnimationFrame(runCanvasAutoScroll);
+  };
+
+  const updateCanvasAutoScroll = (event) => {
+    if (dragSnapPreview?.templateId !== template.id) {
+      stopCanvasAutoScroll();
+      return;
+    }
+    const scrollEl = canvasScrollRef.current;
+    if (!scrollEl) return;
+    const rect = scrollEl.getBoundingClientRect();
+    const threshold = 64;
+    const speedForDistance = (distance) => Math.max(5, Math.min(22, Math.round((threshold - distance) / 3)));
+    let dx = 0;
+    let dy = 0;
+    if (event.clientX - rect.left < threshold) dx = -speedForDistance(event.clientX - rect.left);
+    else if (rect.right - event.clientX < threshold) dx = speedForDistance(rect.right - event.clientX);
+    if (event.clientY - rect.top < threshold) dy = -speedForDistance(event.clientY - rect.top);
+    else if (rect.bottom - event.clientY < threshold) dy = speedForDistance(rect.bottom - event.clientY);
+
+    autoScrollRef.current.dx = dx;
+    autoScrollRef.current.dy = dy;
+    if ((dx || dy) && !autoScrollRef.current.frame) {
+      autoScrollRef.current.frame = requestAnimationFrame(runCanvasAutoScroll);
+    } else if (!dx && !dy) {
+      stopCanvasAutoScroll();
+    }
+  };
+
+  const handleCanvasDragMove = (event) => {
+    moveCanvasDrag(event, template);
+    updateCanvasAutoScroll(event);
+  };
+
+  const handleCanvasDragStop = () => {
+    stopCanvasAutoScroll();
+    stopCanvasDrag();
+  };
 
   // Defensive defaults: allow opening Template Builder with no templates/demo data
   if (!template) template = { id: null, squads: [] };
@@ -87,6 +186,11 @@ export default function OrbatTemplate({
   const builtins = Array.isArray(squadTypes) && squadTypes.length > 0
     ? squadTypes.map((s) => ({ label: s.name, value: s.name, icon: s.icon }))
     : [];
+
+  const orderedSquads = [
+    ...template.squads.filter((squad) => squad.active !== false),
+    ...template.squads.filter((squad) => squad.active === false)
+  ];
   return (
     <div>
       {/* template-level override UI removed */}
@@ -104,6 +208,27 @@ export default function OrbatTemplate({
             };
           });
           const nodeMap = new Map(nodes.map((node) => [node.squad.id, node]));
+          const activeNodes = nodes.filter((node) => node.squad.active !== false);
+          const inactiveSeparatorY = Math.max(360, ...activeNodes.map((node) => (
+            node.y + (nodeHeights[node.nodeKey] || 124) + 60
+          )));
+          const finishCanvasDrag = () => {
+            const preview = dragSnapPreview?.templateId === template.id ? dragSnapPreview : null;
+            const draggedSquad = preview
+              ? template.squads.find((squad) => squad.id === preview.squadId)
+              : null;
+            const shouldBeInactive = Boolean(preview && preview.y >= inactiveSeparatorY);
+            handleCanvasDragStop();
+            if (!draggedSquad) return;
+            const statusChanged = (draggedSquad.active === false) !== shouldBeInactive;
+            const nextSquads = template.squads.map((squad) => (
+              squad.id === draggedSquad.id ? { ...squad, active: !shouldBeInactive } : squad
+            ));
+            if (statusChanged) updateSquadMeta(template.id, draggedSquad.id, { active: !shouldBeInactive });
+            if (shouldBeInactive || statusChanged) {
+              window.setTimeout(() => autoLayoutTemplate(template.id, nextSquads), 0);
+            }
+          };
           const edges = getTemplateFlowEdges(template.id, template.squads)
             .filter((edge) => nodeMap.has(edge.sourceId) && nodeMap.has(edge.targetId))
             .map((edge) => {
@@ -113,9 +238,9 @@ export default function OrbatTemplate({
               const targetAnchor = edge.targetAnchor || 'top';
               return {
                 id: edge.id,
-                x1: source.x + 150,
+                x1: source.x + 140,
                 y1: sourceAnchor === 'top' ? source.y : source.y + (nodeHeights[source.nodeKey] || 124),
-                x2: target.x + 150,
+                x2: target.x + 140,
                 y2: targetAnchor === 'top' ? target.y : target.y + (nodeHeights[target.nodeKey] || 124)
               };
             });
@@ -139,7 +264,7 @@ export default function OrbatTemplate({
                   <button type="button" className="secondary small" onClick={() => resetTemplateCanvasLayout(template.id)}>
                     Reset
                   </button>
-                  <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id)}>
+                  <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id, template.squads)}>
                     Auto-layout
                   </button>
                 </div>
@@ -154,9 +279,9 @@ export default function OrbatTemplate({
                   <div
                     className="flow-canvas-content drag-canvas"
                     style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
-                    onMouseMove={(event) => moveCanvasDrag(event, template)}
-                    onMouseUp={stopCanvasDrag}
-                    onMouseLeave={stopCanvasDrag}
+                    onMouseMove={handleCanvasDragMove}
+                    onMouseUp={finishCanvasDrag}
+                    onMouseLeave={finishCanvasDrag}
                   >
                   <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
                     <defs>
@@ -185,6 +310,10 @@ export default function OrbatTemplate({
                     ))}
                   </svg>
 
+                  <div className="inactive-separator" style={{ top: `${inactiveSeparatorY}px` }}>
+                    <span>Inactive</span>
+                  </div>
+
                   {dragSnapPreview && dragSnapPreview.templateId === template.id ? (
                     (() => {
                       const unit = 40;
@@ -209,7 +338,7 @@ export default function OrbatTemplate({
                     return (
                         <div
                         key={node.squad.id}
-                        className={`orbat-node flow-node ${isSelected ? 'selected' : ''}`}
+                        className={`orbat-node flow-node ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
                         style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${7 * 40}px` }}
                         ref={setNodeHeightRef(node.nodeKey)}
                       >
@@ -300,7 +429,30 @@ export default function OrbatTemplate({
                                 onChange={(e) => updateSquadMeta(template.id, node.squad.id, { srChannel: Number(e.target.value) })}
                               />
                             </label>
-
+                            <button
+                              type="button"
+                              className={`squad-switch ${node.squad.active !== false ? 'is-active' : ''}`}
+                              role="switch"
+                              aria-checked={node.squad.active !== false}
+                              title="Standaard actief in nieuwe operaties"
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                updateSquadMeta(template.id, node.squad.id, { active: node.squad.active === false });
+                              }}
+                            >
+                              <span className="squad-switch-track" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="squad-sort-button"
+                              title="Alleen deze squad automatisch positioneren"
+                              aria-label="Alleen deze squad automatisch positioneren"
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onClick={(event) => { event.stopPropagation(); autoLayoutTemplate(template.id, template.squads, node.squad.id); }}
+                            >
+                              Auto
+                            </button>
                           </div>
                         </div>
                         <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
@@ -395,8 +547,12 @@ export default function OrbatTemplate({
         <div className="empty-state">This template has no squads yet. Add a squad to start.</div>
       ) : (
           <div className={builderCompact ? 'builder-grid compact' : 'builder-grid'}>
-            {template.squads.map((squad, index) => (
-              <div key={squad.id} className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''}`}>
+            {orderedSquads.map((squad, index) => (
+              <React.Fragment key={squad.id}>
+              {squad.active === false && orderedSquads[index - 1]?.active !== false ? (
+                <div className="inactive-separator form-separator"><span>Inactive</span></div>
+              ) : null}
+              <div className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''} ${squad.active === false ? 'squad-inactive' : ''}`}>
                 <div className="panel-title">
                   <div className="panel-title-text">
                     <input
@@ -429,7 +585,24 @@ export default function OrbatTemplate({
                           onChange={(e) => updateSquadMeta(template.id, squad.id, { srChannel: Number(e.target.value) })}
                         />
                       </label>
-
+                      <button
+                        type="button"
+                        className={`squad-switch ${squad.active !== false ? 'is-active' : ''}`}
+                        role="switch"
+                        aria-checked={squad.active !== false}
+                        title="Standaard actief in nieuwe operaties"
+                        onClick={() => updateSquadMeta(template.id, squad.id, { active: squad.active === false })}
+                      >
+                        <span className="squad-switch-track" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="squad-sort-button"
+                        title="Alleen deze squad automatisch positioneren"
+                        onClick={() => autoLayoutTemplate(template.id, template.squads, squad.id)}
+                      >
+                        Auto
+                      </button>
                     </div>
                   </div>
                   <div className="slot-actions">
@@ -518,6 +691,7 @@ export default function OrbatTemplate({
                   )}
                 </div>
               </div>
+              </React.Fragment>
             ))}
           </div>
       )}

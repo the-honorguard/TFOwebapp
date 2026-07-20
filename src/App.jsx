@@ -38,6 +38,8 @@ function App() {
   const [recurrences, setRecurrences] = useState([]);
   const [ranks, setRanks] = useState([]);
   const [squadTypes, setSquadTypes] = useState([]);
+  const [permissionGroups, setPermissionGroups] = useState([]);
+  const [permissionDefinitions, setPermissionDefinitions] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [schedulerLoadTemplateId, setSchedulerLoadTemplateId] = useState('');
   const [selectedOpId, setSelectedOpId] = useState(null);
@@ -56,9 +58,12 @@ function App() {
       return {};
     }
   });
+  const [canvasExpansion, setCanvasExpansion] = useState({});
   const [canvasDrag, setCanvasDrag] = useState(null);
   const [dragSnapPreview, setDragSnapPreview] = useState(null);
   const [nodeHeights, setNodeHeights] = useState({});
+  const nodeHeightRefCallbacks = useRef(new Map());
+  const nodeHeightObservers = useRef(new Map());
   const [draggedSlot, setDraggedSlot] = useState(null);
   const slotSaveTimersRef = useRef({});
   const pendingSlotUpdatesRef = useRef({});
@@ -264,11 +269,21 @@ function App() {
     setRecurrences(data.recurrences || []);
     setCampaigns(data.campaigns || []);
     setCustomRoles(data.customRoles || []);
+    setPermissionGroups(data.permissionGroups || []);
+    setPermissionDefinitions(data.permissionDefinitions || []);
     setAuth(nextAuth);
     setSelectedTemplateId(templateList?.[0]?.id || null);
     setSelectedOpId(null);
+    const templateDefaults = templateList?.[0]?.defaultSettings || {};
+    if (templateList?.[0] && Object.keys(templateDefaults).length > 0) {
+      setDefaultOpSettings((current) => ({
+        ...templateDefaults,
+        ...current,
+        templateId: current.templateId || templateList[0].id
+      }));
+    }
     setOpForm((prev) => ({ ...prev, templateId: templateList?.[0]?.id || null, campaignId: defaultOpSettings.campaignId || (data.campaigns && data.campaigns[0] ? data.campaigns[0].id : null) }));
-    setPage('overview');
+    setPage(nextAuth && nextAuth.capabilities?.view_overview !== true ? 'profile' : 'overview');
   };
 
   useEffect(() => {
@@ -337,6 +352,12 @@ function App() {
     setPage('overview');
   };
   const showOpInScheduler = (opId, recurrenceId = null) => {
+    const operation = ops.find((op) => op.id === opId);
+    const hasOperationHierarchy = Object.prototype.hasOwnProperty.call(flowEdges || {}, opId);
+    if (operation && !hasOperationHierarchy) {
+      // Upgrade operations created before operation-specific canvas copies existed.
+      copyTemplateCanvasToOperation(operation.templateId, operation);
+    }
     setSelectedOpId(opId);
     setSelectedRecurrenceId(recurrenceId);
     setPage('op-detail');
@@ -607,6 +628,7 @@ function App() {
       if (data.op) {
         const op = normalizeOp(data.op);
         setOps((prev) => [...prev, op]);
+        copyTemplateCanvasToOperation(tplId, op);
         if (data.recurrence) setRecurrences((prev) => [...prev, data.recurrence]);
         // open the newly created op in the scheduler/detail view
         showOpInScheduler(op.id, data.recurrence ? data.recurrence.id : null);
@@ -699,7 +721,8 @@ function App() {
 
     try {
       const token = localStorage.getItem('token');
-      const body = userId && auth?.role === 'admin' ? { slotId, userId } : { slotId };
+      const canAssignOthers = auth?.capabilities?.assign_players === true;
+      const body = userId && canAssignOthers ? { slotId, userId } : { slotId };
       console.debug('[joinOpSlot] sending request', { url: `${API}/ops/${opId}/join`, body });
       const res = await fetch(`${API}/ops/${opId}/join`, {
         method: 'POST',
@@ -868,21 +891,47 @@ function App() {
   };
 
   const updateOpSquadMeta = async (opId, squadId, updates) => {
+    const isActiveToggle = typeof updates?.active === 'boolean';
+    const previousActive = isActiveToggle
+      ? ops.find((op) => op.id === opId)?.squads?.find((squad) => squad.id === squadId)?.active !== false
+      : null;
+    if (isActiveToggle) {
+      const layoutSquads = (ops.find((op) => op.id === opId)?.squads || []).map((squad) => (
+        squad.id === squadId ? { ...squad, active: updates.active } : squad
+      ));
+      setOps((prev) => prev.map((op) => (op.id !== opId ? op : {
+        ...op,
+        squads: (op.squads || []).map((squad) => (
+          squad.id === squadId ? { ...squad, active: updates.active } : squad
+        ))
+      })));
+      window.setTimeout(() => autoLayoutTemplate(opId, layoutSquads), 0);
+    }
+
     const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/ops/${opId}/squads/${squadId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(updates)
-    });
-    const data = await res.json();
-    if (data.op) {
+    try {
+      const res = await fetch(`${API}/ops/${opId}/squads/${squadId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.op) throw new Error(data.error || 'Could not update squad');
       const op = normalizeOp(data.op);
       setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
-    } else {
-      alert(data.error || 'Could not update squad');
+    } catch (error) {
+      if (isActiveToggle) {
+        setOps((prev) => prev.map((op) => (op.id !== opId ? op : {
+          ...op,
+          squads: (op.squads || []).map((squad) => (
+            squad.id === squadId ? { ...squad, active: previousActive } : squad
+          ))
+        })));
+      }
+      alert(error.message || 'Could not update squad');
     }
   };
 
@@ -1132,29 +1181,7 @@ function App() {
     if (data.op) {
       const op = normalizeOp(data.op);
       setOps((prev) => prev.map((opItem) => (opItem.id === op.id ? op : opItem)));
-      // If a template was loaded, map any existing template flow edges into an
-      // op-specific flowEdges entry so the scheduler canvas can render the same
-      // visual layout but using the op's new (decoupled) squad ids.
-      if (templateId && flowEdges && flowEdges[templateId]) {
-        const templateEdges = flowEdges[templateId] || [];
-        const opSquads = op.squads || [];
-        const mapped = templateEdges.map((edge) => {
-          const src = opSquads.find((s) => s.originalSquadId === edge.sourceId);
-          const tgt = opSquads.find((s) => s.originalSquadId === edge.targetId);
-          if (!src || !tgt) return null;
-          return {
-            id: Date.now() + Math.floor(Math.random() * 1000000),
-            sourceId: src.id,
-            targetId: tgt.id,
-            sourceAnchor: edge.sourceAnchor || 'bottom',
-            targetAnchor: edge.targetAnchor || 'top'
-          };
-        }).filter(Boolean);
-
-        if (mapped.length) {
-          setFlowEdges((prev) => ({ ...(prev || {}), [data.op.id]: mapped }));
-        }
-      }
+      copyTemplateCanvasToOperation(templateId || op.templateId, op);
     } else {
       alert(data.error || 'Could not reload template into operation');
     }
@@ -1349,17 +1376,35 @@ function App() {
   };
 
   const updateSquadMeta = async (templateId, squadId, updates) => {
+    const isActiveToggle = typeof updates?.active === 'boolean';
+    const previousActive = isActiveToggle
+      ? templates.find((template) => template.id === templateId)?.squads?.find((squad) => squad.id === squadId)?.active !== false
+      : null;
+    if (isActiveToggle) {
+      const layoutSquads = (templates.find((template) => template.id === templateId)?.squads || []).map((squad) => (
+        squad.id === squadId ? { ...squad, active: updates.active } : squad
+      ));
+      setTemplates((prev) => prev.map((template) => (template.id !== templateId ? template : {
+        ...template,
+        squads: template.squads.map((squad) => (
+          squad.id === squadId ? { ...squad, active: updates.active } : squad
+        ))
+      })));
+      window.setTimeout(() => autoLayoutTemplate(templateId, layoutSquads), 0);
+    }
+
     const token = localStorage.getItem('token');
-    const res = await fetch(`${API}/templates/${templateId}/squads/${squadId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(updates)
-    });
-    const data = await res.json();
-    if (data.squad) {
+    try {
+      const res = await fetch(`${API}/templates/${templateId}/squads/${squadId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      if (!res.ok || !data.squad) throw new Error(data.error || 'Could not update squad');
       setTemplates((prev) => prev.map((template) => {
         if (template.id !== templateId) return template;
         return {
@@ -1367,8 +1412,16 @@ function App() {
           squads: template.squads.map((squad) => (squad.id === data.squad.id ? data.squad : squad))
         };
       }));
-    } else {
-      alert(data.error || 'Could not update squad');
+    } catch (error) {
+      if (isActiveToggle) {
+        setTemplates((prev) => prev.map((template) => (template.id !== templateId ? template : {
+          ...template,
+          squads: template.squads.map((squad) => (
+            squad.id === squadId ? { ...squad, active: previousActive } : squad
+          ))
+        })));
+      }
+      alert(error.message || 'Could not update squad');
     }
   };
 
@@ -1898,6 +1951,14 @@ function App() {
 
   const isAdmin = auth?.role === 'admin';
   const isMissionmaker = auth?.role === 'missionmaker';
+  const can = (capability) => {
+    if (!auth) return false;
+    // Backwards compatibility for admin JWT/session data created before
+    // database-backed capabilities were introduced. Once capabilities are
+    // loaded, the configured permission group remains authoritative.
+    if (!auth.capabilities && auth.role === 'admin') return true;
+    return auth.capabilities?.[capability] === true;
+  };
   const effectiveOverviewMode = overviewMode === 'orbat' && isNarrowViewport ? 'cards' : overviewMode;
   const isWideCanvasPage = page === 'builder' || (page === 'overview' && effectiveOverviewMode === 'orbat');
 
@@ -1979,6 +2040,34 @@ function App() {
     return (flowEdges?.[templateId] || []).filter((edge) => squadIds.has(edge.sourceId) && squadIds.has(edge.targetId));
   };
 
+  const copyTemplateCanvasToOperation = (templateId, op) => {
+    if (!templateId || !op) return;
+    const opSquads = op.squads || [];
+    const squadByOriginalId = new Map(opSquads.map((squad) => [squad.originalSquadId, squad]));
+    const mappedEdges = (flowEdges?.[templateId] || []).map((edge) => {
+      const source = squadByOriginalId.get(edge.sourceId);
+      const target = squadByOriginalId.get(edge.targetId);
+      if (!source || !target) return null;
+      return {
+        id: `${op.id}-${source.id}-${target.id}-${edge.id}`,
+        sourceId: source.id,
+        targetId: target.id,
+        sourceAnchor: edge.sourceAnchor || 'bottom',
+        targetAnchor: edge.targetAnchor || 'top'
+      };
+    }).filter(Boolean);
+
+    const templateLayout = canvasLayout?.[templateId] || {};
+    const mappedLayout = {};
+    opSquads.forEach((squad) => {
+      const sourceNode = templateLayout?.[squad.originalSquadId];
+      if (sourceNode) mappedLayout[squad.id] = { ...sourceNode, parentId: null };
+    });
+
+    setFlowEdges((prev) => ({ ...(prev || {}), [op.id]: mappedEdges }));
+    setCanvasLayout((prev) => ({ ...(prev || {}), [op.id]: mappedLayout }));
+  };
+
   const addTemplateFlowEdge = (templateId, sourceId, targetId, sourceAnchor = 'bottom', targetAnchor = 'top') => {
     if (!sourceId || !targetId || sourceId === targetId) return;
 
@@ -2021,113 +2110,136 @@ function App() {
     setFlowLinkSource(null);
   };
 
-  const autoLayoutTemplate = (templateId) => {
-    const template = templates.find((t) => t.id === templateId);
-    if (!template) return;
+  const trimCanvasTop = (templateId, squads = []) => {
+    setCanvasLayout((prev) => {
+      const templateLayout = prev?.[templateId] || {};
+      if (!Array.isArray(squads) || squads.length === 0) return prev;
 
-    const squads = template.squads || [];
+      const nodes = squads.map((squad, index) => ({
+        id: squad.id,
+        node: templateLayout?.[squad.id] || {
+          x: 40 + (index % 3) * 300,
+          y: 40 + Math.floor(index / 3) * 240,
+          parentId: null
+        }
+      }));
+      const minX = Math.min(...nodes.map(({ node }) => Number(node.x) || 0));
+      const minY = Math.min(...nodes.map(({ node }) => Number(node.y) || 0));
+      const offsetX = snapToCanvasGrid(minX) - 40;
+      const offsetY = snapToCanvasGrid(minY) - 40;
+      if (offsetX <= 0 && offsetY <= 0) return prev;
+
+      const nextTemplateLayout = { ...templateLayout };
+      nodes.forEach(({ id, node }) => {
+        nextTemplateLayout[id] = {
+          ...node,
+          x: offsetX > 0 ? Math.max(40, node.x - offsetX) : node.x,
+          y: offsetY > 0 ? Math.max(40, node.y - offsetY) : node.y
+        };
+      });
+      return { ...prev, [templateId]: nextTemplateLayout };
+    });
+  };
+
+  const autoLayoutTemplate = (templateId, layoutSquads, onlySquadId = null) => {
+    // The scheduler uses an operation id as its canvas key, so it cannot always be
+    // found in `templates`. Accepting its squads explicitly keeps both builders on
+    // the exact same layout algorithm.
+    const template = templates.find((t) => t.id === templateId);
+    const squads = Array.isArray(layoutSquads) ? layoutSquads : (template?.squads || []);
+    if (!template && !Array.isArray(layoutSquads)) return;
+
     const squadIds = new Set(squads.map((squad) => squad.id));
     const edges = getTemplateFlowEdges(templateId, squads);
 
-    const HORIZONTAL_GAP = CANVAS_GRID_UNIT; // small gap between nodes (use grid unit for nicer alignment)
-    const VERTICAL_GAP = 60; // breathing room between a row and the tallest node in it
+    const MAX_COLUMNS = 4;
+    const NODE_WIDTH = 280; // Keep this in sync with .orbat-node in styles.css.
+    const HORIZONTAL_GAP = CANVAS_GRID_UNIT;
+    const VERTICAL_GAP = 60;
     const DEFAULT_NODE_HEIGHT = 124;
     const START_X = 40;
     const START_Y = 40;
 
     const nodeHeight = (id) => nodeHeights[`flow-${templateId}-${id}`] || DEFAULT_NODE_HEIGHT;
-    const nodeWidth = (id) => {
-      const squad = squads.find((s) => s.id === id) || {};
-      const slots = Array.isArray(squad.slots) ? squad.slots.length : 0;
-      // width units: base 7 units (~280px) plus 1 unit per slot (grid unit defined elsewhere)
-      const widthUnits = Math.max(7, 4 + slots);
-      return widthUnits * CANVAS_GRID_UNIT; // matches visual grid unit
-    };
 
     const childrenMap = new Map();
-    const hasParent = new Set();
     edges.forEach((edge) => {
       if (!squadIds.has(edge.sourceId) || !squadIds.has(edge.targetId)) return;
       if (!childrenMap.has(edge.sourceId)) childrenMap.set(edge.sourceId, []);
       childrenMap.get(edge.sourceId).push(edge.targetId);
-      hasParent.add(edge.targetId);
     });
-
-    const roots = squads.filter((squad) => !hasParent.has(squad.id)).map((squad) => squad.id);
-
-    // Depth = longest path from any root, so a node always sits below every one of its parents.
-    const depths = new Map();
-    roots.forEach((rootId) => depths.set(rootId, 0));
-    let changed = true;
-    let guard = 0;
-    while (changed && guard < squads.length + 1) {
-      changed = false;
-      guard += 1;
-      edges.forEach((edge) => {
-        if (!squadIds.has(edge.sourceId) || !squadIds.has(edge.targetId)) return;
-        const parentDepth = depths.get(edge.sourceId);
-        if (parentDepth === undefined) return;
-        const nextDepth = parentDepth + 1;
-        if ((depths.get(edge.targetId) ?? -1) < nextDepth) {
-          depths.set(edge.targetId, nextDepth);
-          changed = true;
-        }
-      });
-    }
-    squads.forEach((squad) => {
-      if (!depths.has(squad.id)) depths.set(squad.id, 0);
-    });
-
-    // Row height per depth = tallest node actually present on that row, so rows below a
-    // large HQ block don't overlap it.
-    const maxDepth = Math.max(0, ...Array.from(depths.values()));
-    const rowHeights = [];
-    for (let d = 0; d <= maxDepth; d += 1) {
-      const idsInRow = squads.filter((squad) => depths.get(squad.id) === d).map((squad) => squad.id);
-      rowHeights[d] = idsInRow.length ? Math.max(...idsInRow.map(nodeHeight)) : DEFAULT_NODE_HEIGHT;
-    }
-    const rowY = [START_Y];
-    for (let d = 1; d <= maxDepth; d += 1) {
-      rowY[d] = rowY[d - 1] + rowHeights[d - 1] + VERTICAL_GAP;
-    }
 
     const positions = {};
-    const visited = new Set();
-    let cursorX = START_X;
+    let nextY = START_Y;
+    const placed = new Set();
+    const originalIndex = new Map(squads.map((squad, index) => [squad.id, index]));
 
-    const layoutNode = (id) => {
-      if (visited.has(id)) return positions[id]?.x ?? cursorX;
-      visited.add(id);
-
-      const depth = depths.get(id) ?? 0;
-      const children = (childrenMap.get(id) || []).filter((childId) => squadIds.has(childId) && !visited.has(childId));
-
-      if (children.length === 0) {
-        const x = cursorX;
-        positions[id] = { x, y: rowY[depth] };
-        cursorX += nodeWidth(id) + HORIZONTAL_GAP;
-        return x;
-      }
-
-      const childLefts = children.map((childId) => layoutNode(childId));
-      const childCenters = children.map((childId, i) => childLefts[i] + nodeWidth(children[i]) / 2);
-      const minCenter = Math.min(...childCenters);
-      const maxCenter = Math.max(...childCenters);
-      const center = (minCenter + maxCenter) / 2;
-      const x = center - nodeWidth(id) / 2;
-      positions[id] = { x, y: rowY[depth] };
-      return x;
+    const placeRow = (rowIds, centre = true) => {
+      // Centre short rows so a leader and its children share the same visual axis.
+      const columnOffset = centre ? (MAX_COLUMNS - rowIds.length) / 2 : 0;
+      rowIds.forEach((id, column) => {
+        positions[id] = {
+          x: START_X + (columnOffset + column) * (NODE_WIDTH + HORIZONTAL_GAP),
+          y: nextY
+        };
+        placed.add(id);
+      });
+      const tallest = Math.max(DEFAULT_NODE_HEIGHT, ...rowIds.map(nodeHeight));
+      nextY += tallest + VERTICAL_GAP;
     };
 
-    roots.forEach((rootId) => layoutNode(rootId));
-    // Any remaining squads not reached (e.g. isolated cycles) still get placed
-    squads.forEach((squad) => {
-      if (!visited.has(squad.id)) layoutNode(squad.id);
-    });
+    const layoutSection = (sectionSquads) => {
+      const sectionIds = new Set(sectionSquads.map((squad) => squad.id));
+      const sectionEdges = edges.filter((edge) => sectionIds.has(edge.sourceId) && sectionIds.has(edge.targetId));
+      const assignedIds = new Set(sectionEdges.flatMap((edge) => [edge.sourceId, edge.targetId]));
+      const hasParentInSection = new Set(sectionEdges.map((edge) => edge.targetId));
+      const assignedSquads = sectionSquads.filter((squad) => assignedIds.has(squad.id));
+      const unassignedSquads = sectionSquads.filter((squad) => !assignedIds.has(squad.id));
+      const roots = assignedSquads
+        .filter((squad) => !hasParentInSection.has(squad.id))
+        .map((squad) => squad.id);
+      const candidates = [...roots, ...assignedSquads.map((squad) => squad.id)];
+
+      candidates.forEach((rootId) => {
+        if (placed.has(rootId)) return;
+        let levelIds = [rootId];
+        const branchSeen = new Set();
+
+        while (levelIds.length > 0) {
+          const uniqueLevelIds = levelIds
+            .filter((id, index, ids) => sectionIds.has(id) && !placed.has(id) && !branchSeen.has(id) && ids.indexOf(id) === index)
+            .sort((a, b) => originalIndex.get(a) - originalIndex.get(b));
+          if (uniqueLevelIds.length === 0) break;
+
+          uniqueLevelIds.forEach((id) => branchSeen.add(id));
+          for (let offset = 0; offset < uniqueLevelIds.length; offset += MAX_COLUMNS) {
+            placeRow(uniqueLevelIds.slice(offset, offset + MAX_COLUMNS));
+          }
+          levelIds = uniqueLevelIds.flatMap((id) => childrenMap.get(id) || []);
+        }
+      });
+
+      // Squads without a flow connection belong below the connected hierarchy.
+      // Keep filling each row from left to right instead of centring every squad
+      // on its own row as a separate root.
+      for (let offset = 0; offset < unassignedSquads.length; offset += MAX_COLUMNS) {
+        placeRow(unassignedSquads.slice(offset, offset + MAX_COLUMNS).map((squad) => squad.id), false);
+      }
+    };
+
+    const activeSquads = squads.filter((squad) => squad.active !== false);
+    const inactiveSquads = squads.filter((squad) => squad.active === false);
+    layoutSection(activeSquads);
+    if (inactiveSquads.length > 0) {
+      // Always reserve a clear lower band for disabled squads.
+      if (activeSquads.length > 0) nextY += VERTICAL_GAP;
+      layoutSection(inactiveSquads);
+    }
 
     setCanvasLayout((prev) => {
       const templateLayout = { ...(prev?.[templateId] || {}) };
       Object.entries(positions).forEach(([squadId, pos]) => {
+        if (onlySquadId != null && String(squadId) !== String(onlySquadId)) return;
         templateLayout[squadId] = {
           ...(templateLayout[squadId] || {}),
           x: snapToCanvasGrid(pos.x),
@@ -2222,10 +2334,57 @@ function App() {
       maxY = Math.max(maxY, node.y);
     });
 
+    const expansion = canvasExpansion?.[template.id] || {};
     return {
-      width: Math.max(1000, maxX + 360),
-      height: Math.max(700, maxY + 320)
+      width: Math.max(1000, maxX + 360, expansion.width || 0),
+      height: Math.max(700, maxY + 320, expansion.height || 0)
     };
+  };
+
+  const expandCanvas = (templateId, minimumSize) => {
+    setCanvasExpansion((prev) => {
+      const current = prev?.[templateId] || {};
+      const next = {
+        width: Math.max(current.width || 0, minimumSize?.width || 0),
+        height: Math.max(current.height || 0, minimumSize?.height || 0)
+      };
+      if (next.width === current.width && next.height === current.height) return prev;
+      return { ...prev, [templateId]: next };
+    });
+  };
+
+  const prependCanvasSpace = (templateId, squads, amount) => {
+    const shiftX = Math.max(0, amount?.x || 0);
+    const shiftY = Math.max(0, amount?.y || 0);
+    if (!shiftX && !shiftY) return;
+
+    setCanvasLayout((prev) => {
+      const templateLayout = prev?.[templateId] || {};
+      const nextTemplateLayout = { ...templateLayout };
+      (squads || []).forEach((squad, index) => {
+        const node = templateLayout?.[squad.id] || {
+          x: 40 + (index % 3) * 300,
+          y: 40 + Math.floor(index / 3) * 240,
+          parentId: null
+        };
+        nextTemplateLayout[squad.id] = {
+          ...node,
+          x: (Number(node.x) || 0) + shiftX,
+          y: (Number(node.y) || 0) + shiftY
+        };
+      });
+      return { ...prev, [templateId]: nextTemplateLayout };
+    });
+    setCanvasExpansion((prev) => {
+      const current = prev?.[templateId] || {};
+      return {
+        ...prev,
+        [templateId]: {
+          width: (current.width || 1000) + shiftX,
+          height: (current.height || 700) + shiftY
+        }
+      };
+    });
   };
 
   const startCanvasDrag = (event, templateId, squadId, index) => {
@@ -2264,6 +2423,30 @@ function App() {
     });
   };
 
+  const nudgeCanvasDrag = (deltaX, deltaY) => {
+    if (!canvasDrag || (!deltaX && !deltaY)) return;
+    setCanvasLayout((prev) => {
+      const templateLayout = prev?.[canvasDrag.templateId] || {};
+      const current = templateLayout?.[canvasDrag.squadId];
+      if (!current) return prev;
+      const next = {
+        ...current,
+        x: Math.max(12, current.x + deltaX),
+        y: Math.max(12, current.y + deltaY)
+      };
+      setDragSnapPreview({
+        templateId: canvasDrag.templateId,
+        squadId: canvasDrag.squadId,
+        x: snapToCanvasGrid(next.x),
+        y: snapToCanvasGrid(next.y)
+      });
+      return {
+        ...prev,
+        [canvasDrag.templateId]: { ...templateLayout, [canvasDrag.squadId]: next }
+      };
+    });
+  };
+
   const stopCanvasDrag = () => {
     if (
       canvasDrag
@@ -2275,16 +2458,43 @@ function App() {
         x: dragSnapPreview.x,
         y: dragSnapPreview.y
       });
+      if (page === 'builder') {
+        const template = templates.find((item) => item.id === canvasDrag.templateId);
+        if (template) trimCanvasTop(template.id, template.squads || []);
+      }
     }
     setCanvasDrag(null);
     setDragSnapPreview(null);
   };
 
-  const setNodeHeightRef = (nodeKey) => (element) => {
-    if (!element) return;
-    const nextHeight = element.offsetHeight;
-    setNodeHeights((prev) => (prev[nodeKey] === nextHeight ? prev : { ...prev, [nodeKey]: nextHeight }));
+  const setNodeHeightRef = (nodeKey) => {
+    if (!nodeHeightRefCallbacks.current.has(nodeKey)) {
+      nodeHeightRefCallbacks.current.set(nodeKey, (element) => {
+        nodeHeightObservers.current.get(nodeKey)?.disconnect();
+        nodeHeightObservers.current.delete(nodeKey);
+        if (!element) return;
+
+        const updateHeight = () => {
+          const nextHeight = element.offsetHeight;
+          setNodeHeights((prev) => (
+            prev[nodeKey] === nextHeight ? prev : { ...prev, [nodeKey]: nextHeight }
+          ));
+        };
+
+        updateHeight();
+        const observer = new ResizeObserver(updateHeight);
+        observer.observe(element);
+        nodeHeightObservers.current.set(nodeKey, observer);
+      });
+    }
+    return nodeHeightRefCallbacks.current.get(nodeKey);
   };
+
+  useEffect(() => () => {
+    nodeHeightObservers.current.forEach((observer) => observer.disconnect());
+    nodeHeightObservers.current.clear();
+    nodeHeightRefCallbacks.current.clear();
+  }, []);
 
   const [customRoles, setCustomRoles] = useState([]);
   const [newRoleName, setNewRoleName] = useState('');
@@ -2720,27 +2930,27 @@ function App() {
               <p>{auth ? `Role: ${auth.role}` : 'View the next operation now. Login when you want to claim a slot.'}</p>
             )}
           </div>
-            {isAdmin || isMissionmaker ? (
+            {auth ? (
             <div className="top-tabs">
-              <button className={page === 'dashboard' ? 'tab active' : 'tab'} onClick={goToDashboard}>
+              {can('view_overview') ? <button className={page === 'dashboard' ? 'tab active' : 'tab'} onClick={goToDashboard}>
                 Overview
-              </button>
-              <button className={page === 'campaigns' ? 'tab active' : 'tab'} onClick={goToCampaigns}>
+              </button> : null}
+              {can('view_campaigns') ? <button className={page === 'campaigns' ? 'tab active' : 'tab'} onClick={goToCampaigns}>
                 Campaigns
-              </button>
-              <button className={(page === 'scheduler' || page === 'scheduler-detail') ? 'tab active' : 'tab'} onClick={goToSchedulerList}>
+              </button> : null}
+              {can('view_operations') ? <button className={(page === 'scheduler' || page === 'scheduler-detail') ? 'tab active' : 'tab'} onClick={goToSchedulerList}>
                 Operation scheduler
-              </button>
-              <button className={page === 'builder' ? 'tab active' : 'tab'} onClick={goToBuilder}>
+              </button> : null}
+              {can('view_templates') ? <button className={page === 'builder' ? 'tab active' : 'tab'} onClick={goToBuilder}>
                 Template Builder
-              </button>
+              </button> : null}
               {/* Roles and Ranks moved to Settings subtabs */}
-              <button className={page === 'players' ? 'tab active' : 'tab'} onClick={goToPlayers}>
+              {can('view_players') ? <button className={page === 'players' ? 'tab active' : 'tab'} onClick={goToPlayers}>
                 Player List
-              </button>
-              <button className={page === 'settings' ? 'tab active' : 'tab'} onClick={goToSettings}>
+              </button> : null}
+              {can('view_settings') ? <button className={page === 'settings' ? 'tab active' : 'tab'} onClick={goToSettings}>
                 Settings
-              </button>
+              </button> : null}
             </div>
           ) : null}
           {auth ? (
@@ -2753,7 +2963,7 @@ function App() {
         </section>
 
         <div className="dashboard">
-          {page === 'overview' ? (
+          {page === 'overview' && (!auth || can('view_overview')) ? (
             <section className="card">
               <div className="builder-toolbar">
                 <div>
@@ -2801,6 +3011,7 @@ function App() {
                   getCanvasSize={getCanvasSize}
                   getCanvasNode={getCanvasNode}
                   resolveSquadParentId={resolveSquadParentId}
+                  getTemplateFlowEdges={getTemplateFlowEdges}
                   nodeHeights={nodeHeights}
                   setNodeHeightRef={setNodeHeightRef}
                   moveCanvasDrag={moveCanvasDrag}
@@ -2820,7 +3031,7 @@ function App() {
               ))}
             </section>
           ) : null}
-          {page === 'settings' ? (
+          {auth && can('view_settings') && page === 'settings' ? (
               <Settings
                   defaultOpSettings={defaultOpSettings}
                   setDefaultOpSettings={setDefaultOpSettings}
@@ -2846,6 +3057,18 @@ function App() {
                   uploadFile={uploadFile}
                   users={users}
                   setUsers={setUsers}
+                  can={can}
+                  permissionGroups={permissionGroups}
+                  permissionDefinitions={permissionDefinitions}
+                  onPermissionGroupsChanged={(groups, definitions) => {
+                    setPermissionGroups(groups);
+                    setPermissionDefinitions(definitions);
+                    setAuth((current) => {
+                      if (!current) return current;
+                      const currentGroup = groups.find((group) => group.slug === current.role);
+                      return currentGroup ? { ...current, capabilities: currentGroup.permissions || {} } : current;
+                    });
+                  }}
               />
           ) : null}
           {auth && page === 'profile' ? (
@@ -2862,7 +3085,7 @@ function App() {
               />
             </section>
           ) : null}
-          {auth && (isAdmin || isMissionmaker) && page === 'scheduler' ? (
+          {auth && can('view_operations') && page === 'scheduler' ? (
             <section className="card">
               <div className="builder-toolbar">
                 <div>
@@ -2928,7 +3151,7 @@ function App() {
             </section>
           ) : null}
 
-          {auth && (isAdmin || isMissionmaker) && page === 'campaigns' ? (
+          {auth && can('view_campaigns') && page === 'campaigns' ? (
             <Campaigns
               campaigns={campaigns}
               templates={templates}
@@ -2940,7 +3163,7 @@ function App() {
             />
           ) : null}
 
-          {auth && (isAdmin || isMissionmaker) && page === 'op-detail' && selectedOp ? (
+          {auth && can('view_operations') && page === 'op-detail' && selectedOp ? (
             <section className="card">
               <div className="role-add-form" style={{marginBottom:'1rem'}}>
                 <div style={{marginBottom:'0.5rem'}}>
@@ -2978,10 +3201,11 @@ function App() {
                 weekDayLabels={weekDayLabels}
                 toggleRecurrenceWeeklyDay={toggleRecurrenceWeeklyDay}
                 updateRecurrence={updateRecurrence}
-                isMissionmaker={isMissionmaker}
+                isMissionmaker={can('edit_operations')}
                 uploadCustomMarker={uploadCustomMarker}
                 recurrenceLabel={recurrenceLabel}
-                isAdmin={isAdmin}
+                isAdmin={can('edit_operations')}
+                canAssignPlayers={can('assign_players')}
                 getCanvasSize={getCanvasSize}
                 getCanvasNode={getCanvasNode}
                 resolveSquadParentId={resolveSquadParentId}
@@ -3024,7 +3248,7 @@ function App() {
           {isAdmin ? (
             <>
 
-              {page === 'builder' && (
+              {auth && can('view_templates') && page === 'builder' && (
                 <>
                   <section className="card">
                     <div className="builder-toolbar">
@@ -3112,6 +3336,10 @@ function App() {
                           autoLayoutTemplate={autoLayoutTemplate}
                           moveCanvasDrag={moveCanvasDrag}
                           stopCanvasDrag={stopCanvasDrag}
+                          trimCanvasTop={trimCanvasTop}
+                          expandCanvas={expandCanvas}
+                          nudgeCanvasDrag={nudgeCanvasDrag}
+                          prependCanvasSpace={prependCanvasSpace}
                           startCanvasDrag={startCanvasDrag}
                           setNodeHeightRef={setNodeHeightRef}
                           handleFlowConnectorClick={handleFlowConnectorClick}
@@ -3126,8 +3354,8 @@ function App() {
                           flushSlotUpdate={flushSlotUpdate}
                           deleteSlot={deleteSlot}
                           addSlot={addSlot}
-                          isAdmin={isAdmin}
-                          isMissionmaker={isMissionmaker}
+                          isAdmin={can('edit_templates')}
+                          isMissionmaker={can('edit_templates')}
                           uploadCustomMarker={uploadCustomMarker}
                           squadTypes={squadTypes}
                         />
@@ -3139,7 +3367,7 @@ function App() {
                 </>
               )}
 
-              {auth && page === 'players' && (
+              {auth && can('view_players') && page === 'players' && (
                 <section className="card">
                   <div className="playerlist-toolbar">
                     <button onClick={goToDashboard} className="secondary small">
@@ -3151,7 +3379,7 @@ function App() {
                     </div>
                   </div>
 
-                  <section className="card player-squad">
+                  {can('edit_players') ? <section className="card player-squad">
                     <h3>Create user</h3>
                     <form onSubmit={createUser} className="player-form">
                       <input
@@ -3179,14 +3407,16 @@ function App() {
                       <label>
                         Admin status
                         <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
-                          <option value="member">Member</option>
-                          <option value="admin">Admin</option>
-                          <option value="missionmaker">Missionmaker</option>
+                          {(permissionGroups.length ? permissionGroups : [
+                            { slug: 'member', name: 'Member' },
+                            { slug: 'missionmaker', name: 'Missionmaker' },
+                            { slug: 'admin', name: 'Admin' }
+                          ]).map((group) => <option key={group.slug} value={group.slug}>{group.name}</option>)}
                         </select>
                       </label>
                       <button type="submit">Save</button>
                     </form>
-                  </section>
+                  </section> : null}
 
                   <section className="card">
                     <h3>Permissions per player</h3>
@@ -3212,6 +3442,7 @@ function App() {
                                 <td>
                                   <select
                                     value={user.rank ?? ''}
+                                    disabled={!can('edit_players')}
                                     onChange={(e) => updateUserRank(user.id, e.target.value ? Number(e.target.value) : null)}
                                   >
                                     <option value="">Select rank</option>
@@ -3224,18 +3455,19 @@ function App() {
                                 <td>
                                   <select
                                     value={user.role}
+                                    disabled={!can('edit_players')}
                                     onChange={(e) => updateUserRole(user.id, e.target.value)}
                                   >
-                                    <option value="member">Member</option>
-                                    <option value="admin">Admin</option>
-                                    <option value="missionmaker">Missionmaker</option>
+                                    {permissionGroups.map((group) => (
+                                      <option key={group.slug} value={group.slug}>{group.name}</option>
+                                    ))}
                                   </select>
                                 </td>
                                 <td>
                                   <div className="roles-cell">
-                                    <button className="secondary small" onClick={() => openRoleModal(user)}>
+                                    {can('edit_players') ? <button className="secondary small" onClick={() => openRoleModal(user)}>
                                       Roles
-                                    </button>
+                                    </button> : null}
 
                                     <div className="user-role-badges">
                                       {Object.entries(user.permissions || {})
@@ -3256,9 +3488,9 @@ function App() {
                                   </div>
                                 </td>
                                 <td>
-                                  <button className="secondary small" onClick={() => deleteUser(user.id)}>
+                                  {can('edit_players') ? <button className="secondary small" onClick={() => deleteUser(user.id)}>
                                     Delete
-                                  </button>
+                                  </button> : null}
                                 </td>
                               </tr>
                             ))}

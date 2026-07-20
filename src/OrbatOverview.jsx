@@ -18,6 +18,7 @@ export default function OrbatOverview({
   getCanvasSize,
   getCanvasNode,
   resolveSquadParentId,
+  getTemplateFlowEdges,
   nodeHeights,
   setNodeHeightRef,
   moveCanvasDrag,
@@ -34,6 +35,21 @@ export default function OrbatOverview({
   showOpInScheduler,
   campaignImage
 }) {
+  const currentUser = auth
+    ? users.find((user) => String(user.id) === String(auth.id))
+    : null;
+  const activeSquads = (op.squads || []).filter((squad) => squad.active !== false);
+  const canUserJoinSlot = (slot) => {
+    if (!auth) return false;
+    if (auth.role === 'admin') return true;
+    const permissions = currentUser?.permissions || {};
+    const requiredRoles = [...new Set([
+      slot.role,
+      ...(Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [])
+    ].filter(Boolean))];
+    return requiredRoles.some((role) => permissions[role] === true);
+  };
+
   return (
     <section className="card">
       <div className="builder-toolbar">
@@ -63,35 +79,38 @@ export default function OrbatOverview({
           ) : null}
         </div>
       </div>
-      {(op.squads?.length ?? 0) === 0 ? (
-        <div className="empty-state">This operation has no squads.</div>
+      {activeSquads.length === 0 ? (
+        <div className="empty-state">This operation has no active squads.</div>
       ) : effectiveOverviewMode === 'orbat' ? (
         (() => {
-          const canvasTemplate = { id: op.templateId, squads: op.squads };
+          const canvasTemplate = { id: op.id, squads: activeSquads };
           const canvasSize = getCanvasSize(canvasTemplate);
-          const nodes = op.squads.map((squad, index) => {
-            const node = getCanvasNode(op.templateId, squad.id, index);
+          const hierarchyEdges = getTemplateFlowEdges(op.id, activeSquads);
+          const nodes = activeSquads.map((squad, index) => {
+            const node = getCanvasNode(op.id, squad.id, index);
+            const incomingEdge = hierarchyEdges.find((edge) => edge.targetId === squad.id);
             return {
               squad,
               index,
               nodeKey: `overview-${op.id}-${squad.id}`,
               x: node.x,
               y: node.y,
-              parentId: resolveSquadParentId(op.templateId, op.squads, squad.id, index)
+              parentId: incomingEdge?.sourceId || null
             };
           });
 
           const nodeMap = new Map(nodes.map((node) => [node.squad.id, node]));
-          const links = nodes
-            .filter((node) => node.parentId && nodeMap.has(node.parentId))
-            .map((node) => {
-              const parent = nodeMap.get(node.parentId);
+          const links = hierarchyEdges
+            .filter((edge) => nodeMap.has(edge.sourceId) && nodeMap.has(edge.targetId))
+            .map((edge) => {
+              const parent = nodeMap.get(edge.sourceId);
+              const child = nodeMap.get(edge.targetId);
               return {
-                id: `${parent.squad.id}-${node.squad.id}`,
+                id: edge.id,
                 x1: parent.x + 140,
                 y1: parent.y + (nodeHeights[parent.nodeKey] || 172),
-                x2: node.x + 140,
-                y2: node.y
+                x2: child.x + 140,
+                y2: child.y
               };
             });
 
@@ -152,10 +171,10 @@ export default function OrbatOverview({
                       <select
                         className="orbat-parent-select"
                         value={node.parentId || ''}
-                        onChange={(event) => updateSquadParent(op.templateId, node.squad.id, event.target.value || null)}
+                        onChange={(event) => updateSquadParent(op.id, node.squad.id, event.target.value || null)}
                       >
                         <option value="">Top command</option>
-                        {op.squads
+                        {activeSquads
                           .filter((squad) => squad.id !== node.squad.id)
                           .map((squad) => (
                             <option key={squad.id} value={squad.id}>
@@ -169,8 +188,7 @@ export default function OrbatOverview({
                       {node.squad.slots.slice(0, 6).map((slot) => {
                         const assignedUser = users.find((user) => user.id === slot.assignedUserId);
                         const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
-                        const allowedRoles = slot.allowedRoles || [];
-                        const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
+                        const canJoin = !assignedUser && canUserJoinSlot(slot);
                         const isOwnSlot = Boolean(auth && slot.assignedUserId != null && String(slot.assignedUserId) === String(auth.id));
                         const crop = assignedUser?.profile?.avatarCrop || null;
                         const bgPosition = crop ? `${crop.x}% ${crop.y}%` : 'center';
@@ -211,7 +229,7 @@ export default function OrbatOverview({
         })()
       ) : (
         <div className="builder-grid">
-          {op.squads.map((squad, index) => (
+          {activeSquads.map((squad, index) => (
             <div key={squad.id} className={`builder-panel panel-${index % 5}`}>
                 <div className="panel-title">
                 <strong>{squad.title}</strong>
@@ -225,8 +243,7 @@ export default function OrbatOverview({
                       squad.slots.map((slot) => {
                     const assignedUser = users.find((user) => user.id === slot.assignedUserId);
                     const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
-                    const allowedRoles = slot.allowedRoles || [];
-                    const canJoin = !assignedUser && (allowedRoles.length === 0 || allowedRoles.includes(auth?.role) || auth?.role === 'admin');
+                    const canJoin = !assignedUser && canUserJoinSlot(slot);
                     const isOwnSlot = Boolean(auth && slot.assignedUserId === auth.id);
 
                     return (
