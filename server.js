@@ -77,7 +77,8 @@ testDb();
  */
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
-const SECRET = 'tfo-secret';
+const SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? null : 'tfo-development-secret');
+if (!SECRET) throw new Error('JWT_SECRET is required when NODE_ENV=production');
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.html', '.htm', '.txt', '.json', '.svg', '.png', '.jpg', '.jpeg', '.gif']);
 

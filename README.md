@@ -349,22 +349,34 @@ npm run build
 
 ---
 
-## Known Issues
+## Task list and known issues
 
-See [`todo.md`](todo.md) for the full task list. Current blocking items:
-
-- **Ranks icon column missing** — `icon` field is not yet persisted to the database; rank icons will appear blank until the schema migration is applied.
-- **Roles backend not implemented** — the Roles page is present in the UI but has no database table, repository, or API routes behind it.
-- **Hardcoded auth secret** — `JWT_SECRET` must be moved to an environment variable before any public exposure.
+[`todo.md`](todo.md) is the single source of truth for active work, priorities, acceptance criteria and verified completed items. Keep status updates there to prevent the README and task list from drifting apart.
 
 ---
 
 ## Notes
 
 - `uploads/` is created automatically on first run
-- A default `admin` account is seeded on first start — change the password immediately via Settings
+- The current first-run administrator flow still needs the production hardening described in `TFO-SEC-001`
 - File-based operations are not suited for heavy concurrent writes; a proper job queue or database-level locking should be considered at scale
 - The `dist/` folder must be rebuilt and re-uploaded after any frontend change
+
+### o2switch deployment
+
+From Windows, the complete test, build, upload and Passenger restart flow can be
+run with:
+
+```powershell
+.\scripts\deploy-o2switch.ps1
+```
+
+The o2switch host, account, application root and Node.js 20 activation path are
+configured as defaults in the script. They can still be overridden with command
+line parameters. Use `-IdentityFile "$HOME\.ssh\o2switch"` after configuring an
+SSH key; otherwise SSH asks for the account password interactively. The script
+deliberately preserves the remote `.env`, `uploads/` and `logs/` directories.
+Database backups remain a separate operational step.
 
 ---
 
