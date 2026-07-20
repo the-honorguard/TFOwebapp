@@ -101,12 +101,12 @@ export default function OrbatOverview({
         </div>
       </div>
       <div className="operation-absences">
-        <strong>Afgemelde spelers ({absentPlayers.length})</strong>
+        <strong>Absent players ({absentPlayers.length})</strong>
         {absentPlayers.length ? (
           <div className="operation-absence-list">
             {absentPlayers.map((player) => <span key={player.id}>{player.username}</span>)}
           </div>
-        ) : <span className="operation-absence-empty">Niemand heeft zich afgemeld.</span>}
+        ) : <span className="operation-absence-empty">No players have reported absent.</span>}
       </div>
       {activeSquads.length === 0 ? (
         <div className="empty-state">This operation has no active squads.</div>

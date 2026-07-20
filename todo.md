@@ -79,7 +79,7 @@ Dit is de enige actieve takenlijst. Werk van boven naar beneden: eerst P0, daarn
   - Verwijder alleen na repositorybrede gebruikscontrole en geslaagde tests/build; behoud één gedocumenteerde `apiFetch`-export.
 
 - [ ] **TFO-CLEANUP-002 — Handmatige scripts inventariseren**
-  - Controleer `scripts/check_public.js`, `clear-db.js`, `count-users.mjs`, `create-admin.cjs`, `dump-users.cjs`, `init-db.mjs`, `init-schema.mjs`, `list-tables.mjs`, `set-admin-password.cjs`, `test-create-admin.mjs`, `training-e2e-check.mjs`, `training-ui-fixture.mjs` en `wait-for-db.js`.
+  - Controleer `scripts/check_public.js`, `clear-db.js`, `count-users.mjs`, `create-admin.cjs`, `create-admin-check.mjs`, `dump-users.cjs`, `init-db.mjs`, `init-schema.mjs`, `list-tables.mjs`, `set-admin-password.cjs`, `training-e2e-check.mjs`, `training-ui-fixture.mjs` en `wait-for-db.js`.
   - Noteer per behouden script doel, eigenaar, commando, omgeving en veiligheidsgrenzen; geef destructieve scripts een productieblokkade.
 
 ## P3 — Product en UX
