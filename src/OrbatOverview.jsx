@@ -1,3 +1,5 @@
+import { getOrbatNodeHeight, ORBAT_NODE_WIDTH, ORBAT_VISIBLE_SLOT_LIMIT } from './orbatLayout';
+
 /**
  * Read-only ORBAT view used on the public/overview page for upcoming operations.
  * This component is a presentational view: it receives operation data and a set
@@ -33,12 +35,14 @@ export default function OrbatOverview({
   flushOpSlotUpdate,
   setShowLoginPanel,
   showOpInScheduler,
-  campaignImage
+  campaign
 }) {
   const currentUser = auth
     ? users.find((user) => String(user.id) === String(auth.id))
     : null;
   const activeSquads = (op.squads || []).filter((squad) => squad.active !== false);
+  const modlistUrl = op.modlistPlayer || op.modlist || '';
+  const ts3Url = op.tsAddress ? `ts3server://${op.tsAddress}` : '';
   const canUserJoinSlot = (slot) => {
     if (!auth) return false;
     if (auth.role === 'admin') return true;
@@ -51,27 +55,30 @@ export default function OrbatOverview({
   };
 
   return (
-    <section className="card">
-      <div className="builder-toolbar">
-        {campaignImage ? (
-          <div style={{marginBottom:'0.5rem'}}>
-            <img src={campaignImage} alt="Campaign" style={{maxWidth:280,maxHeight:120,objectFit:'cover',borderRadius:6}} />
+    <section className="card operation-overview-card">
+      <div className="operation-details">
+        {campaign?.image ? (
+          <div className="operation-campaign-image">
+            <img src={campaign.image} alt={campaign.name || 'Campaign'} />
           </div>
         ) : null}
-        <div>
-          <h4>{op.serverName || op.name}</h4>
-          <p>{op.date} at {op.time} using {getTemplateName(op.templateId)}.</p>
-          <p className="op-info">
-            {op.serverName ? `${op.serverName}` : ''}
-            {op.tsAddress ? (
-              <>
-                {op.serverName ? ' · ' : ''}
-                <a href={`ts3server://${op.tsAddress}`}>{op.tsAddress}</a>
-              </>
-            ) : null}
-          </p>
+        <div className="operation-details-copy">
+          <h4>{op.name}</h4>
+          <dl className="operation-meta">
+            <div><dt>Server</dt><dd>{op.serverName || '-'}</dd></div>
+            <div><dt>Date</dt><dd>{op.date || '-'}{op.time ? ` at ${op.time}` : ''}</dd></div>
+            <div><dt>Template</dt><dd>{getTemplateName(op.templateId)}</dd></div>
+            {campaign?.name ? <div><dt>Campaign</dt><dd>{campaign.name}</dd></div> : null}
+            <div><dt>TS3</dt><dd>{op.tsAddress || '-'}</dd></div>
+          </dl>
         </div>
-        <div style={{display:'flex',gap:'0.5rem'}}>
+        <div className="operation-actions">
+          {modlistUrl ? (
+            <a className="button-link secondary small" href={modlistUrl} target="_blank" rel="noreferrer">Modlist</a>
+          ) : null}
+          {ts3Url ? (
+            <a className="button-link secondary small" href={ts3Url}>Connect to TS3</a>
+          ) : null}
           {(isAdmin || isMissionmaker) ? (
             <button className="secondary small" onClick={() => showOpInScheduler(op.id)}>
               Open in Operation Scheduler
@@ -107,9 +114,9 @@ export default function OrbatOverview({
               const child = nodeMap.get(edge.targetId);
               return {
                 id: edge.id,
-                x1: parent.x + 140,
-                y1: parent.y + (nodeHeights[parent.nodeKey] || 172),
-                x2: child.x + 140,
+                x1: parent.x + (ORBAT_NODE_WIDTH / 2),
+                y1: parent.y + getOrbatNodeHeight(parent.squad),
+                x2: child.x + (ORBAT_NODE_WIDTH / 2),
                 y2: child.y
               };
             });
@@ -133,21 +140,11 @@ export default function OrbatOverview({
                   ))}
                 </svg>
 
-                {/* Blueprint-style server info overlay */}
-                <div className="orbat-blueprint" aria-hidden="true">
-                  <h5>Server</h5>
-                  <div className="blueprint-line"><strong>Name:</strong> {op.serverName || '-'}</div>
-                  <div className="blueprint-line"><strong>Address:</strong> {op.tsAddress || '-'}</div>
-                  <div className="blueprint-line"><strong>Date:</strong> {op.date ? `${op.date}${op.time ? ' ' + op.time : ''}` : '-'}</div>
-                  <div className="blueprint-line"><strong>Campaign:</strong> {op.campaign || '-'}</div>
-                  {op.modlist ? <div className="blueprint-line"><strong>Modlist:</strong> {op.modlist}</div> : null}
-                  {op.modlistServer ? <div className="blueprint-line"><strong>Server Mods:</strong> {op.modlistServer}</div> : null}
-                </div>
                 {nodes.map((node) => (
                   <div
                     key={node.squad.id}
                     className="orbat-node"
-                    style={{ left: `${node.x}px`, top: `${node.y}px` }}
+                    style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${ORBAT_NODE_WIDTH}px`, height: `${getOrbatNodeHeight(node.squad)}px` }}
                     ref={setNodeHeightRef(node.nodeKey)}
                   >
                     <span className="orbat-connector top" aria-hidden="true" />
@@ -185,7 +182,7 @@ export default function OrbatOverview({
                     ) : null}
 
                     <div className="orbat-slot-list">
-                      {node.squad.slots.slice(0, 6).map((slot) => {
+                      {node.squad.slots.slice(0, ORBAT_VISIBLE_SLOT_LIMIT).map((slot) => {
                         const assignedUser = users.find((user) => user.id === slot.assignedUserId);
                         const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
                         const canJoin = !assignedUser && canUserJoinSlot(slot);
@@ -217,8 +214,8 @@ export default function OrbatOverview({
                           </div>
                         );
                       })}
-                      {node.squad.slots.length > 6 ? (
-                        <div className="orbat-slot-more">+{node.squad.slots.length - 6} more slots</div>
+                      {node.squad.slots.length > ORBAT_VISIBLE_SLOT_LIMIT ? (
+                        <div className="orbat-slot-more">+{node.squad.slots.length - ORBAT_VISIBLE_SLOT_LIMIT} more slots</div>
                       ) : null}
                     </div>
                   </div>

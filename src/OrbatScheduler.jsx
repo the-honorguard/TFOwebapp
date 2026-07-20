@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { getEditorExpandedHeight, getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
 /**
  * OrbatScheduler
@@ -34,7 +35,6 @@ export default function OrbatScheduler({
   recurrenceLabel,
   isAdmin,
   isMissionmaker,
-  uploadCustomMarker,
   getCanvasSize,
   getCanvasNode,
   resolveSquadParentId,
@@ -70,7 +70,12 @@ export default function OrbatScheduler({
   addSlot,
   dragSnapPreview,
   autoLayoutTemplate,
+  alignInactiveSquads,
+  autoLayoutSingleSquad,
   squadTypes = [],
+  saveDraft,
+  savingDraft = false,
+  savedDraft = false,
   canAssignPlayers: canAssignPlayersPermission = false
 }) {
   const [builderFlowMode, setBuilderFlowMode] = useState(true); // exact copy of OrbatTemplate's own Flow/Form toggle, local to the scheduler
@@ -82,6 +87,7 @@ export default function OrbatScheduler({
   const [localTsAddress, setLocalTsAddress] = useState(selectedOp.tsAddress || '');
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [draggingSquadId, setDraggingSquadId] = useState(null);
   const canAssignPlayers = Boolean(canAssignPlayersPermission);
 
   const qualifiedPlayersForSlot = (slot) => {
@@ -102,7 +108,22 @@ export default function OrbatScheduler({
   };
 
   const renderAssignmentPicker = (slot) => {
-    if (!canAssignPlayers || slot.assignedUserId || slot._pendingCreate) return null;
+    if (!canAssignPlayers || slot._pendingCreate) return null;
+    if (slot.assignedUserId) {
+      return (
+        <select
+          className="slot-player-assignment"
+          value=""
+          aria-label={`Manage assignment for ${slot.name}`}
+          onChange={(event) => {
+            if (event.target.value === 'free') signOffOpSlot(selectedOp.id, slot.id, true);
+          }}
+        >
+          <option value="">Assigned</option>
+          <option value="free">Free slot</option>
+        </select>
+      );
+    }
     const qualifiedPlayers = qualifiedPlayersForSlot(slot);
     return (
       <select
@@ -114,7 +135,7 @@ export default function OrbatScheduler({
           if (userId) joinOpSlot(selectedOp.id, slot.id, userId);
         }}
       >
-        <option value="">Assign qualified player...</option>
+        <option value="">Assign</option>
         {qualifiedPlayers.length === 0 ? (
           <option value="" disabled>No qualified players</option>
         ) : qualifiedPlayers.map((user) => (
@@ -154,27 +175,11 @@ export default function OrbatScheduler({
   // template key (use `selectedOp.id`) so canvas layout and flow edges are
   // stored separately per-operation and do not affect the original template.
   const template = { id: selectedOp.id, squads: selectedOp.squads || [] };
-  const fileInputs = {};
-  const triggerFileInput = (squadId) => {
-    const el = document.getElementById(`scheduler-marker-upload-${squadId}`);
-    if (el) el.click();
-  };
-  const handleFileChange = async (templateId, squadId, e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const url = await uploadCustomMarker(file);
-      await updateOpSquadMeta(selectedOp.id, squadId, { markerIconUrl: url });
-    } catch (err) {
-      alert(err.message || 'Upload failed');
-    }
-  };
   // keep local inputs in sync when switching ops
   React.useEffect(() => {
     setLocalServerName(selectedOp.serverName || '');
     setLocalTsAddress(selectedOp.tsAddress || '');
   }, [selectedOp.id]);
-  const canUpload = Boolean(isAdmin || isMissionmaker);
   const builtins = Array.isArray(squadTypes) && squadTypes.length > 0
     ? squadTypes.map((s) => ({ label: s.name, value: s.name, icon: s.icon }))
     : [];
@@ -211,31 +216,37 @@ export default function OrbatScheduler({
         const targetAnchor = edge.targetAnchor || 'top';
         return {
           id: edge.id,
-          x1: source.x + 150,
-          y1: sourceAnchor === 'top' ? source.y : source.y + (nodeHeights[source.nodeKey] || 124),
-          x2: target.x + 150,
-          y2: targetAnchor === 'top' ? target.y : target.y + (nodeHeights[target.nodeKey] || 124)
+          x1: source.x + (ORBAT_NODE_WIDTH / 2),
+          y1: sourceAnchor === 'top' ? source.y : source.y + getOrbatNodeHeight(source.squad),
+          x2: target.x + (ORBAT_NODE_WIDTH / 2),
+          y2: targetAnchor === 'top' ? target.y : target.y + getOrbatNodeHeight(target.squad)
         };
       });
   }
   const selectedFlowSquadId = flowLinkSource?.templateId === template.id ? flowLinkSource.squadId : null;
   const selectedFlowSquad = template.squads.find((squad) => squad.id === selectedFlowSquadId);
-  const activeNodes = nodes.filter((node) => node.squad.active !== false);
+  const draggedSquadId = dragSnapPreview?.templateId === template.id
+    ? dragSnapPreview.squadId
+    : null;
+  const activeNodes = nodes.filter((node) => (
+    node.squad.active !== false && node.squad.id !== draggedSquadId
+  ));
   const inactiveSeparatorY = Math.max(360, ...activeNodes.map((node) => (
-    node.y + (nodeHeights[node.nodeKey] || 124) + 60
+    node.y + getOrbatNodeHeight(node.squad) + 60
   )));
   const finishCanvasDrag = () => {
     const preview = dragSnapPreview?.templateId === template.id ? dragSnapPreview : null;
     const draggedSquad = preview ? template.squads.find((squad) => squad.id === preview.squadId) : null;
     const shouldBeInactive = Boolean(preview && preview.y >= inactiveSeparatorY);
     stopCanvasDrag();
+    setDraggingSquadId(null);
     if (!draggedSquad) return;
     const statusChanged = (draggedSquad.active === false) !== shouldBeInactive;
     const nextSquads = template.squads.map((squad) => (
       squad.id === draggedSquad.id ? { ...squad, active: !shouldBeInactive } : squad
     ));
     if (statusChanged) updateOpSquadMeta(selectedOp.id, draggedSquad.id, { active: !shouldBeInactive });
-    if (shouldBeInactive || statusChanged) window.setTimeout(() => autoLayoutTemplate(template.id, nextSquads), 0);
+    if (nextSquads.some((squad) => squad.active === false)) window.setTimeout(() => alignInactiveSquads(template.id, nextSquads), 0);
   };
 
   return (
@@ -249,6 +260,9 @@ export default function OrbatScheduler({
           <p>{selectedOp.date} at {selectedOp.time} &middot; {getTemplateName(selectedOp.templateId)}</p>
         </div>
         <div style={{display:'flex',gap:'0.5rem'}}>
+          <button type="button" onClick={saveDraft} disabled={savingDraft}>
+            {savingDraft ? 'Saving...' : savedDraft ? 'Saved' : 'Save'}
+          </button>
           <select
             value={schedulerLoadTemplateId}
             onChange={(e) => setSchedulerLoadTemplateId(e.target.value)}
@@ -283,14 +297,12 @@ export default function OrbatScheduler({
         <input
           placeholder="Server name (optional)"
           value={localServerName}
-          onChange={(e) => setLocalServerName(e.target.value)}
-          onBlur={() => updateOpMeta(selectedOp.id, { serverName: localServerName })}
+          onChange={(e) => { setLocalServerName(e.target.value); updateOpMeta(selectedOp.id, { serverName: e.target.value }); }}
         />
         <input
           placeholder="TS3 address (optional)"
           value={localTsAddress}
-          onChange={(e) => setLocalTsAddress(e.target.value)}
-          onBlur={() => updateOpMeta(selectedOp.id, { tsAddress: localTsAddress })}
+          onChange={(e) => { setLocalTsAddress(e.target.value); updateOpMeta(selectedOp.id, { tsAddress: e.target.value }); }}
         />
         <select value={selectedOp.campaignId || ''} onChange={(e) => updateOpMeta(selectedOp.id, { campaignId: e.target.value ? Number(e.target.value) : null })}>
           <option value="">No campaign</option>
@@ -386,7 +398,8 @@ export default function OrbatScheduler({
 
               {dragSnapPreview && dragSnapPreview.templateId === template.id ? (
                 (() => {
-                  const h = nodeHeights[`flow-${template.id}-${dragSnapPreview.squadId}`] || 124;
+                  const squad = template.squads.find((item) => item.id === dragSnapPreview.squadId);
+                  const h = getOrbatNodeHeight(squad);
                   return (
                     <div
                       className="flow-drag-ghost"
@@ -398,12 +411,23 @@ export default function OrbatScheduler({
 
               {nodes.map((node) => {
                 const isSelected = selectedFlowSquadId === node.squad.id;
+                const collapsedHeight = getOrbatNodeHeight(node.squad);
+                const expandedHeight = getEditorExpandedHeight(node.squad);
+                const hoverSuppressed = draggingSquadId != null || flowLinkSource?.templateId === template.id;
 
                 return (
                   <div
                     key={node.squad.id}
-                    className={`orbat-node flow-node ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
-                    style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${7 * 40}px` }}
+                    className={`orbat-node flow-node expandable-editor-node scheduler-node ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
+                    style={{
+                      left: `${node.x}px`,
+                      top: `${node.y}px`,
+                      width: `${ORBAT_NODE_WIDTH}px`,
+                      height: `${collapsedHeight}px`,
+                      '--orbat-collapsed-height': `${collapsedHeight}px`,
+                      '--orbat-expanded-height': `${expandedHeight}px`,
+                      '--orbat-collapsed-width': `${ORBAT_NODE_WIDTH}px`
+                    }}
                     ref={setNodeHeightRef(node.nodeKey)}
                   >
                     <button
@@ -420,7 +444,10 @@ export default function OrbatScheduler({
                     />
                     <div
                       className="orbat-node-head"
-                      onMouseDown={(event) => startCanvasDrag(event, template.id, node.squad.id, node.index)}
+                      onMouseDown={(event) => {
+                        setDraggingSquadId(node.squad.id);
+                        startCanvasDrag(event, template.id, node.squad.id, node.index);
+                      }}
                     >
                       <div className="orbat-title-row">
                           <input
@@ -479,7 +506,7 @@ export default function OrbatScheduler({
                           title="Alleen deze squad automatisch positioneren"
                           aria-label="Alleen deze squad automatisch positioneren"
                           onMouseDown={(event) => event.stopPropagation()}
-                          onClick={(event) => { event.stopPropagation(); autoLayoutTemplate(template.id, template.squads, node.squad.id); }}
+                          onClick={(event) => { event.stopPropagation(); autoLayoutSingleSquad(template.id, template.squads, node.squad.id); }}
                         >
                           Auto
                         </button>
@@ -518,12 +545,6 @@ export default function OrbatScheduler({
                             onChange={(e) => updateOpSquadMeta(selectedOp.id, node.squad.id, { srChannel: Number(e.target.value) })}
                           />
                         </label>
-                        {canUpload ? (
-                          <>
-                            <input id={`scheduler-marker-upload-${node.squad.id}`} style={{display:'none'}} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={(e) => handleFileChange(template.id, node.squad.id, e)} />
-                            <button type="button" className="secondary small" onClick={() => triggerFileInput(node.squad.id)}>Upload</button>
-                          </>
-                        ) : null}
                       </div>
                     </div>
                     <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
@@ -549,28 +570,14 @@ export default function OrbatScheduler({
                               >
                                 ≡
                               </button>
-                              <div style={{display:'flex',flexDirection:'column',gap:2,minWidth:0}}>
-                                <input
-                                  className="flow-slot-name"
-                                  value={slot.name}
-                                  placeholder="Slot name"
-                                  onChange={(event) => updateOpSlotDebounced(selectedOp.id, slot.id, { name: event.target.value })}
-                                  onBlur={() => flushOpSlotUpdate(selectedOp.id, slot.id)}
-                                  disabled={slot._pendingCreate}
-                                />
-                                {(() => {
-                                  const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                                  return (
-                                    <span style={{display:'flex',flexDirection:'column',gap:2,alignItems:'flex-start'}}>
-                                      <span className={`slot-badge ${assignedUser ? 'occupied' : 'free'}`}>
-                                        {assignedUser ? 'occupied' : 'free'}
-                                      </span>
-                                      {assignedUser ? <span className="orbat-slot-text" style={{maxWidth:'100%'}}>{assignedUser.username}</span> : null}
-                                      {renderAssignmentPicker(slot)}
-                                    </span>
-                                  );
-                                })()}
-                              </div>
+                              <input
+                                className="flow-slot-name"
+                                value={slot.name}
+                                placeholder="Slot name"
+                                onChange={(event) => updateOpSlotDebounced(selectedOp.id, slot.id, { name: event.target.value })}
+                                onBlur={() => flushOpSlotUpdate(selectedOp.id, slot.id)}
+                                disabled={slot._pendingCreate}
+                              />
                               <select
                                 className="flow-slot-role"
                                 value={slot.role}
@@ -588,8 +595,19 @@ export default function OrbatScheduler({
                                       <option key={roleOption} value={roleOption}>
                                         {roleOption}
                                       </option>
-                                    ))}
+                                  ))}
                               </select>
+                              {(() => {
+                                const assignedUser = users.find((user) => user.id === slot.assignedUserId);
+                                return (
+                                  <span className={`scheduler-slot-status ${assignedUser ? 'occupied' : 'free'}`} title={assignedUser?.username || 'Free'}>
+                                    {assignedUser?.username || 'free'}
+                                  </span>
+                                );
+                              })()}
+                              <span className="scheduler-slot-assign">
+                                {renderAssignmentPicker(slot)}
+                              </span>
                               <button
                                 type="button"
                                 className="danger-x-button"
@@ -660,7 +678,7 @@ export default function OrbatScheduler({
                         type="button"
                         className="squad-sort-button"
                         title="Alleen deze squad automatisch positioneren"
-                        onClick={() => autoLayoutTemplate(template.id, template.squads, squad.id)}
+                        onClick={() => autoLayoutSingleSquad(template.id, template.squads, squad.id)}
                       >
                         Auto
                       </button>
@@ -719,12 +737,6 @@ export default function OrbatScheduler({
                               </div>
                             ) : null}
                           </div>
-                          {canUpload ? (
-                            <>
-                              <input id={`scheduler-marker-upload-panel-${squad.id}`} style={{display:'none'}} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={(e) => handleFileChange(template.id, squad.id, e)} />
-                              <button type="button" className="secondary small" onClick={() => document.getElementById(`scheduler-marker-upload-panel-${squad.id}`)?.click()}>Upload</button>
-                            </>
-                          ) : null}
                           {squad.markerIconUrl ? <img src={squad.markerIconUrl} alt="marker" className="marker-icon" /> : null}
                         </label>
                     </div>

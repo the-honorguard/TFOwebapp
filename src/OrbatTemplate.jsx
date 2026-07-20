@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { getEditorExpandedHeight, getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
 /**
  * OrbatTemplate
@@ -21,6 +22,8 @@ export default function OrbatTemplate({
   clearTemplateFlowEdges,
   resetTemplateCanvasLayout,
   autoLayoutTemplate,
+  alignInactiveSquads,
+  autoLayoutSingleSquad,
   moveCanvasDrag,
   stopCanvasDrag,
   trimCanvasTop,
@@ -56,6 +59,7 @@ export default function OrbatTemplate({
   const autoScrollRef = useRef({ frame: null, dx: 0, dy: 0 });
   const prependScrollRef = useRef(null);
   const [isPanning, setIsPanning] = useState(false);
+  const [draggingSquadId, setDraggingSquadId] = useState(null);
 
   React.useEffect(() => {
     if (template?.id != null && typeof trimCanvasTop === 'function') {
@@ -148,6 +152,7 @@ export default function OrbatTemplate({
   const handleCanvasDragStop = () => {
     stopCanvasAutoScroll();
     stopCanvasDrag();
+    setDraggingSquadId(null);
   };
 
   // Defensive defaults: allow opening Template Builder with no templates/demo data
@@ -208,9 +213,14 @@ export default function OrbatTemplate({
             };
           });
           const nodeMap = new Map(nodes.map((node) => [node.squad.id, node]));
-          const activeNodes = nodes.filter((node) => node.squad.active !== false);
+          const draggedSquadId = dragSnapPreview?.templateId === template.id
+            ? dragSnapPreview.squadId
+            : null;
+          const activeNodes = nodes.filter((node) => (
+            node.squad.active !== false && node.squad.id !== draggedSquadId
+          ));
           const inactiveSeparatorY = Math.max(360, ...activeNodes.map((node) => (
-            node.y + (nodeHeights[node.nodeKey] || 124) + 60
+            node.y + getOrbatNodeHeight(node.squad) + 60
           )));
           const finishCanvasDrag = () => {
             const preview = dragSnapPreview?.templateId === template.id ? dragSnapPreview : null;
@@ -225,8 +235,8 @@ export default function OrbatTemplate({
               squad.id === draggedSquad.id ? { ...squad, active: !shouldBeInactive } : squad
             ));
             if (statusChanged) updateSquadMeta(template.id, draggedSquad.id, { active: !shouldBeInactive });
-            if (shouldBeInactive || statusChanged) {
-              window.setTimeout(() => autoLayoutTemplate(template.id, nextSquads), 0);
+            if (nextSquads.some((squad) => squad.active === false)) {
+              window.setTimeout(() => alignInactiveSquads(template.id, nextSquads), 0);
             }
           };
           const edges = getTemplateFlowEdges(template.id, template.squads)
@@ -238,10 +248,10 @@ export default function OrbatTemplate({
               const targetAnchor = edge.targetAnchor || 'top';
               return {
                 id: edge.id,
-                x1: source.x + 140,
-                y1: sourceAnchor === 'top' ? source.y : source.y + (nodeHeights[source.nodeKey] || 124),
-                x2: target.x + 140,
-                y2: targetAnchor === 'top' ? target.y : target.y + (nodeHeights[target.nodeKey] || 124)
+                x1: source.x + (ORBAT_NODE_WIDTH / 2),
+                y1: sourceAnchor === 'top' ? source.y : source.y + getOrbatNodeHeight(source.squad),
+                x2: target.x + (ORBAT_NODE_WIDTH / 2),
+                y2: targetAnchor === 'top' ? target.y : target.y + getOrbatNodeHeight(target.squad)
               };
             });
           const selectedFlowSquadId = flowLinkSource?.templateId === template.id ? flowLinkSource.squadId : null;
@@ -321,7 +331,7 @@ export default function OrbatTemplate({
                       const slots = Array.isArray(squad.slots) ? squad.slots.length : 0;
                       const widthUnits = Math.max(7, 4 + slots);
                       const w = widthUnits * unit;
-                      const h = nodeHeights[`flow-${template.id}-${dragSnapPreview.squadId}`] || 124;
+                      const h = getOrbatNodeHeight(squad);
                       return (
                         <div
                           className="flow-drag-ghost"
@@ -334,12 +344,23 @@ export default function OrbatTemplate({
 
                   {nodes.map((node) => {
                     const isSelected = selectedFlowSquadId === node.squad.id;
+                    const collapsedHeight = getOrbatNodeHeight(node.squad);
+                    const expandedHeight = getEditorExpandedHeight(node.squad);
+                    const hoverSuppressed = draggingSquadId != null || flowLinkSource?.templateId === template.id;
 
                     return (
                         <div
                         key={node.squad.id}
-                        className={`orbat-node flow-node ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
-                        style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${7 * 40}px` }}
+                        className={`orbat-node flow-node expandable-editor-node template-node ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
+                        style={{
+                          left: `${node.x}px`,
+                          top: `${node.y}px`,
+                          width: `${ORBAT_NODE_WIDTH}px`,
+                          height: `${collapsedHeight}px`,
+                          '--orbat-collapsed-height': `${collapsedHeight}px`,
+                          '--orbat-expanded-height': `${expandedHeight}px`,
+                          '--orbat-collapsed-width': `${ORBAT_NODE_WIDTH}px`
+                        }}
                         ref={setNodeHeightRef(node.nodeKey)}
                       >
                         <button
@@ -356,7 +377,10 @@ export default function OrbatTemplate({
                         />
                         <div
                           className="orbat-node-head"
-                          onMouseDown={(event) => startCanvasDrag(event, template.id, node.squad.id, node.index)}
+                          onMouseDown={(event) => {
+                            setDraggingSquadId(node.squad.id);
+                            startCanvasDrag(event, template.id, node.squad.id, node.index);
+                          }}
                         >
                           <div className="orbat-title-row">
                             <input
@@ -449,7 +473,7 @@ export default function OrbatTemplate({
                               title="Alleen deze squad automatisch positioneren"
                               aria-label="Alleen deze squad automatisch positioneren"
                               onMouseDown={(event) => event.stopPropagation()}
-                              onClick={(event) => { event.stopPropagation(); autoLayoutTemplate(template.id, template.squads, node.squad.id); }}
+                              onClick={(event) => { event.stopPropagation(); autoLayoutSingleSquad(template.id, template.squads, node.squad.id); }}
                             >
                               Auto
                             </button>
@@ -599,7 +623,7 @@ export default function OrbatTemplate({
                         type="button"
                         className="squad-sort-button"
                         title="Alleen deze squad automatisch positioneren"
-                        onClick={() => autoLayoutTemplate(template.id, template.squads, squad.id)}
+                        onClick={() => autoLayoutSingleSquad(template.id, template.squads, squad.id)}
                       >
                         Auto
                       </button>

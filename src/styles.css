@@ -44,6 +44,27 @@ button { cursor: pointer; }
 .app-shell.app-shell-builder { max-width: calc(100vw - 1rem); padding: 0.75rem; }
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
+.notifications-root { position: relative; }
+.notification-trigger { position: relative; display: inline-flex; align-items: center; gap: 0.45rem; }
+.notification-badge { display: inline-flex; min-width: 1.35rem; height: 1.35rem; padding: 0 0.3rem; align-items: center; justify-content: center; border-radius: 999px; background: #dc2626; color: white; font-size: 0.72rem; font-weight: 800; }
+.notification-sidebar { position: fixed; z-index: 101; top: 0.75rem; right: 0.75rem; width: min(390px, calc(100vw - 1.5rem)); height: calc(100vh - 1.5rem); display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: -12px 12px 38px rgba(0,0,0,0.3); animation: notification-slide-in 160ms ease-out; overflow: hidden; }
+.notification-sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem; border-bottom: 1px solid var(--border); }
+.notification-sidebar-head h2 { margin: 0 0 0.2rem; font-size: 1.2rem; }
+.notification-sidebar-head span { font-size: 0.85rem; opacity: 0.7; }
+.notification-head-actions { display: flex; align-items: center; gap: 0.4rem; }
+.notification-close { font-size: 1.25rem; line-height: 1; }
+.notification-list { overflow-y: auto; }
+.notification-item { width: 100%; display: grid; grid-template-columns: 10px 1fr; gap: 0.7rem; padding: 1rem 1.25rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); text-align: left; }
+.notification-item:hover { background: rgba(148,163,184,0.09); }
+.notification-item.unread { background: var(--accent-bg); }
+.notification-dot { width: 8px; height: 8px; margin-top: 0.35rem; border-radius: 50%; background: transparent; }
+.notification-item.unread .notification-dot { background: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.18); }
+.notification-content { min-width: 0; display: grid; gap: 0.3rem; }
+.notification-content span { line-height: 1.4; opacity: 0.9; }
+.notification-content small { opacity: 0.62; }
+.notification-empty { padding: 2rem; text-align: center; opacity: 0.7; }
+@keyframes notification-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@media (max-width: 640px) { .notification-trigger-label { display: none; } .app-shell { padding: 1rem; } header h1 { font-size: 1.25rem; } }
 .theme-toggle { background: var(--button-secondary); color: var(--text); border: 1px solid var(--border); }
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 .login-popover { position: fixed; top: 5.5rem; right: 2rem; z-index: 45; width: min(360px, calc(100vw - 2rem)); }
@@ -65,6 +86,27 @@ button.btn-danger:hover { background: #991b1b; }
 .template-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
 .template-list button { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 0.75rem 1rem; transition: background 0.2s ease; }
 .template-list button.selected { background: var(--button); color: var(--button-text); }
+.overview-operation-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); }
+.overview-operation-tabs .template-list-item { min-width: 0; }
+.overview-operation-tabs button { width: 100%; display: flex; justify-content: space-between; gap: 1rem; text-align: left; font-weight: 700; }
+.overview-operation-date { flex: 0 0 auto; font-weight: 500; opacity: 0.8; }
+.operation-overview-card { padding: 0; overflow: hidden; }
+.operation-details { display: flex; align-items: center; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--border); }
+.operation-campaign-image { flex: 0 0 auto; }
+.operation-campaign-image img { display: block; width: min(220px, 24vw); max-height: 120px; object-fit: cover; border-radius: 8px; }
+.operation-details-copy { flex: 1 1 auto; min-width: 0; }
+.operation-details-copy h4 { margin: 0 0 0.75rem; }
+.operation-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 0; }
+.operation-meta div { display: flex; gap: 0.4rem; }
+.operation-meta dt { font-weight: 700; }
+.operation-meta dd { margin: 0; }
+.operation-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
+.button-link { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem; border: 1px solid transparent; border-radius: 8px; background: var(--button); color: var(--button-text); text-decoration: none; }
+.button-link.secondary { background: var(--button-secondary); color: var(--text); border-color: var(--border); }
+.button-link.small { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
+.operation-overview-card > .orbat-wrapper,
+.operation-overview-card > .builder-grid,
+.operation-overview-card > .empty-state { margin: 1rem; }
 .dashboard { display: grid; gap: 1rem; }
 .template-detail { margin-top: 1rem; }
 .squad-card { border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-top: 1rem; background: var(--panel); }
@@ -83,13 +125,7 @@ button.btn-danger:hover { background: #991b1b; }
 .orbat-links { position: absolute; inset: 0; pointer-events: none; }
 .orbat-link { stroke: #94a3b8; stroke-width: 1.5; stroke-linecap: round; }
 .orbat-link-arrow { fill: #94a3b8; }
-.orbat-blueprint { position: absolute; left: 12px; top: 12px; z-index: 6; pointer-events: none; width: 280px; padding: 0.6rem; border-radius: 8px; border: 1px dashed rgba(148,163,184,0.12); background: linear-gradient(180deg, rgba(2,6,23,0.6), rgba(3,7,18,0.45)); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; font-size: 0.9rem; color: #a5f3fc; box-shadow: 0 8px 20px rgba(0,0,0,0.35); }
-.orbat-blueprint h5 { margin: 0 0 0.25rem; font-size: 0.95rem; font-weight: 700; color: #e6f7ff; }
-.orbat-blueprint .blueprint-line { display: flex; gap: 0.5rem; align-items: center; opacity: 0.95; }
-@media (max-width: 720px) {
-  .orbat-blueprint { display: none; }
-}
-.orbat-node { position: absolute; width: 280px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }
+.orbat-node { position: absolute; width: 280px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }
 .squad-inactive { opacity: 0.52; filter: saturate(0.35); border-style: dashed !important; }
 .squad-inactive:hover, .squad-inactive:focus-within { opacity: 0.82; }
 .inactive-separator { position: absolute; left: 24px; right: 24px; z-index: 3; height: 1px; border-top: 2px dashed rgba(148,163,184,0.65); color: var(--text); pointer-events: none; }
@@ -115,7 +151,7 @@ button.btn-danger:hover { background: #991b1b; }
 .orbat-connector.clickable { pointer-events: auto; cursor: pointer; }
 .orbat-connector.clickable.active { border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.25); }
 .orbat-parent-select { width: calc(100% - 1.2rem); margin: 0.55rem 0.6rem 0; padding: 0.45rem; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
-.orbat-slot-list { display: grid; gap: 0.4rem; padding: 0.65rem; }
+.orbat-slot-list { display: grid; flex: 1 1 auto; min-height: 0; gap: 0.4rem; padding: 0.65rem; overflow-y: auto; }
 .orbat-slot-item { display: flex; align-items: center; gap: 0.45rem; }
 .orbat-slot-item { position: relative; }
 .orbat-slot-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.86rem; }
@@ -142,12 +178,32 @@ button.btn-danger:hover { background: #991b1b; }
 .flow-meta-row button.secondary.small { padding: 0.3rem 0.5rem; font-size: 0.8rem; }
 .flow-node { width: auto; min-width: 160px; cursor: pointer; }
 .flow-node.selected { outline: 2px solid #22c55e; }
-.flow-node-body { padding: 0.65rem 0.75rem; display: grid; gap: 0.6rem; }
+.expandable-editor-node { z-index: 4; transition: width 180ms ease 160ms, height 180ms ease 160ms, box-shadow 180ms ease 160ms; }
+.scheduler-node { --orbat-expanded-width: 520px; }
+.template-node { --orbat-expanded-width: 440px; }
+.expandable-editor-node:not(.hover-suppressed):hover,
+.expandable-editor-node:not(.hover-suppressed):focus-within { width: var(--orbat-expanded-width) !important; height: var(--orbat-expanded-height) !important; z-index: 30; box-shadow: 0 20px 55px rgba(0,0,0,0.48); transition-delay: 120ms; }
+.expandable-editor-node.hover-suppressed { width: var(--orbat-collapsed-width) !important; height: var(--orbat-collapsed-height) !important; transition-delay: 0ms; }
+/* Expansion is an overlay: keep the connector attached to the shared collapsed
+   canvas footprint so hierarchy lines do not jump during hover. */
+.expandable-editor-node:not(.hover-suppressed):hover .orbat-connector,
+.expandable-editor-node:not(.hover-suppressed):focus-within .orbat-connector { left: calc(var(--orbat-collapsed-width) / 2); }
+.expandable-editor-node:not(.hover-suppressed):hover .orbat-connector.bottom,
+.expandable-editor-node:not(.hover-suppressed):focus-within .orbat-connector.bottom { top: var(--orbat-collapsed-height); bottom: auto; }
+.flow-node-body { padding: 0.65rem 0.75rem; display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 0.6rem; overflow: hidden; }
 .flow-node-body > span { font-size: 0.85rem; opacity: 0.8; }
 .flow-link-btn.active { border-color: #22c55e; color: #22c55e; }
-.flow-slot-list { display: grid; gap: 0.35rem; max-height: 240px; overflow: auto; padding-right: 0.2rem; }
-.flow-slot-row { display: grid; grid-template-columns: 28px 6fr 80px 34px; gap: 0.35rem; align-items: center; }
+.flow-slot-list { display: grid; flex: 1 1 auto; min-height: 0; gap: 0.35rem; overflow: auto; padding-right: 0.2rem; }
+.flow-slot-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 80px 34px; gap: 0.35rem; align-items: center; }
+.template-node:not(.hover-suppressed):hover .flow-slot-row,
+.template-node:not(.hover-suppressed):focus-within .flow-slot-row { grid-template-columns: 28px minmax(0, 1fr) minmax(160px, 0.8fr) 34px; }
+.scheduler-node .flow-slot-row { grid-template-columns: 28px minmax(110px, 1.5fr) minmax(85px, 1fr) minmax(70px, 0.8fr) minmax(120px, 1.5fr) 34px; }
 .flow-slot-name, .flow-slot-role { width: 100%; padding: 0.5rem 0.6rem; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+.scheduler-slot-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0.45rem 0.5rem; border-radius: 7px; font-size: 0.82rem; font-weight: 700; }
+.scheduler-slot-status.free { color: #166534; background: rgba(34,197,94,0.12); }
+.scheduler-slot-status.occupied { color: var(--text); background: rgba(148,163,184,0.14); }
+.scheduler-slot-assign { min-width: 0; }
+.scheduler-slot-assign .slot-player-assignment { width: 100%; max-width: none; }
 .danger-x-button { width: 34px; height: 34px; border-radius: 7px; border: 1px solid #ef4444; background: #b91c1c; color: #fee2e2; padding: 0; font-weight: 700; flex: 0 0 auto; }
 .marker-dropdown-btn { width: 34px; height: 34px; border-radius: 7px; border: 1px solid var(--border); background: transparent !important; color: var(--text); padding: 0; display: flex; align-items: center; justify-content: center; gap: 0; flex: 0 0 auto; overflow: hidden; }
 .marker-dropdown-btn:hover { border-color: var(--panel-border); }
@@ -328,11 +384,15 @@ button.btn-danger:hover { background: #991b1b; }
   .login-popover { top: 4.75rem; right: 1rem; width: calc(100vw - 2rem); }
   .header-card,
   .builder-toolbar,
+  .operation-details,
   .playerlist-toolbar,
   .slot-footer {
     align-items: flex-start;
     flex-direction: column;
   }
+  .operation-details { align-items: stretch; }
+  .operation-campaign-image img { width: 100%; max-width: 280px; }
+  .operation-actions { justify-content: flex-start; }
   .flow-layout { grid-template-columns: 1fr; }
   .flow-fullscreen-wrapper { height: calc(100vh - 290px); min-height: 520px; max-height: 78vh; }
   .flow-canvas-controls { top: 8px; right: 8px; }
