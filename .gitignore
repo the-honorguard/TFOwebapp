@@ -10,3 +10,4 @@ uploads/
 /logs
 /logs
 logs/app.log
+*.log

@@ -3496,13 +3496,6 @@ function App() {
                         <span>{op.name}</span>
                         <span className="overview-operation-date">{op.date}</span>
                       </button>
-                      {auth ? <button
-                        type="button"
-                        className={(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'small btn-danger' : 'small secondary'}
-                        onClick={() => toggleOpAbsence(op.id)}
-                      >
-                        {(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'Afmelding intrekken' : 'Afmelden'}
-                      </button> : null}
                     </div>
                   ))
                 )}
@@ -3538,6 +3531,7 @@ function App() {
                     setShowLoginPanel={setShowLoginPanel}
                     showOpInScheduler={showOpInScheduler}
                     campaign={campaigns.find((campaignItem) => String(campaignItem.id) === String(op.campaignId)) || null}
+                    toggleOpAbsence={toggleOpAbsence}
                 />
               ))}
             </section>
@@ -3658,19 +3652,6 @@ function App() {
                         </div>
                         <div className="op-list-meta">{item.date} &middot; {item.time} &middot; {getTemplateName(item.templateId)}</div>
                         </button>
-                        {auth ? <button
-                          type="button"
-                          className={(item.type === 'op'
-                            ? (ops.find((op) => op.id === item.id)?.absentUserIds || [])
-                            : (recurrences.find((rec) => rec.id === item.id)?.rule?.absentUserIds || [])
-                          ).some((id) => String(id) === String(auth.id)) ? 'small btn-danger' : 'small secondary'}
-                          onClick={() => item.type === 'op' ? toggleOpAbsence(item.id) : toggleRecurrenceAbsence(item.id)}
-                        >
-                          {(item.type === 'op'
-                            ? (ops.find((op) => op.id === item.id)?.absentUserIds || [])
-                            : (recurrences.find((rec) => rec.id === item.id)?.rule?.absentUserIds || [])
-                          ).some((id) => String(id) === String(auth.id)) ? 'Afmelding intrekken' : 'Afmelden'}
-                        </button> : null}
                       </div>
                     ))
                 )}

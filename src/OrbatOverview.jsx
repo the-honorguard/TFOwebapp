@@ -35,7 +35,8 @@ export default function OrbatOverview({
   flushOpSlotUpdate,
   setShowLoginPanel,
   showOpInScheduler,
-  campaign
+  campaign,
+  toggleOpAbsence
 }) {
   const currentUser = auth
     ? users.find((user) => String(user.id) === String(auth.id))
@@ -86,6 +87,15 @@ export default function OrbatOverview({
           {(isAdmin || isMissionmaker) ? (
             <button className="secondary small" onClick={() => showOpInScheduler(op.id)}>
               Open in Operation Scheduler
+            </button>
+          ) : null}
+          {auth ? (
+            <button
+              type="button"
+              className={(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'small btn-danger' : 'small secondary'}
+              onClick={() => toggleOpAbsence(op.id)}
+            >
+              {(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'Afmelding intrekken' : 'Afmelden'}
             </button>
           ) : null}
         </div>

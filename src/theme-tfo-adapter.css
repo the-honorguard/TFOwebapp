@@ -354,6 +354,16 @@ button:disabled {
     border-color: var(--border) !important;
 }
 
+.op-list-row .op-list-open,
+.op-list-row .op-list-open:hover,
+.op-list-row .op-list-open:focus {
+    padding: 0;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: var(--text) !important;
+}
+
 /* Force full-strength readable text color on the row and every
    child element (name, date/time meta, badge) both at rest and
    on hover - avoids inheriting a dimmed/gray color from the base

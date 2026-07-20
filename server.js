@@ -27,6 +27,7 @@ import { readData as _readData, writeData as _writeData, ensureInitialized as en
 import * as permissionGroupsRepo from './repositories/permissionGroups.js';
 import * as notificationsRepo from './repositories/notifications.js';
 import * as trainingRepo from './repositories/training.js';
+import { buildRecurringOperation, getDueOccurrenceDates, getNextRecurrenceDate, normalizeDays } from './lib/recurrence.js';
 
 const PERMISSION_DEFINITIONS = [
   { key: 'view_overview', category: 'Overview', label: 'View overview' },
@@ -673,114 +674,39 @@ function normalizeStorage(data) {
   return data;
 }
 
-function normalizeDays(days) {
-  if (!Array.isArray(days)) return [];
-  return [...new Set(days.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))].sort((a, b) => a - b);
-}
-
-// Advance a base ISO datetime by the given recurrence interval.
-function addInterval(dateTime, recurrence) {
-  const date = new Date(dateTime);
-  if (recurrence === 'daily') {
-    date.setDate(date.getDate() + 1);
-  } else if (recurrence === 'weekly') {
-    date.setDate(date.getDate() + 7);
-  } else if (recurrence === 'monthly') {
-    date.setMonth(date.getMonth() + 1);
-  }
-  return date.toISOString();
-}
-
-// Compute the next occurrence for weekly/biweekly recurrences based on selected weekdays.
-function getNextWeeklyDate(dateTime, recurrence) {
-  const current = new Date(dateTime);
-  const selectedDays = normalizeDays(recurrence.weeklyDays);
-  const currentWeekday = current.getDay();
-  const laterDay = selectedDays.find((day) => day > currentWeekday);
-  if (laterDay !== undefined) {
-    const next = new Date(current);
-    next.setDate(next.getDate() + (laterDay - currentWeekday));
-    return next.toISOString();
-  }
-  const weeks = recurrence.recurrence === 'biweekly' ? 2 : 1;
-  const next = new Date(current);
-  next.setDate(next.getDate() + weeks * 7);
-  if (selectedDays.length === 0) return next.toISOString();
-  const firstDay = selectedDays[0];
-  const offset = (firstDay - next.getDay() + 7) % 7;
-  next.setDate(next.getDate() + offset);
-  return next.toISOString();
-}
-
-// Compute the next occurrence for monthly recurrences, adjusting for month lengths.
-function getNextMonthlyDate(dateTime, recurrence) {
-  const current = new Date(dateTime);
-  const monthlyDay = Number(recurrence.monthlyDay);
-  if (!monthlyDay || monthlyDay < 1 || monthlyDay > 31) {
-    const next = new Date(current);
-    next.setMonth(next.getMonth() + 1);
-    return next.toISOString();
-  }
-
-  const next = new Date(current);
-  next.setDate(monthlyDay);
-  if (next <= current) {
-    next.setMonth(next.getMonth() + 1);
-    const daysInMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-    next.setDate(Math.min(monthlyDay, daysInMonth));
-  }
-  return next.toISOString();
-}
-
-// Delegates to the correct recurrence computation based on recurrence type.
-function getNextRecurrenceDate(dateTime, recurrence) {
-  if (recurrence.recurrence === 'daily') return addInterval(dateTime, 'daily');
-  if (recurrence.recurrence === 'weekly' || recurrence.recurrence === 'biweekly') return getNextWeeklyDate(dateTime, recurrence);
-  if (recurrence.recurrence === 'monthly') return getNextMonthlyDate(dateTime, recurrence);
-  return null;
-}
-
 // Generate any operations that are due according to recurrence entries.
 // This is called on data load to materialize scheduled occurrences up to now.
-async function generateRecurringOps(data) {
-  normalizeStorage(data);
-  const now = new Date();
-  let changed = false;
-  for (const recurrence of data.recurrences) {
-    while (recurrence.nextDateTime && new Date(recurrence.nextDateTime) <= now) {
-      const nextDate = new Date(recurrence.nextDateTime);
-      if (recurrence.repeatUntil && new Date(recurrence.repeatUntil) < nextDate) {
-        recurrence.nextDateTime = null;
-        changed = true;
-        break;
-      }
-      const op = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
-        name: recurrence.name,
-        templateId: recurrence.templateId,
-        date: nextDate.toISOString().slice(0, 10),
-        time: nextDate.toISOString().slice(11, 16),
-        createdAt: new Date().toISOString(),
-        recurrenceId: recurrence.id,
-        absentUserIds: [...(recurrence.absentUserIds || recurrence.rule?.absentUserIds || [])],
-        squads: recurrence.squads.map((squad) => ({
-          id: squad.id,
-          title: squad.title,
-          slots: squad.slots.map((slot) => ({ ...slot }))
-        }))
-      };
-      data.ops.push(op);
-      changed = true;
-      const next = getNextRecurrenceDate(recurrence.nextDateTime, recurrence);
-      recurrence.nextDateTime = next;
-      if (!recurrence.nextDateTime) break;
-      if (recurrence.repeatUntil && new Date(recurrence.repeatUntil) < new Date(recurrence.nextDateTime)) {
-        recurrence.nextDateTime = null;
-        break;
-      }
-    }
+let recurrenceGeneration = null;
+
+async function generateRecurringOps(inputData) {
+  if (recurrenceGeneration) {
+    await recurrenceGeneration;
+    return getData();
   }
-  if (changed) await persistData(data);
+
+  const data = inputData || await getData();
+  recurrenceGeneration = (async () => {
+    normalizeStorage(data);
+    const now = new Date();
+    let changed = false;
+    for (const recurrence of data.recurrences) {
+      const due = getDueOccurrenceDates(recurrence.nextDateTime, recurrence, now);
+      for (const occurrence of due.dates) {
+        const op = buildRecurringOperation(recurrence, occurrence, { id: Date.now() + Math.floor(Math.random() * 1000) });
+        data.ops.push(op);
+        changed = true;
+      }
+      if (recurrence.nextDateTime !== due.nextRun) changed = true;
+      recurrence.nextDateTime = due.nextRun;
+    }
+    if (changed) await persistData(data);
+  })();
+  try {
+    await recurrenceGeneration;
+    return data;
+  } finally {
+    recurrenceGeneration = null;
+  }
 }
 
 import * as usersRepo from './repositories/users.js';
@@ -839,16 +765,16 @@ app.post('/api/signup', async (req, res) => {
 });
 
 app.get('/api/public-data', async (req, res) => {
-  const data = await getData();
-  await generateRecurringOps(data);
+  let data = await getData();
+  data = await generateRecurringOps(data);
   const publicUsers = data.users.map((user) => ({ id: user.id, username: user.username, role: user.role, rank: user.rank, status: user.status, avatarUrl: user.profile?.avatarUrl || null }));
   const publicTemplates = (data.templates || []).map((template) => ({ id: template.id, name: template.name }));
   res.json({ users: publicUsers, templates: publicTemplates, ops: data.ops || [], campaigns: data.campaigns || [], customRoles: [] });
 });
 
 app.get('/api/data', authMiddleware, async (req, res) => {
-  const data = await getData();
-  await generateRecurringOps(data);
+  let data = await getData();
+  data = await generateRecurringOps(data);
   const capabilities = await getCapabilities(req.user.role);
   const safeUsers = data.users.map(({ password, ...rest }) => {
     if (capabilities.view_players === true || String(rest.id) === String(req.user.id)) return rest;
@@ -1371,6 +1297,7 @@ app.post('/api/ops', authMiddleware, requireCapability('edit_operations'), async
       modlistServer: req.body.modlistServer || '',
       tsAddress: req.body.tsAddress || '',
       createdAt: new Date().toISOString(),
+      campaignId: req.body.campaignId ?? null,
       squads
     };
 
@@ -1378,15 +1305,52 @@ app.post('/api/ops', authMiddleware, requireCapability('edit_operations'), async
       const created = await opsRepo.createOp({ id: Date.now(), templateId: Number(req.body.templateId), title: payload.name, payload });
       res.json({ op: created, recurrence: null });
     } else {
-      // store recurrence as separate record
       const conn = await import('./db.js');
       const pool = conn.default;
       const connection = await pool.getConnection();
       try {
         await connection.beginTransaction();
-        const [rResult] = await connection.query('INSERT INTO recurrences (id, op_id, rule, next_run) VALUES (?, ?, ?, ?)', [Date.now() + 1, null, JSON.stringify({ recurrence }), `${req.body.date}T${req.body.time || '00:00'}:00`]);
+        const scheduledDateTime = `${req.body.date}T${req.body.time || '00:00'}:00`;
+        const scheduled = new Date(scheduledDateTime);
+        if (!req.body.date || Number.isNaN(scheduled.getTime())) {
+          await connection.rollback();
+          return res.status(400).json({ error: 'A valid start date is required for recurrence' });
+        }
+        const opId = payload.id;
+        const recurrenceId = opId + 1;
+        payload.recurrenceId = recurrenceId;
+        const rule = {
+          recurrence,
+          creationDelayHours: 6,
+          name: payload.name,
+          templateId: payload.templateId,
+          startDate: payload.date,
+          time: payload.time,
+          weeklyDays: normalizeDays(req.body.weeklyDays),
+          monthlyDay: req.body.monthlyDay || null,
+          repeatUntil: req.body.recurrenceEndDate || null,
+          serverName: payload.serverName,
+          modlist: payload.modlist,
+          modlistPlayer: payload.modlistPlayer,
+          modlistServer: payload.modlistServer,
+          tsAddress: payload.tsAddress,
+          campaignId: payload.campaignId,
+          absentUserIds: [],
+          squads: structuredClone(squads)
+        };
+        await connection.query(
+          'INSERT INTO ops (id, template_id, title, scheduled_at, payload, status) VALUES (?, ?, ?, ?, ?, ?)',
+          [opId, tplId, payload.name, scheduledDateTime.replace('T', ' '), JSON.stringify(payload), 'scheduled']
+        );
+        await connection.query(
+          'INSERT INTO recurrences (id, op_id, rule, next_run) VALUES (?, ?, ?, ?)',
+          [recurrenceId, null, JSON.stringify(rule), scheduledDateTime.replace('T', ' ')]
+        );
         await connection.commit();
-        res.json({ op: null, recurrence: { id: rResult.insertId, recurrence } });
+        res.json({
+          op: { id: opId, templateId: tplId, title: payload.name, payload },
+          recurrence: { id: recurrenceId, ...rule, rule, nextRun: scheduledDateTime, nextDateTime: scheduledDateTime }
+        });
       } catch (err) {
         await connection.rollback();
         throw err;
@@ -1871,6 +1835,13 @@ app.put('/api/recurrences/:id', authMiddleware, requireCapability('edit_operatio
   if ('recurrenceEndDate' in req.body) recurrence.repeatUntil = req.body.recurrenceEndDate || null;
   if ('weeklyDays' in req.body) recurrence.weeklyDays = normalizeDays(req.body.weeklyDays);
   if ('monthlyDay' in req.body) recurrence.monthlyDay = req.body.monthlyDay || null;
+  if (typeof req.body.serverName === 'string') recurrence.serverName = req.body.serverName;
+  if (typeof req.body.modlist === 'string') recurrence.modlist = req.body.modlist;
+  if (typeof req.body.modlistPlayer === 'string') recurrence.modlistPlayer = req.body.modlistPlayer;
+  if (typeof req.body.modlistServer === 'string') recurrence.modlistServer = req.body.modlistServer;
+  if (typeof req.body.tsAddress === 'string') recurrence.tsAddress = req.body.tsAddress;
+  if ('campaignId' in req.body) recurrence.campaignId = req.body.campaignId ?? null;
+  if (Array.isArray(req.body.squads)) recurrence.squads = structuredClone(req.body.squads);
 
   const baseDateTime = `${recurrence.startDate}T${recurrence.time || '00:00'}:00`;
   const base = new Date(baseDateTime);
@@ -2375,6 +2346,11 @@ app.listen(PORT, async () => {
   try {
     await ensureDbInitialized();
     logger.info('Schema check complete');
+    await generateRecurringOps();
+    const recurrenceTimer = setInterval(() => {
+      generateRecurringOps().catch((error) => logger.error('Recurring operation generation failed', { err: error.message }));
+    }, 30_000);
+    recurrenceTimer.unref();
   } catch (e) {
     logger.error('Schema check failed', { err: e.message });
   }

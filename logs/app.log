@@ -1291,3 +1291,6 @@ App@http://localhost:5173/src/App.jsx?t=1784538405876 line 615 > importedModule:
 2026-07-20T18:07:47.742Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
 2026-07-20T18:07:48.490Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
 2026-07-20T18:22:20.636Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:47:51.625Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:51:29.004Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:51:29.183Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
