@@ -13,6 +13,7 @@ const SECTION_LABELS = {
   roles: 'Custom Roles',
   campaigns: 'Campaigns',
   slots: 'Template slots'
+  ,training: 'Training and Drill Sergeants'
 };
 
 const getSectionLabel = (key) => SECTION_LABELS[key] || key;
@@ -53,10 +54,32 @@ export default function Settings({
   onPermissionGroupsChanged = null
 }) {
   const [subpage, setSubpage] = useState(() => initialSubpage || 'general');
+  const [basicTrainingRole, setBasicTrainingRole] = useState('Rifleman');
 
   useEffect(() => {
     if (initialSubpage) setSubpage(initialSubpage);
   }, [initialSubpage]);
+
+  useEffect(() => {
+    if (!can('manage_training_admin')) return;
+    const token = localStorage.getItem('token');
+    fetch('/api/training/admin', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (data?.settings?.basicRole) setBasicTrainingRole(data.settings.basicRole); })
+      .catch(() => {});
+  }, [can]);
+
+  const saveBasicTrainingRole = async () => {
+    const token = localStorage.getItem('token');
+    const response = await fetch('/api/training/admin/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ basicRole: basicTrainingRole })
+    });
+    const data = await response.json();
+    if (!response.ok) { alert(data.error || 'Could not save basic training role'); return; }
+    alert('Basic training role saved');
+  };
   const [local, setLocal] = useState({
     templateId: defaultOpSettings.templateId || '',
     time: defaultOpSettings.time || '',
@@ -254,6 +277,17 @@ export default function Settings({
         </div>
             </fieldset>
       </form>
+
+      {can('manage_training_admin') ? <section className="card" style={{ marginTop: '1.5rem' }}>
+        <h3>Training settings</h3>
+        <div className="form-row">
+          <label>Basic training role for new members</label>
+          <select value={basicTrainingRole} onChange={(event) => setBasicTrainingRole(event.target.value)}>
+            {(allRoles || []).map((role) => <option key={role} value={role}>{role}</option>)}
+          </select>
+        </div>
+        <button type="button" onClick={saveBasicTrainingRole}>Save training settings</button>
+      </section> : null}
 
       
       

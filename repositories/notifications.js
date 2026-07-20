@@ -43,6 +43,11 @@ export async function createForActiveUsers({ actorId, type, title, message, enti
   );
 }
 
+export async function createForUser({ userId, actorId, type, title, message, entityType, entityId, metadata = {} }) {
+  await db.query('INSERT INTO notifications (user_id, actor_id, type, title, message, entity_type, entity_id, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [userId, actorId, type, title, message, entityType, entityId, JSON.stringify(metadata)]);
+}
+
 export async function markRead(userId, notificationId) {
   const [result] = await db.query(
     'UPDATE notifications SET read_at = COALESCE(read_at, NOW()) WHERE id = ? AND user_id = ?',

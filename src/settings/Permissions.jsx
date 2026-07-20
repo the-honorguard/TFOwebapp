@@ -126,7 +126,7 @@ export default function Permissions({ groups = [], definitions = [], onGroupsCha
                     <legend>{category}</legend>
                     <div className="permission-category-options">
                       {items.map((definition) => {
-                        const locked = group.slug === 'admin' && definition.key === 'manage_permissions';
+                        const locked = group.slug === 'admin';
                         return (
                           <label className="permission-option" key={definition.key}>
                             <input
@@ -142,7 +142,7 @@ export default function Permissions({ groups = [], definitions = [], onGroupsCha
                               }))}
                             />
                             <span>{definition.label}</span>
-                            {locked ? <small>Required</small> : null}
+                            {locked ? <small>Locked</small> : null}
                           </label>
                         );
                       })}

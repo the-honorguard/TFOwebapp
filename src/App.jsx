@@ -11,6 +11,7 @@ import Ranks from './Ranks';
 import Profile from './Profile';
 import Campaigns from './Campaigns';
 import Notifications from './Notifications';
+import Training from './Training';
 import apiFetch from './api';
 import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
@@ -3072,6 +3073,18 @@ function App() {
     }
   };
 
+  const updateDrillSergeant = async (userId, isDrillSergeant) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API}/users/${userId}/permissions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ isDrillSergeant })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Could not update Drill Sergeant status'); return; }
+    setUsers((prev) => prev.map((user) => user.id === data.user.id ? { ...data.user, isDrillSergeant: Boolean(data.user.is_drill_sergeant ?? data.user.isDrillSergeant) } : user));
+  };
+
   const deleteUser = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     const token = localStorage.getItem('token');
@@ -3385,6 +3398,9 @@ function App() {
               {can('view_players') ? <button className={page === 'players' ? 'tab active' : 'tab'} onClick={goToPlayers}>
                 Player List
               </button> : null}
+              {can('view_training') ? <button className={page === 'training' ? 'tab active' : 'tab'} onClick={() => setPage('training')}>
+                Training
+              </button> : null}
               {can('view_settings') ? <button className={page === 'settings' ? 'tab active' : 'tab'} onClick={goToSettings}>
                 Settings
               </button> : null}
@@ -3509,6 +3525,9 @@ function App() {
                 allRoles={allRoles}
               />
             </section>
+          ) : null}
+          {auth && can('view_training') && page === 'training' ? (
+            <Training auth={auth} users={users} roles={allRoles} onQualificationsChanged={loadPrivateData} />
           ) : null}
           {auth && can('view_operations') && page === 'scheduler' ? (
             <section className="card">
@@ -3874,6 +3893,7 @@ function App() {
                               <th>Rank</th>
                               <th>Status</th>
                               <th>Admin status</th>
+                              <th>Drill Sergeant</th>
                               <th>Roles</th>
                               <th>Action</th>
                             </tr>
@@ -3905,6 +3925,12 @@ function App() {
                                       <option key={group.slug} value={group.slug}>{group.name}</option>
                                     ))}
                                   </select>
+                                </td>
+                                <td>
+                                  <label className="checkbox-row">
+                                    <input type="checkbox" checked={Boolean(user.isDrillSergeant ?? user.is_drill_sergeant)} disabled={!can('edit_players')} onChange={(e) => updateDrillSergeant(user.id, e.target.checked)} />
+                                    {user.isDrillSergeant || user.is_drill_sergeant ? 'Yes' : 'No'}
+                                  </label>
                                 </td>
                                 <td>
                                   <div className="roles-cell">
