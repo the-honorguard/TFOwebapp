@@ -89,6 +89,10 @@ export default function OrbatScheduler({
   const [isPanning, setIsPanning] = useState(false);
   const [draggingSquadId, setDraggingSquadId] = useState(null);
   const canAssignPlayers = Boolean(canAssignPlayersPermission);
+  const absentPlayers = (selectedOp.absentUserIds || [])
+    .map((userId) => users.find((user) => String(user.id) === String(userId)))
+    .filter(Boolean)
+    .sort((a, b) => String(a.username).localeCompare(String(b.username)));
 
   const qualifiedPlayersForSlot = (slot) => {
     const requiredRoles = [...new Set([
@@ -291,6 +295,15 @@ export default function OrbatScheduler({
             <button type="button" className={!builderFlowMode ? '' : 'secondary small'} onClick={() => setBuilderFlowMode(false)}>Form mode</button>
           </div>
         </div>
+      </div>
+
+      <div className="operation-absences">
+        <strong>Afgemelde spelers ({absentPlayers.length})</strong>
+        {absentPlayers.length ? (
+          <div className="operation-absence-list">
+            {absentPlayers.map((player) => <span key={player.id}>{player.username}</span>)}
+          </div>
+        ) : <span className="operation-absence-empty">Niemand heeft zich afgemeld.</span>}
       </div>
 
       <div className="role-add-form" style={{marginBottom:'1rem'}}>

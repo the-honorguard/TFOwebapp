@@ -1280,3 +1280,13 @@ App@http://localhost:5173/src/App.jsx?t=1784538405876 line 615 > importedModule:
 2026-07-20T16:42:35.507Z INFO Schema check complete 
 2026-07-20T16:42:49.974Z WARN [App] beforeunload fired {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
 2026-07-20T16:42:50.042Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T18:02:46.181Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:02:46.995Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:04:27.971Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:04:28.312Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:04:30.572Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:05:11.796Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:05:11.799Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:05:32.572Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:07:47.742Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T18:07:48.490Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}

@@ -41,6 +41,10 @@ export default function OrbatOverview({
     ? users.find((user) => String(user.id) === String(auth.id))
     : null;
   const activeSquads = (op.squads || []).filter((squad) => squad.active !== false);
+  const absentPlayers = (op.absentUserIds || [])
+    .map((userId) => users.find((user) => String(user.id) === String(userId)))
+    .filter(Boolean)
+    .sort((a, b) => String(a.username).localeCompare(String(b.username)));
   const modlistUrl = op.modlistPlayer || op.modlist || '';
   const ts3Url = op.tsAddress ? `ts3server://${op.tsAddress}` : '';
   const canUserJoinSlot = (slot) => {
@@ -85,6 +89,14 @@ export default function OrbatOverview({
             </button>
           ) : null}
         </div>
+      </div>
+      <div className="operation-absences">
+        <strong>Afgemelde spelers ({absentPlayers.length})</strong>
+        {absentPlayers.length ? (
+          <div className="operation-absence-list">
+            {absentPlayers.map((player) => <span key={player.id}>{player.username}</span>)}
+          </div>
+        ) : <span className="operation-absence-empty">Niemand heeft zich afgemeld.</span>}
       </div>
       {activeSquads.length === 0 ? (
         <div className="empty-state">This operation has no active squads.</div>
