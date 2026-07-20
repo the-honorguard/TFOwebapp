@@ -1,19 +1,13 @@
 process.on('uncaughtException', (err) => {
   try {
-    require('fs').writeFileSync(
-        __dirname + '/crash.log',
-        String(err && err.stack ? err.stack : err)
-    );
+    console.error('uncaughtException', err);
   } catch (e) {}
   process.exit(1);
 });
 
 process.on('unhandledRejection', (err) => {
   try {
-    require('fs').writeFileSync(
-        __dirname + '/crash.log',
-        'unhandledRejection: ' + String(err && err.stack ? err.stack : err)
-    );
+    console.error('unhandledRejection', err);
   } catch (e) {}
   process.exit(1);
 });
@@ -32,6 +26,7 @@ import logger from './lib/logger.js';
 import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential } from './lib/dataStore.js';
 import * as permissionGroupsRepo from './repositories/permissionGroups.js';
 import * as notificationsRepo from './repositories/notifications.js';
+import * as trainingRepo from './repositories/training.js';
 
 const PERMISSION_DEFINITIONS = [
   { key: 'view_overview', category: 'Overview', label: 'View overview' },
@@ -51,6 +46,13 @@ const PERMISSION_DEFINITIONS = [
   { key: 'edit_squad_types', category: 'Settings', label: 'Edit squad types' },
   { key: 'manage_backups', category: 'System', label: 'Manage backups and database' },
   { key: 'manage_permissions', category: 'System', label: 'Manage permission groups' }
+  ,{ key: 'view_training', category: 'Training', label: 'View and request training' }
+  ,{ key: 'view_training_mine', category: 'Training', label: 'View My training requests' }
+  ,{ key: 'view_training_queue', category: 'Training', label: 'View Drill Sergeant queue' }
+  ,{ key: 'view_training_sessions', category: 'Training', label: 'View training sessions' }
+  ,{ key: 'view_training_history', category: 'Training', label: 'View training history' }
+  ,{ key: 'manage_training', category: 'Training', label: 'Plan and complete permitted training' }
+  ,{ key: 'manage_training_admin', category: 'Training', label: 'Manage Drill Sergeants and training settings' }
 ];
 
 dotenv.config();
@@ -168,7 +170,7 @@ app.get('/api/init-status', async (req, res) => {
 // Return table row counts and simple DB info for the setup page
 app.get('/api/db-info', async (req, res) => {
   console.log('GET /api/db-info called from', req.ip || req.headers['x-forwarded-for'] || 'unknown');
-  const tables = ['users','user_profiles','ranks','templates','ops','recurrences','campaigns','modlists','files','backups','roles'];
+  const tables = ['users','user_profiles','ranks','templates','ops','recurrences','campaigns','modlists','files','backups','roles','training_settings','trainer_role_rights','training_requests','training_sessions','training_participants','training_proposals','training_audit'];
   try {
     const results = [];
     for (const t of tables) {
@@ -190,7 +192,7 @@ app.get('/api/db-info', async (req, res) => {
 // Simple DB integrity check endpoint: returns counts and basic sanity checks
 app.get('/api/db-check', async (req, res) => {
   try {
-    const tables = ['users','user_profiles','ranks','templates','ops','recurrences','campaigns','modlists','files','backups','roles'];
+    const tables = ['users','user_profiles','ranks','templates','ops','recurrences','campaigns','modlists','files','backups','roles','training_settings','trainer_role_rights','training_requests','training_sessions','training_participants','training_proposals','training_audit'];
     const results = {};
     for (const t of tables) {
       try {
@@ -334,7 +336,7 @@ app.post('/init/reset', async (req, res) => {
       const conn = await pool.getConnection();
       try {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-        const toClear = ['notifications','recurrences','ops','templates','roles','permission_groups','files','modlists','backups','campaigns','ranks','user_profiles','users'];
+        const toClear = ['training_audit','training_proposals','training_participants','training_sessions','training_requests','trainer_role_rights','training_settings','notifications','recurrences','ops','templates','roles','permission_groups','files','modlists','backups','campaigns','ranks','user_profiles','users'];
         for (const t of toClear) {
           try { await conn.query(`DELETE FROM \`${t}\``); } catch (e) { /* ignore */ }
         }
@@ -458,6 +460,9 @@ function authMiddleware(req, res, next) {
 }
 
 async function getCapabilities(role) {
+  if (role === 'admin') {
+    return Object.fromEntries(PERMISSION_DEFINITIONS.map(({ key }) => [key, true]));
+  }
   try {
     return (await permissionGroupsRepo.getPermissionGroup(role))?.permissions || {};
   } catch (error) {
@@ -809,6 +814,12 @@ app.post('/api/signup', async (req, res) => {
       const profileSettings = req.body.profile.settings || req.body.profile;
       await pool.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), bio=VALUES(bio), avatar_url=VALUES(avatar_url), settings=VALUES(settings)', [created.id, req.body.profile.displayName || null, req.body.profile.bio || null, req.body.profile.avatarUrl || null, JSON.stringify(profileSettings)]);
     }
+    try {
+      const trainingSettings = await trainingRepo.getSettings();
+      await trainingRepo.createRequest({ userId: created.id, roleName: trainingSettings.basicRole, source: 'signup', createdBy: created.id, notes: 'Automatically created from signup' });
+    } catch (trainingError) {
+      console.error('Could not create signup training request', trainingError);
+    }
     const token = jwt.sign({ id: created.id, username: created.username, role: role }, SECRET, { expiresIn: '8h' });
     const userSafe = {
       id: created.id,
@@ -879,11 +890,250 @@ app.post('/api/permission-groups', authMiddleware, requireCapability('manage_per
   }
 });
 
+function threeMonthsAfter(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  date.setMonth(date.getMonth() + 3);
+  return date;
+}
+
+async function trainingAccess(req) {
+  const capabilities = await getCapabilities(req.user.role);
+  const admin = req.user.role === 'admin' || capabilities.manage_training_admin === true;
+  const currentUser = await usersRepo.getUserById(req.user.id);
+  const drillSergeant = Boolean(currentUser?.is_drill_sergeant);
+  const rights = admin ? null : (drillSergeant ? await trainingRepo.getTrainerRights(req.user.id) : []);
+  return { capabilities, admin, rights: rights || [], trainer: admin || drillSergeant };
+}
+
+async function validTrainingRole(roleName) {
+  const [[row]] = await pool.query('SELECT id FROM roles WHERE name = ? LIMIT 1', [roleName]);
+  return Boolean(row);
+}
+
+function validateTrainingWindow(startsAt, endsAt) {
+  const start = new Date(startsAt);
+  const end = endsAt ? new Date(endsAt) : null;
+  if (!startsAt || Number.isNaN(start.getTime())) return 'A valid start time is required';
+  if (start <= new Date()) return 'Training must be scheduled in the future';
+  if (end && (Number.isNaN(end.getTime()) || end <= start)) return 'End time must be after start time';
+  return null;
+}
+
+function trainingDateForDb(value) {
+  if (!value) return null;
+  const local = String(value).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?$/);
+  if (local) return `${local[1]} ${local[2]}:${local[3] || '00'}`;
+  return new Date(value).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+async function notifyTrainingStaff({ roleName, actorId, title, message, entityId }) {
+  const [rows] = await pool.query(`SELECT DISTINCT u.id FROM users u LEFT JOIN trainer_role_rights tr ON tr.user_id=u.id
+    WHERE u.id<>? AND (u.role='admin' OR (u.is_drill_sergeant=1 AND tr.role_name=?))`, [actorId, roleName]);
+  for (const row of rows) await notificationsRepo.createForUser({ userId: row.id, actorId, type: 'training_update', title, message, entityType: 'training', entityId, metadata: { roleName } });
+}
+
+async function notifyTrainingUser(userId, actorId, title, message, entityId, metadata = {}) {
+  if (String(userId) === String(actorId)) return;
+  await notificationsRepo.createForUser({ userId, actorId, type: 'training_update', title, message, entityType: 'training', entityId, metadata });
+}
+
+app.get('/api/training', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  try {
+    const access = await trainingAccess(req);
+    const requests = await trainingRepo.listRequests();
+    const visibleRequests = access.admin ? requests : access.trainer
+      ? requests.filter((item) => access.rights.includes(item.role_name) || String(item.user_id) === String(req.user.id))
+      : requests.filter((item) => String(item.user_id) === String(req.user.id));
+    const sessions = (await trainingRepo.listSessions()).filter((item) => access.admin || item.is_open || String(item.trainer_id) === String(req.user.id) || item.participantUserIds.includes(String(req.user.id)));
+    const canSeeMine = access.admin || access.capabilities.view_training_mine === true;
+    const canSeeQueue = access.admin || (access.trainer && access.capabilities.view_training_queue === true);
+    const canSeeSessions = access.admin || access.capabilities.view_training_sessions === true;
+    const canSeeHistory = access.admin || access.capabilities.view_training_history === true;
+    const allowedRequests = visibleRequests.filter((item) => item.status === 'completed'
+      ? canSeeHistory
+      : (String(item.user_id) === String(req.user.id) ? canSeeMine : canSeeQueue));
+    const [trainingRoles] = await pool.query('SELECT name FROM roles ORDER BY name');
+    res.json({
+      requests: allowedRequests,
+      sessions: canSeeSessions ? sessions : [],
+      roles: trainingRoles.map((row) => row.name),
+      settings: await trainingRepo.getSettings(),
+      trainerRights: access.admin ? await trainingRepo.listTrainerRights() : access.rights.map((roleName) => ({ userId: req.user.id, roleName })),
+      access: { admin: access.admin, trainer: access.trainer, roles: access.rights, userId: req.user.id,
+        windows: { mine: canSeeMine, queue: canSeeQueue, sessions: canSeeSessions, history: canSeeHistory, admin: access.admin } }
+    });
+  } catch (error) { console.error('Training overview error', error); res.status(500).json({ error: 'Could not load training' }); }
+});
+
+app.get('/api/training/requests/:id', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  const request = await trainingRepo.getRequest(Number(req.params.id));
+  if (!request) return res.status(404).json({ error: 'Training request not found' });
+  const access = await trainingAccess(req);
+  const permitted = access.admin || String(request.user_id) === String(req.user.id) || (access.trainer && access.rights.includes(request.role_name));
+  if (!permitted) return res.status(403).json({ error: 'Not permitted for this training role' });
+  res.json({ request, proposals: await trainingRepo.listProposals(request.id), history: await trainingRepo.history(request.id) });
+});
+
+app.post('/api/training/requests', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  try {
+    const access = await trainingAccess(req);
+    const targetUserId = Number(req.body.userId || req.user.id);
+    const own = String(targetUserId) === String(req.user.id);
+    if (!own && !access.trainer && !access.admin) return res.status(403).json({ error: 'Only staff can request training for another player' });
+    const roleName = String(req.body.roleName || '').trim();
+    if (!roleName) return res.status(400).json({ error: 'Role is required' });
+    if (!(await validTrainingRole(roleName))) return res.status(400).json({ error: 'Unknown training role' });
+    const target = await usersRepo.getUserById(targetUserId);
+    if (!target) return res.status(404).json({ error: 'Player not found' });
+    const currentPermissions = typeof target.permissions === 'string' ? JSON.parse(target.permissions || '{}') : (target.permissions || {});
+    if (currentPermissions[roleName] === true) return res.status(409).json({ error: 'Player already has this role qualification' });
+    if (await trainingRepo.activeDuplicate(targetUserId, roleName)) return res.status(409).json({ error: 'An active request for this role already exists' });
+    const lastPassed = await trainingRepo.lastPassed(targetUserId);
+    const cooldownUntil = threeMonthsAfter(lastPassed);
+    const override = access.admin && req.body.overrideReason;
+    if (cooldownUntil && cooldownUntil > new Date() && !override) return res.status(409).json({ error: 'Player is in the three-month training cooldown', cooldownUntil });
+    if (req.body.overrideReason && !access.admin) return res.status(403).json({ error: 'Only admins can override cooldown' });
+    const request = await trainingRepo.createRequest({ userId: targetUserId, roleName, source: own ? 'self' : 'staff', createdBy: req.user.id, notes: req.body.notes, overrideReason: req.body.overrideReason });
+    await notifyTrainingStaff({ roleName, actorId: req.user.id, title: 'New training request', message: `${target.username} requested ${roleName} training.`, entityId: request.id });
+    if (!own) await notifyTrainingUser(targetUserId, req.user.id, 'Training requested', `${req.user.username} created a ${roleName} training request for you.`, request.id, { roleName });
+    res.status(201).json({ request });
+  } catch (error) { console.error('Create training request error', error); res.status(500).json({ error: 'Could not create training request' }); }
+});
+
+app.put('/api/training/requests/:id', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  const request = await trainingRepo.getRequest(Number(req.params.id));
+  if (!request) return res.status(404).json({ error: 'Training request not found' });
+  const access = await trainingAccess(req);
+  if (!['requested','claimed','planning'].includes(request.status)) return res.status(409).json({ error: 'This request can no longer be changed' });
+  const ownCancellation = req.body.action === 'cancel' && String(request.user_id) === String(req.user.id);
+  if (!ownCancellation && !access.admin && !(access.trainer && access.rights.includes(request.role_name))) return res.status(403).json({ error: 'Not permitted for this training role' });
+  const patch = {};
+  if (req.body.action === 'claim') { patch.claimedBy = req.user.id; patch.status = 'claimed'; }
+  if (req.body.action === 'release') { patch.claimedBy = null; patch.status = 'requested'; }
+  if (req.body.action === 'cancel') { patch.status = 'cancelled'; patch.notes = req.body.reason || request.notes; }
+  if (req.body.priority) patch.priority = req.body.priority;
+  const updated = await trainingRepo.updateRequest(request.id, patch, req.user.id);
+  const messages = { claim: 'Your training request was claimed.', release: 'Your training request was released back to the queue.', cancel: 'Your training request was cancelled.' };
+  if (messages[req.body.action]) await notifyTrainingUser(request.user_id, req.user.id, 'Training request updated', messages[req.body.action], request.id, { action: req.body.action });
+  res.json({ request: updated });
+});
+
+app.post('/api/training/requests/:id/proposals', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  const request = await trainingRepo.getRequest(Number(req.params.id));
+  if (!request) return res.status(404).json({ error: 'Training request not found' });
+  const access = await trainingAccess(req);
+  if (!['requested','claimed','planning'].includes(request.status)) return res.status(409).json({ error: 'This request can no longer receive proposals' });
+  if (String(request.user_id) !== String(req.user.id) && !access.admin && !(access.trainer && access.rights.includes(request.role_name))) return res.status(403).json({ error: 'Not permitted' });
+  if (!req.body.startsAt) return res.status(400).json({ error: 'Start time is required' });
+  const windowError = validateTrainingWindow(req.body.startsAt, req.body.endsAt);
+  if (windowError) return res.status(400).json({ error: windowError });
+  const id = await trainingRepo.createProposal({ requestId: request.id, proposedBy: req.user.id, startsAt: trainingDateForDb(req.body.startsAt), endsAt: trainingDateForDb(req.body.endsAt), message: req.body.message });
+  if (String(request.user_id) !== String(req.user.id)) await notifyTrainingUser(request.user_id, req.user.id, 'New training date proposal', `A new date was proposed for your ${request.role_name} training.`, request.id, { proposalId: id });
+  else if (request.claimed_by) await notifyTrainingUser(request.claimed_by, req.user.id, 'New training date proposal', `${request.username} proposed a date for ${request.role_name} training.`, request.id, { proposalId: id });
+  else await notifyTrainingStaff({ roleName: request.role_name, actorId: req.user.id, title: 'New training date proposal', message: `${request.username} proposed a training date.`, entityId: request.id });
+  res.status(201).json({ id });
+});
+
+app.post('/api/training/proposals/:id/accept', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  try {
+    const proposal = await trainingRepo.getProposal(Number(req.params.id));
+    if (!proposal) return res.status(404).json({ error: 'Proposal not found' });
+    const request = await trainingRepo.getRequest(proposal.request_id);
+    const access = await trainingAccess(req);
+    const isPlayer = String(request.user_id) === String(req.user.id);
+    const isTrainer = access.admin || (access.trainer && access.rights.includes(request.role_name));
+    if (!isPlayer && !isTrainer) return res.status(403).json({ error: 'Not permitted' });
+    if (String(proposal.proposed_by) === String(req.user.id)) return res.status(409).json({ error: 'The other party must accept this proposal' });
+    const trainerId = isTrainer ? req.user.id : proposal.proposed_by;
+    const trainerRights = await trainingRepo.getTrainerRights(trainerId);
+    const proposedTrainer = await usersRepo.getUserById(trainerId);
+    if (proposedTrainer?.role !== 'admin' && !trainerRights.includes(request.role_name)) return res.status(409).json({ error: 'The proposal is not linked to a qualified Drill Sergeant' });
+    const windowError = validateTrainingWindow(proposal.starts_at, proposal.ends_at);
+    if (windowError) return res.status(409).json({ error: windowError });
+    const sessionId = await trainingRepo.acceptProposalAndSchedule({ proposalId: proposal.id, requestId: request.id, actorId: req.user.id, trainerId, roleName: request.role_name });
+    await notifyTrainingUser(request.user_id, req.user.id, 'Training scheduled', `Your ${request.role_name} training has been scheduled.`, request.id, { sessionId });
+    await notifyTrainingUser(trainerId, req.user.id, 'Training scheduled', `${request.username}'s ${request.role_name} training has been scheduled.`, request.id, { sessionId });
+    res.json({ session: await trainingRepo.session(sessionId) });
+  } catch (error) { console.error('Accept training proposal error', error); res.status(error.status || 500).json({ error: error.message || 'Could not accept proposal' }); }
+});
+
+app.post('/api/training/sessions', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  try {
+    const access = await trainingAccess(req);
+    const trainerId = Number(req.body.trainerId || req.user.id);
+    const roleName = String(req.body.roleName || '').trim();
+    if (!access.admin && (trainerId !== req.user.id || !access.rights.includes(roleName))) return res.status(403).json({ error: 'Missing trainer right for this role' });
+    if (!roleName || !req.body.startsAt) return res.status(400).json({ error: 'Role and start time are required' });
+    if (!(await validTrainingRole(roleName))) return res.status(400).json({ error: 'Unknown training role' });
+    const windowError = validateTrainingWindow(req.body.startsAt, req.body.endsAt);
+    if (windowError) return res.status(400).json({ error: windowError });
+    const capacity = Math.max(1, Number(req.body.capacity) || 1);
+    const id = await trainingRepo.createSessionWithParticipants({ ...req.body, startsAt: trainingDateForDb(req.body.startsAt), endsAt: trainingDateForDb(req.body.endsAt), trainerId, roleName, title: req.body.title || `${roleName} training`, capacity }, req.body.requestIds || []);
+    const createdSession = await trainingRepo.session(id);
+    for (const participant of createdSession.participants) await notifyTrainingUser(participant.userId, req.user.id, 'Training scheduled', `Your ${roleName} training has been scheduled.`, participant.requestId, { sessionId: id });
+    res.status(201).json({ session: createdSession });
+  } catch (error) { console.error('Create training session error', error); res.status(error.status || 500).json({ error: error.message || 'Could not create session' }); }
+});
+
+app.get('/api/training/sessions/:id', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  const session = await trainingRepo.session(Number(req.params.id));
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const access = await trainingAccess(req);
+  const participant = session.participants.some((item) => String(item.userId) === String(req.user.id));
+  if (!access.admin && String(session.trainer_id) !== String(req.user.id) && !participant) return res.status(403).json({ error: 'Not permitted' });
+  res.json({ session });
+});
+
+app.post('/api/training/sessions/:id/join', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  try {
+    await trainingRepo.joinOpenSession(Number(req.params.id), Number(req.body.requestId), req.user.id);
+    const joinedSession = await trainingRepo.session(Number(req.params.id));
+    await notifyTrainingUser(joinedSession.trainer_id, req.user.id, 'Training session signup', `${req.user.username} joined your ${joinedSession.role_name} training session.`, Number(req.body.requestId), { sessionId: joinedSession.id });
+    res.json({ session: joinedSession });
+  } catch (error) { if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Already enrolled' }); res.status(error.status || 500).json({ error: error.message || 'Could not join session' }); }
+});
+
+app.post('/api/training/sessions/:sessionId/participants/:requestId/complete', authMiddleware, requireCapability('view_training'), async (req, res) => {
+  try {
+    const session = await trainingRepo.session(Number(req.params.sessionId));
+    const access = await trainingAccess(req);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (!access.admin && (String(session.trainer_id) !== String(req.user.id) || !access.rights.includes(session.role_name))) return res.status(403).json({ error: 'Not permitted to complete this training' });
+    if (!['passed','not_yet','absent'].includes(req.body.outcome)) return res.status(400).json({ error: 'Invalid outcome' });
+    if (req.body.outcome === 'not_yet' && !String(req.body.notes || '').trim()) return res.status(400).json({ error: 'Notes are required when the player is not yet qualified' });
+    const request = await trainingRepo.completeParticipant({ sessionId: session.id, requestId: Number(req.params.requestId), outcome: req.body.outcome, notes: req.body.notes, actorId: req.user.id });
+    await notificationsRepo.createForUser({ userId: request.user_id, actorId: req.user.id, type: 'training_result', title: `${request.role_name} training`, message: `${req.body.outcome === 'passed' ? 'Training passed' : 'Training assessment recorded'}`, entityType: 'training', entityId: request.id, metadata: { outcome: req.body.outcome } });
+    res.json({ ok: true });
+  } catch (error) { console.error('Complete training error', error); res.status(error.status || 500).json({ error: error.message || 'Could not complete training' }); }
+});
+
+app.get('/api/training/admin', authMiddleware, requireCapability('manage_training_admin'), async (req, res) => {
+  res.json({ rights: await trainingRepo.listTrainerRights(), settings: await trainingRepo.getSettings() });
+});
+
+app.put('/api/training/admin/trainers/:userId', authMiddleware, requireCapability('manage_training_admin'), async (req, res) => {
+  const roles = Array.isArray(req.body.roles) ? [...new Set(req.body.roles.map((role) => String(role).trim()).filter(Boolean))] : [];
+  for (const role of roles) if (!(await validTrainingRole(role))) return res.status(400).json({ error: `Unknown training role: ${role}` });
+  const targetUser = await usersRepo.getUserById(Number(req.params.userId));
+  if (!targetUser) return res.status(404).json({ error: 'User not found' });
+  if (!targetUser.is_drill_sergeant) return res.status(409).json({ error: 'Mark this player as Drill Sergeant in the Player List first' });
+  res.json({ roles: await trainingRepo.replaceTrainerRights(Number(req.params.userId), roles) });
+});
+
+app.put('/api/training/admin/settings', authMiddleware, requireCapability('manage_training_admin'), async (req, res) => {
+  const basicRole = String(req.body.basicRole || '').trim();
+  if (!basicRole) return res.status(400).json({ error: 'Basic training role is required' });
+  if (!(await validTrainingRole(basicRole))) return res.status(400).json({ error: 'Unknown training role' });
+  res.json({ settings: await trainingRepo.updateSettings({ basicRole }) });
+});
+
 app.put('/api/permission-groups/:slug', authMiddleware, requireCapability('manage_permissions'), async (req, res) => {
   const existing = await permissionGroupsRepo.getPermissionGroup(req.params.slug);
   if (!existing) return res.status(404).json({ error: 'Permission group not found' });
-  const permissions = { ...(req.body.permissions || existing.permissions) };
-  if (req.params.slug === 'admin') permissions.manage_permissions = true;
+  const permissions = req.params.slug === 'admin'
+    ? Object.fromEntries(PERMISSION_DEFINITIONS.map(({ key }) => [key, true]))
+    : { ...(req.body.permissions || existing.permissions) };
   const group = await permissionGroupsRepo.updatePermissionGroup(req.params.slug, {
     name: typeof req.body.name === 'string' ? req.body.name.trim() : undefined,
     permissions
@@ -923,12 +1173,14 @@ app.put('/api/users/:id/permissions', authMiddleware, requireCapability('edit_pl
     if (req.body.permissions !== undefined) patch.permissions = req.body.permissions;
     if (req.body.rank !== undefined) patch.rank = req.body.rank;
     if (req.body.status !== undefined) patch.status = req.body.status;
+    if (req.body.isDrillSergeant !== undefined) patch.isDrillSergeant = req.body.isDrillSergeant === true;
     if (req.body.role !== undefined) {
       const selectedGroup = await permissionGroupsRepo.getPermissionGroup(req.body.role);
       if (!selectedGroup) return res.status(400).json({ error: 'Unknown permission group' });
       patch.role = req.body.role;
     }
     const updated = await usersRepo.updateUser(id, patch);
+    if (patch.isDrillSergeant === false) await trainingRepo.replaceTrainerRights(id, []);
     const { password_hash, ...safeUser } = updated;
     res.json({ user: safeUser });
   } catch (err) {
@@ -1912,6 +2164,12 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
   app.get('/api/backup', authMiddleware, requireCapability('manage_backups'), async (req, res) => {
     try {
       const data = normalizeStorage(await _readData());
+      const trainingTables = ['training_settings','trainer_role_rights','training_requests','training_sessions','training_participants','training_proposals','training_audit'];
+      data.training = {};
+      for (const table of trainingTables) {
+        const [rows] = await pool.query(`SELECT * FROM \`${table}\``);
+        data.training[table] = rows;
+      }
       // materialize any recurring ops into the data snapshot
       try { await generateRecurringOps(data); } catch (e) { console.error('Recurring generation error', e); }
 
@@ -1994,7 +2252,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
         }
       }
 
-      const allowedKeys = new Set(['users', 'templates', 'ops', 'recurrences', 'ranks', 'campaigns', 'slots', 'roles']);
+      const allowedKeys = new Set(['users', 'templates', 'ops', 'recurrences', 'ranks', 'campaigns', 'slots', 'roles', 'training']);
       const nextData = { ...currentData };
 
       for (const key of selectedSections) {
@@ -2006,6 +2264,28 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
 
       // Always keep current uploads unless restoreUploads is true
       await persistData(nextData);
+      if (selectedSections.includes('training') && backupData.training && typeof backupData.training === 'object') {
+        const trainingTables = ['training_settings','trainer_role_rights','training_requests','training_sessions','training_participants','training_proposals','training_audit'];
+        const deleteOrder = [...trainingTables].reverse();
+        const jsonColumns = { training_audit: ['details'] };
+        const conn = await pool.getConnection();
+        try {
+          await conn.beginTransaction();
+          for (const table of deleteOrder) await conn.query(`DELETE FROM \`${table}\``);
+          for (const table of trainingTables) {
+            const rows = Array.isArray(backupData.training[table]) ? backupData.training[table] : [];
+            for (const source of rows) {
+              const row = { ...source };
+              for (const column of jsonColumns[table] || []) if (row[column] != null && typeof row[column] !== 'string') row[column] = JSON.stringify(row[column]);
+              await conn.query(`INSERT INTO \`${table}\` SET ?`, [row]);
+            }
+          }
+          await conn.commit();
+        } catch (error) {
+          await conn.rollback();
+          throw error;
+        } finally { conn.release(); }
+      }
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: 'Import failed' });

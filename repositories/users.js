@@ -32,6 +32,7 @@ export async function updateUser(id, patch) {
   if ('rank' in patch) { fields.push('`rank` = ?'); values.push(patch.rank); }
   if ('status' in patch) { fields.push('`status` = ?'); values.push(patch.status); }
   if ('permissions' in patch) { fields.push('permissions = ?'); values.push(JSON.stringify(patch.permissions || {})); }
+  if ('isDrillSergeant' in patch) { fields.push('is_drill_sergeant = ?'); values.push(patch.isDrillSergeant ? 1 : 0); }
   if (fields.length === 0) return getUserById(id);
   values.push(id);
   const sql = 'UPDATE users SET ' + fields.join(', ') + ' WHERE `id` = ?';

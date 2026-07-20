@@ -1143,3 +1143,140 @@ App@http://localhost:5173/src/App.jsx?t=1784538405876 line 615 > importedModule:
 2026-07-20T10:18:03.439Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
 2026-07-20T10:18:36.530Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
 2026-07-20T10:19:07.118Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:22:53.817Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:23:26.936Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:24:00.065Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:24:33.155Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:25:06.259Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:25:39.338Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:26:12.439Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:26:45.572Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:27:18.693Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:27:51.785Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:28:24.920Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:28:58.021Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:29:31.114Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:30:04.250Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:30:10.175Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:30:42.202Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:31:12.368Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:31:42.653Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:32:12.752Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:32:42.653Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:33:19.246Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:33:49.465Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:33:52.265Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:33:56.398Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:33:56.400Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:33:56.923Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:34:29.411Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:35:01.033Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:35:32.076Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:36:05.204Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:36:38.316Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:37:10.731Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:37:43.852Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:38:16.955Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:38:50.054Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:39:23.170Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:39:54.718Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:40:27.831Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:40:59.218Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:41:32.345Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:42:05.463Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:42:38.539Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:43:11.648Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T10:43:44.759Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:17:31.704Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:17:46.123Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:17:46.131Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:17:46.698Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:18:20.824Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:18:53.871Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:19:25.784Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:19:58.892Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:20:32.017Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:21:05.127Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:21:38.232Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:22:11.338Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:22:44.619Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:23:14.624Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:23:47.744Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:24:20.857Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:24:50.875Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:25:23.964Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:25:53.970Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:26:25.026Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:26:58.130Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:27:31.226Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:28:01.227Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:28:34.368Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:29:07.475Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T11:29:40.579Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:05:10.562Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:05:38.970Z ERROR loadNotifications error {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:06:21.653Z INFO Server running on http://localhost:3001 
+2026-07-20T15:06:21.747Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:06:22.314Z INFO Schema check complete 
+2026-07-20T15:06:25.686Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:06:25.701Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:07:13.897Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:07:25.336Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:11:29.879Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:11:46.166Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:20:54.421Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:20:54.424Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:29:30.401Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:29:30.404Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:31:29.863Z INFO Server running on http://localhost:3101 
+2026-07-20T15:31:29.897Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:31:30.028Z INFO Schema check complete 
+2026-07-20T15:33:33.918Z INFO Server running on http://localhost:3101 
+2026-07-20T15:33:33.950Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:33:34.071Z INFO Schema check complete 
+2026-07-20T15:33:58.321Z INFO Server running on http://localhost:3101 
+2026-07-20T15:33:58.361Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:33:58.493Z INFO Schema check complete 
+2026-07-20T15:35:10.753Z INFO Server running on http://localhost:3101 
+2026-07-20T15:35:10.801Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:35:10.986Z INFO Schema check complete 
+2026-07-20T15:35:59.942Z INFO Server running on http://localhost:3101 
+2026-07-20T15:36:00.012Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:36:00.390Z INFO Schema check complete 
+2026-07-20T15:36:53.748Z INFO Server running on http://localhost:3101 
+2026-07-20T15:36:53.821Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:36:54.097Z INFO Schema check complete 
+2026-07-20T15:38:31.163Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T15:40:59.759Z INFO Server running on http://localhost:3101 
+2026-07-20T15:40:59.804Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:41:00.028Z INFO Schema check complete 
+2026-07-20T15:41:19.742Z ERROR Failed to load /api/users/me {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T15:43:03.115Z INFO Server running on http://localhost:3101 
+2026-07-20T15:43:03.181Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:43:03.454Z INFO Schema check complete 
+2026-07-20T15:43:14.675Z WARN [App] beforeunload fired {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T15:43:14.722Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T15:43:14.730Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T15:43:58.661Z WARN [App] beforeunload fired {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T15:45:34.126Z INFO Server running on http://localhost:3101 
+2026-07-20T15:45:34.158Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T15:45:34.369Z INFO Schema check complete 
+2026-07-20T15:45:49.791Z WARN [App] beforeunload fired {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T15:45:49.819Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T16:06:45.073Z INFO Server running on http://localhost:3101 
+2026-07-20T16:06:45.118Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T16:06:45.253Z INFO Schema check complete 
+2026-07-20T16:07:29.683Z ERROR Failed to load /api/users/me {} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T16:09:38.331Z WARN [App] beforeunload fired {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T16:09:38.354Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T16:35:05.952Z INFO Server running on http://localhost:3101 
+2026-07-20T16:35:06.003Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T16:35:06.206Z INFO Schema check complete 
+2026-07-20T16:39:40.684Z WARN [App] beforeunload fired {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T16:39:40.712Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T16:39:40.716Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T16:42:35.255Z INFO Server running on http://localhost:3101 
+2026-07-20T16:42:35.295Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T16:42:35.507Z INFO Schema check complete 
+2026-07-20T16:42:49.974Z WARN [App] beforeunload fired {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
+2026-07-20T16:42:50.042Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"}
