@@ -1,173 +1,173 @@
 # TFO Web App — TODO
 
-Laatste controle: 20 juli 2026.
-Bron: huidige werkmap en `npm test` (7 tests geslaagd).
+Last reviewed: July 20, 2026.
+Source: current working tree and `npm test` (7 tests passed).
 
-Dit is de enige actieve takenlijst. Werk van boven naar beneden: eerst P0, daarna P1, P2 en P3. Vink een taak pas af wanneer de acceptatiecriteria zijn gehaald en de relevante tests slagen.
+This is the only active task list. Work from top to bottom: P0 first, followed by P1, P2, and P3. Only check off a task once its acceptance criteria have been met and the relevant tests pass.
 
-## P0 — Beveiliging vóór productie
+## P0 — Security before production
 
-- [ ] **TFO-SEC-001 — Initialisatie- en beheerendpoints afsluiten**
-  - Omvang: `POST /init`, `/init/reset`, `/init/demo`, `/init/import` en `/init/create-admin`.
-  - Maak alleen een aantoonbare eerste installatie zonder beheerder mogelijk. Vereis daarna authenticatie en `manage_backups`, of verwijder destructieve routes uit productie.
-  - Verwijder de `admin/admin`-route, voorkom promotie van bestaande gebruikers en gebruik voor de eerste beheerder een eenmalig geheim of lokale CLI-flow.
-  - Gereed wanneer anonieme en gewone gebruikers na de installatie niets kunnen wijzigen en integratietests eerste installatie, herhaling, promotiepoging en alle vijf routes afdekken.
+- [ ] **TFO-SEC-001 — Secure initialization and administration endpoints**
+  - Scope: `POST /init`, `/init/reset`, `/init/demo`, `/init/import`, and `/init/create-admin`.
+  - Only allow a verifiable first-time setup when no administrator exists. After that, require authentication and `manage_backups`, or remove destructive routes from production.
+  - Remove the `admin/admin` route, prevent privilege escalation of existing users, and use a one-time secret or local CLI flow for the first administrator.
+  - Done when anonymous and regular users cannot change anything after setup, and integration tests cover first-time setup, repeated setup, privilege-escalation attempts, and all five routes.
 
-- [ ] **TFO-SEC-002 — JWT en actuele accountrechten beveiligen** *(deels uitgevoerd)*
-  - De hardcoded `tfo-secret` is lokaal al vervangen door `JWT_SECRET` in productie, maar development heeft nog een bekende fallback en tokens vertrouwen nog op verouderde claims.
-  - Eis overal een lang willekeurig geheim, weiger ontbrekende/zwakke/bekende waarden en roteer het productiegeheim.
-  - Laad bij ieder beschermd verzoek de actuele gebruiker en rol uit de database; weiger verwijderde of inactieve accounts onmiddellijk.
-  - Gereed wanneer oude/default tokens worden geweigerd en tests secret-validatie, rolwijziging, deactivatie en verwijdering tijdens een sessie afdekken.
+- [ ] **TFO-SEC-002 — Secure JWTs and current account permissions** *(partially completed)*
+  - The hardcoded `tfo-secret` has already been replaced locally with `JWT_SECRET` in production, but development still has a known fallback and tokens still rely on stale claims.
+  - Require a long, random secret everywhere; reject missing, weak, or known values; and rotate the production secret.
+  - For every protected request, load the current user and role from the database; immediately reject deleted or inactive accounts.
+  - Done when old/default tokens are rejected and tests cover secret validation, role changes, deactivation, and deletion during a session.
 
-- [ ] **TFO-SEC-003 — Logging begrenzen en autoriseren**
-  - Beveilig `/api/logs/start`, `/api/logs/stop` en `/api/logs/stream` met een beheercapability.
-  - Beperk of schakel `/api/client-log` uit in productie; valideer levels en veldlengtes en voeg rate limiting, redactie, rotatie en bewaartermijnen toe.
-  - Gereed wanneer onbevoegde gebruikers geen logs kunnen lezen/aansturen en tests autorisatie, throttling, validatie en redactie bewijzen.
+- [ ] **TFO-SEC-003 — Restrict and authorize logging**
+  - Protect `/api/logs/start`, `/api/logs/stop`, and `/api/logs/stream` with an administrative capability.
+  - Restrict or disable `/api/client-log` in production; validate levels and field lengths, and add rate limiting, redaction, rotation, and retention periods.
+  - Done when unauthorized users cannot read or control logs and tests prove authorization, throttling, validation, and redaction.
 
-- [ ] **TFO-SEC-004 — Uploads tegen stored XSS beveiligen**
-  - Sta geen HTML/HTM toe; weiger SVG of sanitize met een onderhouden library; valideer MIME én magic bytes.
-  - Voeg `X-Content-Type-Options: nosniff` en een passende CSP toe en serveer risicobestanden bij voorkeur via een cookieless origin of als download.
-  - Gereed wanneer geldige afbeeldingen werken en HTML, script-SVG en vermomde bestanden door tests worden geweigerd.
+- [ ] **TFO-SEC-004 — Protect uploads against stored XSS**
+  - Do not allow HTML/HTM; reject SVG or sanitize it with a maintained library; validate both MIME type and magic bytes.
+  - Add `X-Content-Type-Options: nosniff` and an appropriate CSP, and preferably serve risky files from a cookieless origin or as downloads.
+  - Done when valid images work and tests reject HTML, scripted SVG, and disguised files.
 
-## P1 — Data-integriteit en accounts
+## P1 — Data integrity and accounts
 
-- [ ] **TFO-DATA-001 — Slotinschrijving atomair maken**
-  - Vervang read-modify-write in `repositories/ops.js` door transactielocking of optimistic concurrency.
-  - Gereed wanneer precies één van twee gelijktijdige claims op hetzelfde slot slaagt en wijzigingen aan verschillende slots elkaar niet overschrijven.
+- [ ] **TFO-DATA-001 — Make slot registration atomic**
+  - Replace read-modify-write in `repositories/ops.js` with transactional locking or optimistic concurrency.
+  - Done when exactly one of two simultaneous claims for the same slot succeeds and changes to different slots do not overwrite each other.
 
-- [ ] **TFO-DATA-002 — Brede delete-and-reinsert writes vervangen**
-  - Gebruik gerichte repository/SQL-mutaties; reserveer volledige vervanging voor restore en omring die met een transactie en foreign-key-validatie.
-  - Gereed wanneer een enkele wijziging geen tabellen vervangt, fouten volledig terugrollen en onafhankelijke gelijktijdige wijzigingen behouden blijven.
+- [ ] **TFO-DATA-002 — Replace broad delete-and-reinsert writes**
+  - Use targeted repository/SQL mutations; reserve full replacement for restore operations and wrap it in a transaction with foreign-key validation.
+  - Done when a single change does not replace tables, errors roll back completely, and independent concurrent changes are preserved.
 
-- [ ] **TFO-AUTH-001 — Wachtwoordbeleid en rate limiting invoeren**
-  - Verwijder `changeme` en andere defaults. Valideer server-side verplichte minimum- en maximumlengte voor signup en door admins aangemaakte gebruikers.
-  - Rate-limit login, signup en setup.
-  - Gereed wanneer ontbrekende, lege, korte en te lange wachtwoorden niets aanmaken en alle gevallen getest zijn.
+- [ ] **TFO-AUTH-001 — Introduce a password policy and rate limiting**
+  - Remove `changeme` and other defaults. Enforce server-side minimum and maximum password lengths for signup and users created by administrators.
+  - Rate-limit login, signup, and setup.
+  - Done when missing, empty, short, and overly long passwords create nothing and all cases are tested.
 
-- [ ] **TFO-DATA-003 — Veilige, botsingsvrije ID's gebruiken**
-  - Vervang `Date.now()` en tijd-plus-random-combinaties voor entiteits-ID's door database-ID's of `crypto.randomUUID()` met een passend kolomtype.
-  - Gereed wanneer alle aanmaakroutes en recurrence-generatie dezelfde gedocumenteerde strategie gebruiken en concurrencytests geen botsingen tonen.
+- [ ] **TFO-DATA-003 — Use safe, collision-resistant IDs**
+  - Replace `Date.now()` and time-plus-random combinations for entity IDs with database IDs or `crypto.randomUUID()` using an appropriate column type.
+  - Done when all creation routes and recurrence generation use the same documented strategy and concurrency tests show no collisions.
 
-- [ ] **TFO-OPS-001 — Recurrence-generatie multi-instance veilig maken** *(deels uitgevoerd)*
-  - Binnen één Node-proces voorkomt `recurrenceGeneration` nu overlap en een timer genereert periodiek operations.
-  - Voeg database-locking of een unieke occurrence-sleutel toe zodat meerdere serverprocessen geen dubbele operations maken.
-  - Gereed met een concurrency-integratietest over minimaal twee gelijktijdige generators.
+- [ ] **TFO-OPS-001 — Make recurrence generation safe across multiple instances** *(partially completed)*
+  - Within a single Node process, `recurrenceGeneration` now prevents overlap and a timer periodically generates operations.
+  - Add database locking or a unique occurrence key so multiple server processes cannot create duplicate operations.
+  - Done with a concurrency integration test covering at least two simultaneous generators.
 
-## P2 — Tests en onderhoudbaarheid
+## P2 — Tests and maintainability
 
-- [ ] **TFO-TEST-001 — Zelfstandige teststraat uitbreiden** *(basis aanwezig)*
-  - `npm test` start zelfstandig en de 7 recurrence/create-admin-tests slagen.
-  - Voeg disposable databasefixtures en tests toe voor auth/capabilities, init, uploads, backup/restore, atomaire inschrijving en recurrence-concurrency.
-  - Voeg browsersmokes toe voor publiek, signup/login/logout, member/missionmaker/admin, modals en 390 px.
-  - Gereed wanneer `npm test` in een schone omgeving alle genoemde suites zonder handmatig gestarte server uitvoert.
+- [ ] **TFO-TEST-001 — Expand the self-contained test pipeline** *(foundation available)*
+  - `npm test` starts independently and the 7 recurrence/create-admin tests pass.
+  - Add disposable database fixtures and tests for auth/capabilities, initialization, uploads, backup/restore, atomic registration, and recurrence concurrency.
+  - Add browser smoke tests for public access, signup/login/logout, member/missionmaker/admin, modals, and 390 px.
+  - Done when `npm test` runs all listed suites in a clean environment without a manually started server.
 
-- [ ] **TFO-ARCH-001 — Grote modules opsplitsen**
-  - Splits `server.js` per domein in routes/services/repositories en splits `src/App.jsx` in pagina's en API-acties.
-  - Centraliseer eerst regressietests en verander tijdens het opsplitsen geen gedrag.
+- [ ] **TFO-ARCH-001 — Split up large modules**
+  - Split `server.js` by domain into routes/services/repositories and split `src/App.jsx` into pages and API actions.
+  - Establish regression tests first and do not change behavior while splitting up the modules.
 
-- [ ] **TFO-ARCH-002 — API-verzoeken centraliseren**
-  - Migreer de resterende directe `fetch('/api...')`-calls naar `src/api.js` en centraliseer authheaders en foutafhandeling.
-  - Gereed wanneer componenten geen eigen API-basis, tokenafhandeling of 401-logica meer hebben.
+- [ ] **TFO-ARCH-002 — Centralize API requests**
+  - Migrate the remaining direct `fetch('/api...')` calls to `src/api.js` and centralize authentication headers and error handling.
+  - Done when components no longer contain their own API base, token handling, or 401 logic.
 
-- [ ] **TFO-REPO-001 — Logs en applicatiedata uit Git halen**
-  - Momenteel gevolgd: `logs/app.log`, `logs/combined.log` en `public.raw`.
-  - Stop tracking zonder benodigde lokale bestanden te verwijderen, blokkeer opnieuw committen en controleer historie op persoonsgegevens/geheimen.
-  - Documenteer of history rewriting nodig is; behoud alleen minimale fictieve fixtures.
+- [ ] **TFO-REPO-001 — Remove logs and application data from Git**
+  - Currently tracked: `logs/app.log`, `logs/combined.log`, and `public.raw`.
+  - Stop tracking them without deleting required local files, prevent them from being committed again, and inspect history for personal data/secrets.
+  - Document whether history rewriting is necessary; retain only minimal fictional fixtures.
 
-- [ ] **TFO-CLEANUP-001 — Ongebruikte bestanden en exports gecontroleerd opruimen**
-  - Kandidaten: `README_v2_preview.md`, `HGprofilepic.jpg`, `repositories/index.js`, `public.raw`, ongebruikte imports/exports in `server.js`, `lib/logger.js` en de dubbele named/default export van `apiFetch`.
-  - Verwijder alleen na repositorybrede gebruikscontrole en geslaagde tests/build; behoud één gedocumenteerde `apiFetch`-export.
+- [ ] **TFO-CLEANUP-001 — Carefully remove unused files and exports**
+  - Candidates: `README_v2_preview.md`, `HGprofilepic.jpg`, `repositories/index.js`, `public.raw`, unused imports/exports in `server.js`, `lib/logger.js`, and the duplicate named/default export of `apiFetch`.
+  - Remove only after a repository-wide usage check and successful tests/build; retain one documented `apiFetch` export.
 
-- [ ] **TFO-CLEANUP-002 — Handmatige scripts inventariseren**
-  - Controleer `scripts/check_public.js`, `clear-db.js`, `count-users.mjs`, `create-admin.cjs`, `create-admin-check.mjs`, `dump-users.cjs`, `init-db.mjs`, `init-schema.mjs`, `list-tables.mjs`, `set-admin-password.cjs`, `training-e2e-check.mjs`, `training-ui-fixture.mjs` en `wait-for-db.js`.
-  - Noteer per behouden script doel, eigenaar, commando, omgeving en veiligheidsgrenzen; geef destructieve scripts een productieblokkade.
+- [ ] **TFO-CLEANUP-002 — Inventory manual scripts**
+  - Review `scripts/check_public.js`, `clear-db.js`, `count-users.mjs`, `create-admin.cjs`, `create-admin-check.mjs`, `dump-users.cjs`, `init-db.mjs`, `init-schema.mjs`, `list-tables.mjs`, `set-admin-password.cjs`, `training-e2e-check.mjs`, `training-ui-fixture.mjs`, and `wait-for-db.js`.
+  - For each retained script, document its purpose, owner, command, environment, and safety boundaries; add a production safeguard to destructive scripts.
 
-## P3 — Product en UX
+## P3 — Product and UX
 
-### Operaties, ORBAT en beheer
+### Operations, ORBAT, and administration
 
-- [ ] **TFO-FEAT-001 — LoA-periode opslaan**
-  - Laat spelers een begin- en einddatum invullen, valideer de periode server-side en toon de actieve/toekomstige LoA waar relevant.
+- [ ] **TFO-FEAT-001 — Store LoA periods**
+  - Allow players to enter a start and end date, validate the period server-side, and show active/future LoA where relevant.
 
-- [ ] **TFO-FEAT-002 — Modlist-upload toegankelijk maken**
-  - Drag-and-drop voor player/server-modlists bestaat al; voeg aan beide vakken een zichtbare upload-/kies-bestand-knop toe met dezelfde uploadflow en feedback.
+- [ ] **TFO-FEAT-002 — Make modlist uploads accessible**
+  - Drag-and-drop already exists for player/server modlists; add a visible upload/file-picker button to both fields using the same upload flow and feedback.
 
-- [ ] **TFO-FEAT-003 — Roles-metrics betrouwbaar afleiden**
-  - De roles-tabel, repository, CRUD-API en UI bestaan. De UI telt Slots/Allowed nu uit templates en Occupied uit templates in plaats van actuele operation-slots en spelersrollen.
-  - Definieer de betekenis van Occupied/Slots/Allowed en bereken deze server-side uit de gezaghebbende bronnen.
+- [ ] **TFO-FEAT-003 — Derive role metrics reliably**
+  - The roles table, repository, CRUD API, and UI exist. The UI currently counts Slots/Allowed from templates and Occupied from templates rather than current operation slots and player roles.
+  - Define the meaning of Occupied/Slots/Allowed and calculate these server-side from the authoritative sources.
 
-- [ ] **TFO-FEAT-004 — Secties kunnen herordenen**
-  - Slotvolgorde bestaat; voeg persistente herordening van secties/squads binnen templates toe.
+- [ ] **TFO-FEAT-004 — Allow sections to be reordered**
+  - Slot ordering exists; add persistent reordering of sections/squads within templates.
 
-- [ ] **TFO-FEAT-005 — Operation-volgorde opslaan**
-  - Operations worden alleen tijdens renderen gesorteerd. Voeg een expliciete, persistente sorteersleutel en reorderflow toe als handmatige volgorde gewenst is.
+- [ ] **TFO-FEAT-005 — Store operation order**
+  - Operations are sorted only during rendering. Add an explicit, persistent sort key and reordering flow if manual ordering is desired.
 
-- [ ] **TFO-FEAT-006 — Public-data schaalbaar maken**
-  - Voeg paginering/filtering toe aan `/api/public-data`, zodat niet de volledige operationhistorie wordt geladen.
+- [ ] **TFO-FEAT-006 — Make public data scalable**
+  - Add pagination/filtering to `/api/public-data` so the full operation history is not loaded.
 
-- [ ] **TFO-FEAT-007 — Backupretentie automatiseren**
-  - Definieer en automatiseer MySQL-retentie, bijvoorbeeld dagelijkse snapshots en een pre-restore snapshot.
+- [ ] **TFO-FEAT-007 — Automate backup retention**
+  - Define and automate MySQL retention, for example daily snapshots and a pre-restore snapshot.
 
-- [ ] **TFO-FEAT-008 — Lokalisatie voorbereiden**
-  - Centraliseer verspreide gebruikersstrings zodat vertaling mogelijk wordt.
+- [ ] **TFO-FEAT-008 — Prepare for localization**
+  - Centralize scattered user-facing strings so they can be translated.
 
 ### Bugs
 
-- [ ] **TFO-BUG-001 — Dubbele React-keys in ORBAT oplossen**
-  - Herleid de waarschuwingen in `logs/app.log` naar dubbele slot-/entity-ID's en gebruik keys die binnen iedere collectie stabiel en uniek zijn.
+- [ ] **TFO-BUG-001 — Fix duplicate React keys in ORBAT**
+  - Trace the warnings in `logs/app.log` to duplicate slot/entity IDs and use keys that are stable and unique within each collection.
 
-- [ ] **TFO-BUG-002 — Horizontale overflow op 390 px oplossen**
-  - De authenticated Overview meet 461 px documentbreedte bij een viewport van 390 px. Laat navigatie en ORBAT-controls wrappen of lokaal scrollen en voeg een regressietest toe.
+- [ ] **TFO-BUG-002 — Fix horizontal overflow at 390 px**
+  - The authenticated Overview has a document width of 461 px at a viewport width of 390 px. Allow navigation and ORBAT controls to wrap or scroll locally, and add a regression test.
 
-### Visuele consistentie en feedback
+### Visual consistency and feedback
 
-- [ ] **TFO-UX-001 — Designsystem en pagina-audit uitvoeren**
-  - Sluit palette en typografie aan op taskforceomega.eu.
-  - Definieer spacing (4/8/12/16/24/32), typografische rollen en gedeelde stijlen voor buttons, inputs, cards en modals.
-  - Verwijder daarna per pagina one-off margins, padding hacks en dubbele CSS.
+- [ ] **TFO-UX-001 — Establish a design system and audit pages**
+  - Align the color palette and typography with taskforceomega.eu.
+  - Define spacing (4/8/12/16/24/32), typographic roles, and shared styles for buttons, inputs, cards, and modals.
+  - Then remove one-off margins, padding hacks, and duplicate CSS page by page.
 
-- [ ] **TFO-UX-002 — Responsive en touch-pass uitvoeren**
-  - Optimaliseer Scheduler en Builder voor mobiel, maak interactieve slots en knoppen touchvriendelijk en neem de 390 px-fix uit TFO-BUG-002 mee.
+- [ ] **TFO-UX-002 — Perform a responsive and touch pass**
+  - Optimize Scheduler and Builder for mobile, make interactive slots and buttons touch-friendly, and include the 390 px fix from TFO-BUG-002.
 
-- [ ] **TFO-UX-003 — Niet-blokkerende feedback toevoegen**
-  - Vervang browser-`alert()` door toegankelijke inline fouten of success/error-toasts.
-  - Voeg consistente loading-, hover-, focus- en disabled-states toe.
+- [ ] **TFO-UX-003 — Add non-blocking feedback**
+  - Replace browser `alert()` calls with accessible inline errors or success/error toasts.
+  - Add consistent loading, hover, focus, and disabled states.
 
-- [ ] **TFO-UX-004 — Empty states completeren**
-  - Gebruik een consistente icon + uitleg + primaire actie voor geen operations, templates, campaigns, ranks en users.
+- [ ] **TFO-UX-004 — Complete empty states**
+  - Use a consistent icon + explanation + primary action for no operations, templates, campaigns, ranks, and users.
 
-- [ ] **TFO-UX-005 — Grote ORBAT-editors sneller maken**
-  - Meet render/update-tijd en render ingeklapte squads of alleen het actieve paneel, vooral op kleine schermen.
+- [ ] **TFO-UX-005 — Improve performance of large ORBAT editors**
+  - Measure render/update time and render collapsed squads or only the active panel, especially on small screens.
 
-- [ ] **TFO-UX-006 — Persistente header afmaken**
-  - Voeg aan de bestaande logo-/gebruikerssamenvatting de huidige paginanaam, rank en avatar toe.
+- [ ] **TFO-UX-006 — Complete the persistent header**
+  - Add the current page name, rank, and avatar to the existing logo/user summary.
 
-## Geverifieerd gereed
+## Verified as complete
 
-Deze punten zijn tijdens de controle in de huidige code aangetroffen en hoeven niet opnieuw op de actieve lijst:
+These items were found in the current code during the review and do not need to be added to the active list again:
 
-- [x] Rankbeheer met CRUD, volgorde en icon-upload; rank-icon wordt opgeslagen.
-- [x] Acht ingebouwde SVG-squadmarkers en beheer van squadtypes; type en icoon zijn selecteerbaar in Builder/Scheduler.
-- [x] Campaign → Operation wordt bij create/update/recurrence opgeslagen en in Overview gebruikt.
-- [x] Roles-tabel, repository, CRUD-API en beheerpagina (metrics blijven TFO-FEAT-003).
-- [x] ORBAT Overview, Scheduler, Template Builder, recurrence en next-date-preview.
-- [x] Role-based capabilities; missionmakers kunnen via `edit_operations` operations maken.
-- [x] Uploads voor markers, avatars en beheerbestanden; avatar/profielpersistentie.
-- [x] Campaign-, rank- en permission-groupbeheer.
-- [x] Destructieve acties vragen om bevestiging.
-- [x] Signup bewaart en retourneert profieldata; veldfouten verdwijnen na correctie.
-- [x] Verlopen sessies wissen authstate en laden publieke data opnieuw.
-- [x] Dubbele operation-squad-route samengevoegd; rank-icon en fouttaal gecontroleerd.
-- [x] Favicon, paginalogo, basisnavigatie en recurrence-unit-tests.
-- [x] MySQL heeft file-based applicatieopslag vervangen.
+- [x] Rank management with CRUD, ordering, and icon upload; rank icon is stored.
+- [x] Eight built-in SVG squad markers and squad-type management; type and icon can be selected in Builder/Scheduler.
+- [x] Campaign → Operation is stored during create/update/recurrence and used in Overview.
+- [x] Roles table, repository, CRUD API, and administration page (metrics remain under TFO-FEAT-003).
+- [x] ORBAT Overview, Scheduler, Template Builder, recurrence, and next-date preview.
+- [x] Role-based capabilities; missionmakers can create operations through `edit_operations`.
+- [x] Uploads for markers, avatars, and administration files; avatar/profile persistence.
+- [x] Campaign, rank, and permission-group management.
+- [x] Destructive actions require confirmation.
+- [x] Signup stores and returns profile data; field errors disappear after correction.
+- [x] Expired sessions clear authentication state and reload public data.
+- [x] Duplicate operation-squad route merged; rank icon and error language reviewed.
+- [x] Favicon, page logo, basic navigation, and recurrence unit tests.
+- [x] MySQL has replaced file-based application storage.
 
-## Deploy-checklist
+## Deployment checklist
 
-Voer deze stappen alleen uit nadat de relevante taakcriteria en tests slagen:
+Only perform these steps after the relevant task criteria have been met and the tests pass:
 
 ```bash
 npm test
 npm run build
-# Upload gewijzigde bestanden via FTP, inclusief dist/
-# Herstart via cPanel > Node.js App > Restart
+# Upload changed files via FTP, including dist/
+# Restart via cPanel > Node.js App > Restart
 ```
