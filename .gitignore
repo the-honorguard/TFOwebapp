@@ -8,3 +8,5 @@ uploads/
 .env
 /logs
 /logs
+/logs
+logs/app.log
