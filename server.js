@@ -31,6 +31,7 @@ import pool, { testConnection } from './db.js';
 import logger from './lib/logger.js';
 import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential } from './lib/dataStore.js';
 import * as permissionGroupsRepo from './repositories/permissionGroups.js';
+import * as notificationsRepo from './repositories/notifications.js';
 
 const PERMISSION_DEFINITIONS = [
   { key: 'view_overview', category: 'Overview', label: 'View overview' },
@@ -333,7 +334,7 @@ app.post('/init/reset', async (req, res) => {
       const conn = await pool.getConnection();
       try {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-        const toClear = ['recurrences','ops','templates','roles','permission_groups','files','modlists','backups','campaigns','ranks','user_profiles','users'];
+        const toClear = ['notifications','recurrences','ops','templates','roles','permission_groups','files','modlists','backups','campaigns','ranks','user_profiles','users'];
         for (const t of toClear) {
           try { await conn.query(`DELETE FROM \`${t}\``); } catch (e) { /* ignore */ }
         }
@@ -462,6 +463,49 @@ async function getCapabilities(role) {
   } catch (error) {
     // Preserve access during first-run schema creation.
     return role === 'admin' ? Object.fromEntries(PERMISSION_DEFINITIONS.map(({ key }) => [key, true])) : {};
+  }
+}
+
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+  try {
+    const notifications = await notificationsRepo.listForUser(req.user.id, req.query.limit);
+    res.json({ notifications, unreadCount: notifications.filter((item) => !item.readAt).length });
+  } catch (err) {
+    console.error('List notifications error', err);
+    res.status(500).json({ error: 'Could not load notifications' });
+  }
+});
+
+app.put('/api/notifications/read-all', authMiddleware, async (req, res) => {
+  try {
+    await notificationsRepo.markAllRead(req.user.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Mark notifications read error', err);
+    res.status(500).json({ error: 'Could not update notifications' });
+  }
+});
+
+app.put('/api/notifications/:id/read', authMiddleware, async (req, res) => {
+  try {
+    const updated = await notificationsRepo.markRead(req.user.id, Number(req.params.id));
+    if (!updated) return res.status(404).json({ error: 'Notification not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Mark notification read error', err);
+    res.status(500).json({ error: 'Could not update notification' });
+  }
+});
+
+async function notifyOperationChange(req, op, type, message, metadata = {}) {
+  try {
+    await notificationsRepo.createForActiveUsers({
+      actorId: req.user.id, type,
+      title: op.title || op.payload?.name || 'Operation updated', message,
+      entityType: 'operation', entityId: op.id, metadata
+    });
+  } catch (error) {
+    console.error('Create operation notifications error', error);
   }
 }
 
@@ -762,10 +806,19 @@ app.post('/api/signup', async (req, res) => {
     const created = await usersRepo.createUser({ id: Date.now(), username, password_hash: hashed, role, rank: req.body.rank || '', status: req.body.status || 'Active', permissions: {}, email: req.body.email || null });
     // create profile if provided
     if (req.body.profile) {
-      await db.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), bio=VALUES(bio), avatar_url=VALUES(avatar_url), settings=VALUES(settings)', [created.id, req.body.profile.displayName || null, req.body.profile.bio || null, req.body.profile.avatarUrl || null, JSON.stringify(req.body.profile.settings || {})]);
+      const profileSettings = req.body.profile.settings || req.body.profile;
+      await pool.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), bio=VALUES(bio), avatar_url=VALUES(avatar_url), settings=VALUES(settings)', [created.id, req.body.profile.displayName || null, req.body.profile.bio || null, req.body.profile.avatarUrl || null, JSON.stringify(profileSettings)]);
     }
     const token = jwt.sign({ id: created.id, username: created.username, role: role }, SECRET, { expiresIn: '8h' });
-    const userSafe = { id: created.id, username: created.username, role, capabilities: await getCapabilities(role) };
+    const userSafe = {
+      id: created.id,
+      username: created.username,
+      role,
+      rank: req.body.rank || '',
+      status: req.body.status || 'Active',
+      profile: req.body.profile || {},
+      capabilities: await getCapabilities(role)
+    };
     res.json({ token, user: userSafe });
   } catch (err) {
     console.error('Signup error', err);
@@ -842,7 +895,7 @@ app.delete('/api/permission-groups/:slug', authMiddleware, requireCapability('ma
   const group = await permissionGroupsRepo.getPermissionGroup(req.params.slug);
   if (!group) return res.status(404).json({ error: 'Permission group not found' });
   if (group.system) return res.status(400).json({ error: 'System groups cannot be deleted' });
-  const [[usage]] = await db.query('SELECT COUNT(1) c FROM users WHERE role = ?', [req.params.slug]);
+  const [[usage]] = await pool.query('SELECT COUNT(1) c FROM users WHERE role = ?', [req.params.slug]);
   if (usage.c > 0) return res.status(409).json({ error: 'Move users out of this group before deleting it' });
   await permissionGroupsRepo.deletePermissionGroup(req.params.slug);
   res.status(204).end();
@@ -937,7 +990,10 @@ app.put('/api/templates/:id', authMiddleware, requireCapability('edit_templates'
   (async () => {
     try {
       const id = Number(req.params.id);
-      const updated = await (await import('./repositories/templates.js')).updateTemplate(id, { name: typeof req.body.name === 'string' ? req.body.name : undefined });
+      const updated = await (await import('./repositories/templates.js')).updateTemplate(id, {
+        name: typeof req.body.name === 'string' ? req.body.name : undefined,
+        data: Array.isArray(req.body.squads) ? { squads: req.body.squads } : undefined
+      });
       if (!updated) return res.status(404).json({ error: 'Template not found' });
       res.json({ template: updated });
     } catch (err) {
@@ -1156,9 +1212,20 @@ app.post('/api/ops/:id/join', authMiddleware, async (req, res) => {
 
 app.post('/api/ops/:id/signoff', authMiddleware, async (req, res) => {
   try {
-    console.log('[server] POST /api/ops/:id/signoff', { opId: req.params.id, slotId: req.body.slotId, user: req.user?.id });
+    console.log('[server] POST /api/ops/:id/signoff', { opId: req.params.id, slotId: req.body.slotId, user: req.user?.id, force: req.body.force === true });
     const opsRepo = await import('./repositories/ops.js');
-    await opsRepo.signoffSlot(Number(req.params.id), Number(req.body.slotId), req.user.id);
+    let assignedUserId = req.user.id;
+    if (req.body.force === true) {
+      const canManageAssignments = (await getCapabilities(req.user.role)).assign_players === true;
+      if (!canManageAssignments) return res.status(403).json({ error: 'Missing permission: assign_players' });
+      const op = await opsRepo.getOpById(Number(req.params.id));
+      if (!op) return res.status(404).json({ error: 'Operation not found' });
+      const slot = (op.payload.squads || []).flatMap((squad) => squad.slots || []).find((item) => item.id === Number(req.body.slotId));
+      if (!slot) return res.status(404).json({ error: 'Slot not found' });
+      if (!slot.assignedUserId) return res.status(409).json({ error: 'Slot is already free' });
+      assignedUserId = slot.assignedUserId;
+    }
+    await opsRepo.signoffSlot(Number(req.params.id), Number(req.body.slotId), assignedUserId);
     // Return normalized op shape so client UI receives `squads` at top-level
     const dataAfter = await getData();
     const opAfter = findOp(dataAfter, Number(req.params.id));
@@ -1176,13 +1243,29 @@ app.put('/api/ops/:opId/squads/:squadId', authMiddleware, requireCapability('edi
     const patch = {};
     if ('lrChannel' in req.body) { if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' }); patch.lrChannel = Number(req.body.lrChannel); }
     if ('srChannel' in req.body) { if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' }); patch.srChannel = Number(req.body.srChannel); }
-    if ('marker' in req.body) { patch.marker = req.body.marker === null ? null : (typeof req.body.marker === 'string' ? req.body.marker.trim() : undefined); }
-    if ('markerIconUrl' in req.body) { patch.markerIconUrl = req.body.markerIconUrl === null ? null : (typeof req.body.markerIconUrl === 'string' ? req.body.markerIconUrl.trim() : undefined); }
+    if ('marker' in req.body) {
+      if (req.body.marker === null) patch.marker = null;
+      else if (typeof req.body.marker === 'string') patch.marker = req.body.marker.trim();
+      else return res.status(400).json({ error: 'marker must be a string or null' });
+    }
+    if ('markerIconUrl' in req.body) {
+      if (req.body.markerIconUrl === null) patch.markerIconUrl = null;
+      else if (typeof req.body.markerIconUrl === 'string') patch.markerIconUrl = req.body.markerIconUrl.trim();
+      else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
+    }
     if ('active' in req.body) {
       if (typeof req.body.active !== 'boolean') return res.status(400).json({ error: 'active must be a boolean' });
       patch.active = req.body.active;
     }
     const updated = await opsRepo.updateSquad(Number(req.params.opId), Number(req.params.squadId), patch);
+    const changedLabels = [];
+    if ('active' in patch) changedLabels.push(patch.active ? 'activated' : 'deactivated');
+    if ('lrChannel' in patch || 'srChannel' in patch) changedLabels.push('radio settings updated');
+    if ('marker' in patch || 'markerIconUrl' in patch) changedLabels.push('marker updated');
+    if (changedLabels.length) {
+      const squad = updated.payload?.squads?.find((item) => item.id === Number(req.params.squadId));
+      await notifyOperationChange(req, updated, 'squad_changed', `Squad ${squad?.title || ''} changed: ${changedLabels.join(', ')}.`, { squadId: Number(req.params.squadId) });
+    }
     res.json({ op: updated });
   } catch (err) {
     console.error('Update op squad error', err);
@@ -1199,6 +1282,10 @@ app.put('/api/ops/:opId/slots/:slotId', authMiddleware, requireCapability('edit_
     if (typeof req.body.notes === 'string') patch.notes = req.body.notes;
     if (Array.isArray(req.body.allowedRoles)) patch.allowedRoles = req.body.allowedRoles;
     const updated = await opsRepo.updateSlot(Number(req.params.opId), Number(req.params.slotId), patch);
+    if (Object.keys(patch).length) {
+      const slot = (updated.payload?.squads || []).flatMap((squad) => squad.slots || []).find((item) => item.id === Number(req.params.slotId));
+      await notifyOperationChange(req, updated, 'squad_changed', `A squad position was updated${slot?.name ? `: ${slot.name}` : ''}.`, { slotId: Number(req.params.slotId) });
+    }
     res.json({ op: updated });
   } catch (err) {
     console.error('Update slot error', err);
@@ -1213,8 +1300,8 @@ app.put('/api/ops/:id', authMiddleware, requireCapability('edit_operations'), as
     if (!existing) return res.status(404).json({ error: 'Operation not found' });
     const patch = {};
     if (typeof req.body.name === 'string') patch.title = req.body.name;
-    const payloadFields = ['date', 'time', 'serverName', 'modlist', 'modlistPlayer', 'modlistServer', 'tsAddress'];
-    const hasPayloadChange = payloadFields.some((f) => typeof req.body[f] === 'string');
+    const payloadFields = ['date', 'time', 'serverName', 'modlist', 'modlistPlayer', 'modlistServer', 'tsAddress', 'campaignId'];
+    const hasPayloadChange = payloadFields.some((f) => typeof req.body[f] === 'string' || (f === 'campaignId' && (typeof req.body[f] === 'number' || req.body[f] === null))) || Array.isArray(req.body.squads);
     if (hasPayloadChange) {
       // Merge into existing payload to avoid destroying stored fields (name, squads, etc.)
       patch.payload = { ...(existing.payload || {}) };
@@ -1225,8 +1312,32 @@ app.put('/api/ops/:id', authMiddleware, requireCapability('edit_operations'), as
       if (typeof req.body.modlistPlayer === 'string') patch.payload.modlistPlayer = req.body.modlistPlayer;
       if (typeof req.body.modlistServer === 'string') patch.payload.modlistServer = req.body.modlistServer;
       if (typeof req.body.tsAddress === 'string') patch.payload.tsAddress = req.body.tsAddress;
+      if (typeof req.body.campaignId === 'number' || req.body.campaignId === null) patch.payload.campaignId = req.body.campaignId;
+      if (Array.isArray(req.body.squads)) {
+        const assignedBySlot = new Map((existing.payload?.squads || []).flatMap((squad) => squad.slots || []).map((slot) => [String(slot.id), slot.assignedUserId ?? null]));
+        patch.payload.squads = req.body.squads.map((squad) => ({
+          ...squad,
+          slots: (squad.slots || []).map((slot) => ({
+            ...slot,
+            assignedUserId: assignedBySlot.has(String(slot.id)) ? assignedBySlot.get(String(slot.id)) : (slot.assignedUserId ?? null)
+          }))
+        }));
+      }
     }
     const updated = await opsRepo.updateOp(Number(req.params.id), patch);
+    const changes = [];
+    if (typeof req.body.modlist === 'string' && req.body.modlist !== (existing.payload?.modlist || '')) changes.push('modlist');
+    if (typeof req.body.modlistPlayer === 'string' && req.body.modlistPlayer !== (existing.payload?.modlistPlayer || '')) changes.push('player modlist');
+    if (typeof req.body.modlistServer === 'string' && req.body.modlistServer !== (existing.payload?.modlistServer || '')) changes.push('server modlist');
+    if (typeof req.body.date === 'string' && req.body.date !== (existing.payload?.date || '')) changes.push('date');
+    if (typeof req.body.time === 'string' && req.body.time !== (existing.payload?.time || '')) changes.push('time');
+    if (typeof req.body.serverName === 'string' && req.body.serverName !== (existing.payload?.serverName || '')) changes.push('server');
+    if (typeof req.body.tsAddress === 'string' && req.body.tsAddress !== (existing.payload?.tsAddress || '')) changes.push('TeamSpeak address');
+    if (Array.isArray(req.body.squads)) changes.push('squad layout');
+    if (changes.length) {
+      const type = changes.some((item) => item.includes('modlist')) ? 'modlist_changed' : 'operation_changed';
+      await notifyOperationChange(req, updated, type, `The missionmaker updated the ${changes.join(', ')}.`, { changes });
+    }
     res.json({ op: updated });
   } catch (err) {
     console.error('Update op error', err);
@@ -1573,37 +1684,6 @@ app.put('/api/templates/:templateId/squads/:squadId', authMiddleware, requireCap
     }
 });
 
-app.put('/api/ops/:opId/squads/:squadId', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
-  const data = await getData();
-  const op = findOp(data, req.params.opId);
-  if (!op) return res.status(404).json({ error: 'Operation not found' });
-
-  const squad = (op.squads || []).find((item) => item.id === Number(req.params.squadId));
-  if (!squad) return res.status(404).json({ error: 'Squad not found' });
-
-  if ('lrChannel' in req.body) {
-    if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' });
-    squad.lrChannel = Number(req.body.lrChannel);
-  }
-  if ('srChannel' in req.body) {
-    if (!isValidChannel(req.body.srChannel)) return res.status(400).json({ error: 'srChannel must be between 0 and 99' });
-    squad.srChannel = Number(req.body.srChannel);
-  }
-  if ('marker' in req.body) {
-    if (req.body.marker === null) squad.marker = null;
-    else if (typeof req.body.marker === 'string') squad.marker = req.body.marker.trim();
-    else return res.status(400).json({ error: 'marker must be a string or null' });
-  }
-  if ('markerIconUrl' in req.body) {
-    if (req.body.markerIconUrl === null) squad.markerIconUrl = null;
-    else if (typeof req.body.markerIconUrl === 'string') squad.markerIconUrl = req.body.markerIconUrl.trim();
-    else return res.status(400).json({ error: 'markerIconUrl must be a string or null' });
-  }
-
-  await persistData(data);
-  res.json({ op });
-});
-
 app.post('/api/ops/:opId/squads', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
     const opsRepo = await import('./repositories/ops.js');
@@ -1816,7 +1896,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
           console.error('Failed to record avatar metadata', e);
         }
         try {
-          await db.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE avatar_url=VALUES(avatar_url)', [req.user.id, null, null, `/uploads/${req.file.filename}`, JSON.stringify({})]);
+          await pool.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE avatar_url=VALUES(avatar_url)', [req.user.id, null, null, `/uploads/${req.file.filename}`, JSON.stringify({})]);
         } catch (e) {
           console.error('Failed to update user profile with avatar', e);
         }

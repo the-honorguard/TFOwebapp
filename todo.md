@@ -4,10 +4,10 @@
 
 ## In Progress
 
-- [ ] Rank page — API is ready, frontend page not yet wired up
+- [x] Rank page — wired into the Settings → Ranks subpage with CRUD, ordering and icon uploads
 - [ ] Add upload button to modlist boxes
 - [ ] Work on how to display the squad type
-- [ ] Define and ship a default set of built-in markers
+- [x] Define and ship a default set of built-in markers — eight SVG markers are shipped in `public/markers` and seeded as squad types
 
 ---
 
@@ -16,27 +16,31 @@
 ### High priority
 
 - [ ] **Hardcoded auth secret** — move to environment variable, never commit the value
-- [ ] **Duplicate route conflict** — two `PUT` handlers exist for the same section endpoint with different permission checks; the second silently overrides the first
-- [ ] **User profile not returned after signup** — `profile` is written to storage but not included in the initial auth response, so the client has no profile data on first login
-- [ ] **Ranks `icon` column missing** — `lib/dataStore.js` CREATE TABLE for `ranks` has no `icon` column and the INSERT also omits it; icon URLs are silently dropped on save and never persisted. Fix: add `icon VARCHAR(1024)` to the schema, update the INSERT statement, and run `ALTER TABLE ranks ADD COLUMN icon VARCHAR(1024)` on production.
+- [x] **Duplicate operation-squad route** — consolidated to one repository-backed `PUT /api/ops/:opId/squads/:squadId` handler with strict field validation
+- [ ] **Unauthenticated setup endpoints** — `POST /init/create-admin` and `POST /init/import` are accessible without a token or capability check. `/init/import` can replace the complete stored dataset and must be disabled after first-run setup or protected with admin authentication and `manage_backups`.
+- [x] **Prevent admin credentials autofill in Create user form** — login fields now declare `username`/`current-password`; account-creation passwords use `new-password`, and the admin create-user form has distinct field names with autofill disabled
+- [x] **Return and persist user profile after signup** — signup now stores survey data in profile settings and returns rank, status and profile in the initial auth response
+- [x] **Ranks `icon` persistence** — schema, inserts, reads and rank CRUD now include `icon VARCHAR(1024)` / icon values
 
 ### Medium priority
 
-- [ ] **Admin cannot free an occupied slot** — sign-off checks that the requesting user owns the slot; admins should be able to override
 - [ ] **Recurring op duplication risk** — ops generation runs on every read request; concurrent requests could produce duplicate operations
-- [ ] **Missionmakers cannot create operations** — `POST /api/ops` is admin-only; missionmakers should be able to create their own ops
+- [x] **Missionmakers can create operations** — `POST /api/ops` uses the `edit_operations` capability and the missionmaker permission group grants it
+- [x] **Expired-session recovery** — `401` responses clear auth state and reload public data without a blocking alert or console error
+- [ ] **Duplicate React keys in ORBAT overview** — repeated `Encountered two children with the same key` warnings are recorded in `logs/app.log`. Identify the duplicated slot/entity IDs and use stable keys that are unique within each rendered collection.
+- [x] **Clear signup validation errors after correction** — each validated field now removes its own stale error as soon as the value changes
 
 ### Low priority
 
-- [ ] **Wrong language in one error message** — one 404 response body is not in English, inconsistent with the rest of the API
+- [x] **Error response language audit** — current server and repository error responses are consistently English
 - [ ] **ID generation** — `Date.now()` is used as entity ID; `crypto.randomUUID()` (already imported) would be safer and collision-free
 
 ---
 
 ## Missing Features
 
-- [ ] **Roles backend not implemented** — the Roles page (`src/App.jsx`) is fully wired in the UI (Add, Rename, System badge, Occupied/Slots/Allowed counts) but has zero backend: no `roles` table in `lib/dataStore.js`, no `repositories/roles.js`, and no `/api/roles` routes in `server.js`. Roles currently derive from template slot strings and are not persisted. Fix: create `roles` table, `repositories/roles.js`, and full CRUD API routes; compute Occupied/Slots/Allowed as DB queries against the `slots` table.
-- [ ] **Backup/Restore missing `roles` section label** — `SECTION_LABELS` in `src/Settings.jsx` has no `roles` entry; once the roles backend is added, `roles: 'Roles'` must be added to that map so it displays correctly in the restore UI.
+- [ ] **Complete roles backend metrics** — the `roles` table, repository and CRUD API now exist, but Occupied/Slots/Allowed still need to be derived reliably from current templates, operation slots and player role assignments instead of relying on stored JSON or client-side derivation.
+- [x] **Backup/Restore roles section label** — `SECTION_LABELS` includes `roles: 'Custom Roles'`
 
 ---
 
@@ -60,19 +64,25 @@
 
 - [ ] **Responsive pass on Scheduler and Builder** — Overview already has a cards fallback for narrow viewports; apply the same care to the other main views
 - [ ] **Touch-friendly targets** — ensure buttons and interactive slot elements are large enough to tap comfortably on mobile
+- [ ] **Horizontal overflow at 390 px** — browser testing measured a 461 px document width in a 390 px viewport on the authenticated Overview. Find the fixed/min-width element, ensure navigation and ORBAT controls wrap or scroll within their own container, and add a regression check for 390 px width.
 
 ### Interaction & Feedback
 
 - [ ] **Toast notifications** — add success/error toasts for create, update, and delete actions instead of silent state changes
-- [ ] **Confirmation modals** — prompt before destructive actions (delete op, delete template, delete section, delete recurrence, delete user)
+- [x] **Destructive-action confirmations** — delete operation, template, squad/slot, recurrence, user, role, rank, campaign and permission-group flows prompt for confirmation
 - [ ] **Loading states** — add spinners or skeleton placeholders while data is being fetched
 - [ ] **Empty states** — add a styled empty state (icon + message + primary action) for: no ops, no templates, no campaigns, no ranks, no users
 - [ ] **Hover / focus / disabled states** — audit interactive elements and ensure all states are visually distinct, especially on slot join/signoff buttons and admin controls
+- [ ] **Replace blocking JavaScript alerts** — login expiry, signup and password flows still rely on browser alerts. Use inline errors or toasts so feedback is accessible, testable and does not interrupt navigation.
+
+### Performance & Rendering
+
+- [ ] **Virtualize or collapse large ORBAT editors** — Operation Scheduler and Template Builder render hundreds of inputs, selects and buttons simultaneously for a full template. Measure render/update time and render collapsed squads or only the active editing panel on smaller screens.
 
 ### Navigation
 
-- [ ] **Persistent header** — add a top bar with logo, current page name, and logged-in user summary (rank + avatar)
-- [ ] **Back navigation** — clarify the path between Overview → Op detail → Scheduler so users always know where they are and how to go back
+- [ ] **Complete persistent header** — the top area already shows the logo and logged-in username/role; add the current page name plus rank and avatar to finish the intended summary.
+- [x] **Back navigation** — Overview links to Operation Scheduler and the scheduler editor provides “Back to operations”; management pages provide dashboard/back actions
 
 ---
 
@@ -82,19 +92,29 @@
 
 - [ ] **Section reorder** — slot reorder exists but sections themselves cannot be reordered inside a template
 - [ ] **Op order persistence** — ops are sorted at render time but the order is not persisted
-- [ ] **Campaign → Op link** — ops have no `campaignId` field; filtering ops by campaign from the overview is not possible
-- [ ] **Recurrence next-date preview** — `nextDateTime` is stored on each recurrence but never shown in the UI
+- [ ] **Persist Campaign → Op link** — the scheduler UI already sends `campaignId`, but `POST /api/ops` and `PUT /api/ops/:id` do not copy it into the stored operation payload. Persist it, then add overview filtering by campaign.
+- [x] **Recurrence next-date preview** — the recurrence editor displays the next occurrence date/time or “None scheduled”
 
 ### Medium term
 
-- [ ] **Data backup rotation** — automatically keep N rolling backups of the data file before each write; a failed write currently risks total data loss
+- [ ] **Database backup retention** — define and automate retention for MySQL backups (for example daily snapshots plus pre-restore snapshots); the old file-write rotation requirement is obsolete after the MySQL migration.
 - [ ] **`/api/public-data` pagination or filtering** — entire op history is returned in a single payload; will degrade as data grows
 
 ### Long term
 
-- [ ] **Replace file-based storage** — current JSON store is not suited for concurrent writes or growing datasets; evaluate a lightweight embedded database
-- [ ] **Centralise API base path** — `/api` prefix is repeated in every fetch call on the client; a small config module would make future changes easier
+- [x] **Replace file-based storage** — application data is persisted in MySQL through the DB-backed data store and repositories
+- [ ] **Finish centralising API requests** — `src/api.js` now provides `apiFetch`, but several components still call `/api` directly. Migrate remaining requests to the shared helper and centralise authenticated headers/error handling.
 - [ ] **Localisation groundwork** — user-facing strings are scattered across components; centralising them would make translation straightforward
+
+---
+
+## Test Coverage
+
+- [ ] **Add automated browser smoke tests** — cover public view, signup/login/logout, member, missionmaker and admin navigation, modal open/cancel flows, and a 390 px responsive check.
+- [ ] **Add API authorization tests** — assert `401` for missing/invalid tokens, `403` for member access to operation/template/role/permission mutations, missionmaker capability boundaries, and admin access.
+- [ ] **Add setup-route security regression tests** — prove `/init/create-admin` and `/init/import` cannot be called anonymously after the security fix.
+- [ ] **Add upload and backup/restore tests with disposable data** — cover allowed and rejected avatar/marker/modlist file types, the 5 MB limit, backup export, selective restore and malformed imports against a dedicated test database.
+- [ ] **Expand the Node test suite** — `npm test` currently discovers only `scripts/test-create-admin.mjs`; convert setup scripts into isolated tests and add unit/integration coverage for repositories and recurring-operation generation.
 
 ---
 

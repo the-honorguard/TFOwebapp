@@ -10,7 +10,9 @@ import Settings from './Settings';
 import Ranks from './Ranks';
 import Profile from './Profile';
 import Campaigns from './Campaigns';
+import Notifications from './Notifications';
 import apiFetch from './api';
+import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
 const API = '/api';
 
@@ -18,6 +20,28 @@ const API = '/api';
 // with N slots naturally occupies roughly (2 + N) units tall (2 units for the header).
 const CANVAS_GRID_UNIT = 40;
 const snapToCanvasGrid = (value) => Math.round(value / CANVAS_GRID_UNIT) * CANVAS_GRID_UNIT;
+
+const resolveTemplateId = (templateList, preferredId) => {
+  const preferredTemplate = (templateList || []).find(
+    (template) => String(template.id) === String(preferredId)
+  );
+  return preferredTemplate?.id ?? templateList?.[0]?.id ?? null;
+};
+
+const prepareSquadsForSave = (squads = []) => {
+  let nextId = Date.now();
+  const squadIds = new Map(squads.map((squad) => [String(squad.id), Number.isFinite(Number(squad.id)) ? Number(squad.id) : nextId++]));
+  return squads.map(({ _pendingCreate, ...squad }) => ({
+    ...squad,
+    id: squadIds.get(String(squad.id)),
+    parentId: squad.parentId == null ? null : (squadIds.get(String(squad.parentId)) ?? null),
+    slots: (squad.slots || []).map(({ _pendingCreate: pendingCreate, _pendingUpdate, ...slot }) => ({
+      ...slot,
+      id: Number.isFinite(Number(slot.id)) ? Number(slot.id) : nextId++,
+      squadId: squadIds.get(String(squad.id))
+    }))
+  }));
+};
 
 function App() {
   // Normalize op objects returned by different server paths (DB-backed repo vs file store)
@@ -31,6 +55,9 @@ function App() {
     return op;
   };
   const [auth, setAuth] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [users, setUsers] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
@@ -44,6 +71,10 @@ function App() {
   const [schedulerLoadTemplateId, setSchedulerLoadTemplateId] = useState('');
   const [selectedOpId, setSelectedOpId] = useState(null);
   const [selectedRecurrenceId, setSelectedRecurrenceId] = useState(null);
+  const [savingEditor, setSavingEditor] = useState(false);
+  const [editorSaved, setEditorSaved] = useState(false);
+  const editorSavedTimerRef = useRef(null);
+  const [editorDirty, setEditorDirty] = useState(false);
   const [page, setPage] = useState('overview');
   const [settingsInitialSubpage, setSettingsInitialSubpage] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
@@ -98,6 +129,15 @@ function App() {
     found_via: 'Discord'
   });
   const [signupErrors, setSignupErrors] = useState({});
+  const updateSignupField = (field, value) => {
+    setSignupForm((prev) => ({ ...prev, [field]: value }));
+    setSignupErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
   useEffect(() => {
     const beforeUnload = (e) => {
       try { console.warn('[App] beforeunload fired', e); } catch (err) { /* ignore */ }
@@ -262,6 +302,7 @@ function App() {
       ...template,
       squads: template.squads || template.sections || []
     }));
+    const resolvedDefaultTemplateId = resolveTemplateId(templateList, defaultOpSettings.templateId);
     setUsers(data.users || []);
     setTemplates(templateList);
     setOps((data.ops || []).map(normalizeOp));
@@ -272,17 +313,17 @@ function App() {
     setPermissionGroups(data.permissionGroups || []);
     setPermissionDefinitions(data.permissionDefinitions || []);
     setAuth(nextAuth);
-    setSelectedTemplateId(templateList?.[0]?.id || null);
+    setSelectedTemplateId(resolvedDefaultTemplateId);
     setSelectedOpId(null);
     const templateDefaults = templateList?.[0]?.defaultSettings || {};
-    if (templateList?.[0] && Object.keys(templateDefaults).length > 0) {
+    if (templateList?.[0]) {
       setDefaultOpSettings((current) => ({
         ...templateDefaults,
         ...current,
-        templateId: current.templateId || templateList[0].id
+        templateId: resolveTemplateId(templateList, current.templateId)
       }));
     }
-    setOpForm((prev) => ({ ...prev, templateId: templateList?.[0]?.id || null, campaignId: defaultOpSettings.campaignId || (data.campaigns && data.campaigns[0] ? data.campaigns[0].id : null) }));
+    setOpForm((prev) => ({ ...prev, templateId: resolvedDefaultTemplateId, campaignId: defaultOpSettings.campaignId || (data.campaigns && data.campaigns[0] ? data.campaigns[0].id : null) }));
     setPage(nextAuth && nextAuth.capabilities?.view_overview !== true ? 'profile' : 'overview');
   };
 
@@ -313,6 +354,12 @@ function App() {
       const data = await apiFetch('/data', { headers: { Authorization: `Bearer ${token}` } });
       applyLoadedData(data, data.user || null);
     } catch (e) {
+      if (e?.status === 401) {
+        setAuth(null);
+        setShowLoginPanel(false);
+        await loadPublicData();
+        return;
+      }
       console.error('loadPrivateData error', e);
       alert('Could not load private data: ' + (e.message || e));
     }
@@ -338,20 +385,52 @@ function App() {
     }
   };
 
-  const goToOverview = () => setPage('overview');
-  const goToScheduler = () => setPage('scheduler');
-  const goToBuilder = () => setPage('builder');
-  const goToRoles = () => { setSettingsInitialSubpage('roles'); setPage('settings'); };
-  const goToPlayers = () => setPage('players');
-  const goToRanks = () => { setSettingsInitialSubpage('ranks'); setPage('settings'); };
-  const goToDashboard = () => setPage('overview');
-  const goToSettings = () => setPage('settings');
-  const goToCampaigns = () => setPage('campaigns');
+  const confirmEditorNavigation = () => !editorDirty || window.confirm('You have unsaved changes. Leave this page and discard them?');
+  const leaveEditor = (callback) => {
+    if (!confirmEditorNavigation()) return false;
+    setEditorDirty(false);
+    callback();
+    return true;
+  };
+
+  useEffect(() => {
+    const warnBeforeUnload = (event) => {
+      if (!editorDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [editorDirty]);
+
+  useEffect(() => () => {
+    if (editorSavedTimerRef.current) window.clearTimeout(editorSavedTimerRef.current);
+  }, []);
+
+  const showEditorSaved = () => {
+    setEditorSaved(true);
+    if (editorSavedTimerRef.current) window.clearTimeout(editorSavedTimerRef.current);
+    editorSavedTimerRef.current = window.setTimeout(() => {
+      setEditorSaved(false);
+      editorSavedTimerRef.current = null;
+    }, 5000);
+  };
+
+  const goToOverview = () => leaveEditor(() => setPage('overview'));
+  const goToScheduler = () => leaveEditor(() => setPage('scheduler'));
+  const goToBuilder = () => leaveEditor(() => setPage('builder'));
+  const goToRoles = () => leaveEditor(() => { setSettingsInitialSubpage('roles'); setPage('settings'); });
+  const goToPlayers = () => leaveEditor(() => setPage('players'));
+  const goToRanks = () => leaveEditor(() => { setSettingsInitialSubpage('ranks'); setPage('settings'); });
+  const goToDashboard = () => leaveEditor(() => setPage('overview'));
+  const goToSettings = () => leaveEditor(() => setPage('settings'));
+  const goToCampaigns = () => leaveEditor(() => setPage('campaigns'));
   const showOpOnDashboard = (opId) => {
-    setSelectedOpId(opId);
-    setPage('overview');
+    leaveEditor(() => { setSelectedOpId(opId); setPage('overview'); });
   };
   const showOpInScheduler = (opId, recurrenceId = null) => {
+    if (!confirmEditorNavigation()) return;
+    setEditorDirty(false);
     const operation = ops.find((op) => op.id === opId);
     const hasOperationHierarchy = Object.prototype.hasOwnProperty.call(flowEdges || {}, opId);
     if (operation && !hasOperationHierarchy) {
@@ -363,6 +442,8 @@ function App() {
     setPage('op-detail');
   };
   const goToSchedulerList = () => {
+    if (!confirmEditorNavigation()) return;
+    setEditorDirty(false);
     setSelectedOpId(null);
     setSelectedRecurrenceId(null);
     setPage('scheduler');
@@ -390,7 +471,7 @@ function App() {
     if (templates.length > 0) {
       setOpForm((prev) => ({
         ...prev,
-        templateId: prev.templateId || defaultOpSettings.templateId || templates?.[0]?.id || null,
+        templateId: resolveTemplateId(templates, prev.templateId || defaultOpSettings.templateId),
         time: prev.time || defaultOpSettings.time || ''
       }));
     }
@@ -475,6 +556,7 @@ function App() {
       if (data && data.token) {
         localStorage.setItem('token', data.token);
         setSignupForm({ username: '', password: '', rank: '', status: 'Active', role: 'member' });
+        setSignupErrors({});
         setShowSignup(false);
         loadPrivateData();
       } else {
@@ -595,7 +677,7 @@ function App() {
     if (creatingDefaultOp) return;
     setCreatingDefaultOp(true);
     try {
-      const tplId = defaultOpSettings.templateId || templates?.[0]?.id || null;
+      const tplId = resolveTemplateId(templates, defaultOpSettings.templateId);
       const date = (() => {
         const d = new Date();
         const yyyy = d.getFullYear();
@@ -679,6 +761,11 @@ function App() {
   };
 
   const updateRecurrence = async (recurrenceId, updates) => {
+    if (page === 'scheduler-detail' || page === 'op-detail') {
+      setEditorDirty(true);
+      setRecurrences((prev) => prev.map((rec) => (rec.id === recurrenceId ? { ...rec, ...updates } : rec)));
+      return;
+    }
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/recurrences/${recurrenceId}`, {
       method: 'PUT',
@@ -747,7 +834,7 @@ function App() {
     }
   };
 
-  const signOffOpSlot = async (opId, slotId) => {
+  const signOffOpSlot = async (opId, slotId, force = false) => {
     if (!auth) return;
     console.debug('[signOffOpSlot] start', { opId, slotId, userId: auth?.id });
     const prevOps = ops;
@@ -765,14 +852,15 @@ function App() {
 
     try {
       const token = localStorage.getItem('token');
-      console.debug('[signOffOpSlot] sending request', { url: `${API}/ops/${opId}/signoff`, body: { slotId } });
+      const body = force && auth?.capabilities?.assign_players === true ? { slotId, force: true } : { slotId };
+      console.debug('[signOffOpSlot] sending request', { url: `${API}/ops/${opId}/signoff`, body });
       const res = await fetch(`${API}/ops/${opId}/signoff`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ slotId })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       console.debug('[signOffOpSlot] response', { status: res.status, data });
@@ -857,6 +945,11 @@ function App() {
   // Debounced variant used for text inputs (name/notes/role) so keystrokes update
   // local state immediately without firing a network request per character.
   const updateOpSlotDebounced = (opId, slotId, updates) => {
+    if (page === 'scheduler-detail' || page === 'op-detail') {
+      setEditorDirty(true);
+      applyOpSlotUpdatesLocally(opId, slotId, updates);
+      return;
+    }
     const key = `${opId}:${slotId}`;
 
     applyOpSlotUpdatesLocally(opId, slotId, updates);
@@ -872,6 +965,11 @@ function App() {
   };
 
   const updateOpMeta = async (opId, updates) => {
+    if (page === 'scheduler-detail' || page === 'op-detail') {
+      setEditorDirty(true);
+      setOps((prev) => prev.map((op) => (op.id === opId ? { ...op, ...updates } : op)));
+      return;
+    }
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/ops/${opId}`, {
       method: 'PUT',
@@ -891,6 +989,14 @@ function App() {
   };
 
   const updateOpSquadMeta = async (opId, squadId, updates) => {
+    if (page === 'scheduler-detail' || page === 'op-detail') {
+      setEditorDirty(true);
+      const currentSquads = ops.find((op) => op.id === opId)?.squads || [];
+      const nextSquads = currentSquads.map((squad) => squad.id === squadId ? { ...squad, ...updates } : squad);
+      setOps((prev) => prev.map((op) => op.id !== opId ? op : { ...op, squads: nextSquads }));
+      if (typeof updates?.active === 'boolean') window.setTimeout(() => alignInactiveSquads(opId, nextSquads), 0);
+      return;
+    }
     const isActiveToggle = typeof updates?.active === 'boolean';
     const previousActive = isActiveToggle
       ? ops.find((op) => op.id === opId)?.squads?.find((squad) => squad.id === squadId)?.active !== false
@@ -1168,6 +1274,19 @@ function App() {
       return;
     }
 
+    if (page === 'scheduler-detail' || page === 'op-detail') {
+      setEditorDirty(true);
+      const source = templates.find((template) => template.id === templateId);
+      if (!source) return;
+      setOps((prev) => prev.map((op) => op.id !== opId ? op : {
+        ...op,
+        templateId,
+        squads: structuredClone(source.squads || [])
+      }));
+      copyTemplateCanvasToOperation(templateId, { id: opId, squads: source.squads || [] });
+      return;
+    }
+
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/ops/${opId}/load-template`, {
       method: 'POST',
@@ -1196,6 +1315,8 @@ function App() {
       if (template.id !== templateId) return template;
       return { ...template, squads: [...template.squads, tempSquad] };
     }));
+
+    if (page === 'builder') { setEditorDirty(true); return; }
 
     try {
       const token = localStorage.getItem('token');
@@ -1247,6 +1368,7 @@ function App() {
       if (template.id !== templateId) return template;
       return { ...template, squads: [...template.squads, tempSquad] };
     }));
+    if (page === 'builder') { setEditorDirty(true); return; }
 
     try {
       const token = localStorage.getItem('token');
@@ -1297,6 +1419,8 @@ function App() {
     // optimistic local update on ops
     const prevOps = ops;
     setOps((prev) => prev.map((op) => (op.id !== opId ? op : { ...op, squads: [...(op.squads || []), tempSquad] })));
+
+    if (page === 'scheduler-detail' || page === 'op-detail') { setEditorDirty(true); return; }
 
     try {
       const token = localStorage.getItem('token');
@@ -1376,6 +1500,14 @@ function App() {
   };
 
   const updateSquadMeta = async (templateId, squadId, updates) => {
+    if (page === 'builder') {
+      setEditorDirty(true);
+      const currentSquads = templates.find((template) => template.id === templateId)?.squads || [];
+      const nextSquads = currentSquads.map((squad) => squad.id === squadId ? { ...squad, ...updates } : squad);
+      setTemplates((prev) => prev.map((template) => template.id !== templateId ? template : { ...template, squads: nextSquads }));
+      if (typeof updates?.active === 'boolean') window.setTimeout(() => alignInactiveSquads(templateId, nextSquads), 0);
+      return;
+    }
     const isActiveToggle = typeof updates?.active === 'boolean';
     const previousActive = isActiveToggle
       ? templates.find((template) => template.id === templateId)?.squads?.find((squad) => squad.id === squadId)?.active !== false
@@ -1426,6 +1558,7 @@ function App() {
   };
 
   const updateSquadTitleLocal = (templateId, squadId, title) => {
+    if (page === 'builder') setEditorDirty(true);
     setTemplates((prev) => prev.map((template) => {
       if (template.id !== templateId) return template;
       return {
@@ -1436,6 +1569,7 @@ function App() {
   };
 
   const updateOpSquadTitleLocal = (opId, squadId, title) => {
+    if (page === 'scheduler-detail' || page === 'op-detail') setEditorDirty(true);
     setOps((prev) => prev.map((op) => {
       if (op.id !== opId) return op;
       return {
@@ -1449,6 +1583,13 @@ function App() {
     if (!window.confirm('Are you sure you want to delete this squad?')) return;
     // determine whether this id belongs to a template or an op
     const isTemplate = templates.some((t) => String(t.id) === String(templateId));
+
+    if (page === 'builder' || page === 'scheduler-detail' || page === 'op-detail') {
+      setEditorDirty(true);
+      if (isTemplate) setTemplates((prev) => prev.map((template) => String(template.id) !== String(templateId) ? template : { ...template, squads: template.squads.filter((squad) => squad.id !== squadId) }));
+      else setOps((prev) => prev.map((op) => String(op.id) !== String(templateId) ? op : { ...op, squads: (op.squads || []).filter((squad) => squad.id !== squadId) }));
+      return;
+    }
 
     // If squadId is a temporary id (client-only), just remove locally and return
     if (Number.isNaN(Number(squadId))) {
@@ -1557,6 +1698,12 @@ function App() {
       assignedUserId: null,
       _pendingCreate: true
     };
+
+    if (page === 'scheduler-detail' || page === 'op-detail') {
+      setEditorDirty(true);
+      setOps((prev) => prev.map((op) => op.id !== templateId ? op : { ...op, squads: (op.squads || []).map((squad) => squad.id !== squadId ? squad : { ...squad, slots: [...(squad.slots || []), tempSlot] }) }));
+      return;
+    }
 
     setTemplates((prev) => prev.map((template) => {
       if (template.id !== templateId) return template;
@@ -1733,6 +1880,11 @@ function App() {
   };
 
   const updateSlot = (templateId, slotId, updates) => {
+    if (page === 'builder') {
+      setEditorDirty(true);
+      applySlotUpdatesLocally(templateId, slotId, updates);
+      return;
+    }
     if (Number.isNaN(Number(slotId))) {
       applySlotUpdatesLocally(templateId, slotId, updates);
       return;
@@ -1754,6 +1906,14 @@ function App() {
 
   const deleteSlot = async (templateId, slotId) => {
     if (!window.confirm('Are you sure you want to delete this slot?')) return;
+
+    if (page === 'builder' || page === 'scheduler-detail' || page === 'op-detail') {
+      setEditorDirty(true);
+      const updateSquads = (squads = []) => squads.map((squad) => ({ ...squad, slots: (squad.slots || []).filter((slot) => slot.id !== slotId) }));
+      if (page === 'builder') setTemplates((prev) => prev.map((template) => template.id === templateId ? { ...template, squads: updateSquads(template.squads) } : template));
+      else setOps((prev) => prev.map((op) => op.id === templateId ? { ...op, squads: updateSquads(op.squads) } : op));
+      return;
+    }
 
     if (Number.isNaN(Number(slotId))) {
       setTemplates((prev) => prev.map((template) => {
@@ -1805,6 +1965,7 @@ function App() {
   };
 
   const reorderTemplateSlots = async (templateId, squadId, slotIds) => {
+    if (page === 'builder' || page === 'scheduler-detail' || page === 'op-detail') { setEditorDirty(true); return; }
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/templates/${templateId}/squads/${squadId}/slots/reorder`, {
       method: 'PUT',
@@ -1965,6 +2126,125 @@ function App() {
   const normalizeRoleKey = (role) => role?.trim().toLowerCase();
 
   const selectedOp = useMemo(() => ops.find((op) => op.id === selectedOpId), [ops, selectedOpId]);
+
+  const saveTemplateDraft = async () => {
+    const template = templates.find((item) => item.id === selectedTemplateId);
+    if (!template || savingEditor) return;
+    setSavingEditor(true);
+    try {
+      const savedSquads = prepareSquadsForSave(template.squads);
+      const res = await fetch(`${API}/templates/${template.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ name: template.name, squads: savedSquads })
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not save template');
+      const savedIdByDraftId = new Map((template.squads || []).map((squad, index) => [String(squad.id), savedSquads[index]?.id]));
+      setCanvasLayout((prev) => {
+        const migrated = {};
+        Object.entries(prev?.[template.id] || {}).forEach(([squadId, node]) => {
+          const savedId = savedIdByDraftId.get(String(squadId)) ?? squadId;
+          migrated[savedId] = { ...node, parentId: node.parentId == null ? null : (savedIdByDraftId.get(String(node.parentId)) ?? node.parentId) };
+        });
+        return { ...prev, [template.id]: migrated };
+      });
+      setFlowEdges((prev) => ({ ...prev, [template.id]: (prev?.[template.id] || []).map((edge) => ({
+        ...edge,
+        sourceId: savedIdByDraftId.get(String(edge.sourceId)) ?? edge.sourceId,
+        targetId: savedIdByDraftId.get(String(edge.targetId)) ?? edge.targetId
+      })) }));
+      setTemplates((prev) => prev.map((item) => item.id === template.id ? { ...item, squads: savedSquads } : item));
+      window.setTimeout(() => alignInactiveSquads(template.id, savedSquads), 0);
+      setEditorDirty(false);
+      showEditorSaved();
+    } catch (error) {
+      alert(error.message || 'Could not save template');
+    } finally {
+      setSavingEditor(false);
+    }
+  };
+
+  const loadNotifications = async ({ quiet = false } = {}) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    if (!quiet) setNotificationsLoading(true);
+    try {
+      const data = await apiFetch('/notifications', { headers: { Authorization: `Bearer ${token}` } });
+      setNotifications(data.notifications || []);
+    } catch (error) {
+      if (error?.status !== 401) console.error('loadNotifications error', error);
+    } finally {
+      if (!quiet) setNotificationsLoading(false);
+    }
+  };
+
+  const markNotificationRead = async (id) => {
+    setNotifications((current) => current.map((item) => item.id === id ? { ...item, readAt: new Date().toISOString() } : item));
+    await apiFetch(`/notifications/${id}/read`, { method: 'PUT', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+  };
+
+  const markAllNotificationsRead = async () => {
+    const readAt = new Date().toISOString();
+    setNotifications((current) => current.map((item) => ({ ...item, readAt: item.readAt || readAt })));
+    await apiFetch('/notifications/read-all', { method: 'PUT', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+  };
+
+  useEffect(() => {
+    if (!auth) { setNotifications([]); setNotificationsOpen(false); return undefined; }
+    loadNotifications();
+    const interval = window.setInterval(() => loadNotifications({ quiet: true }), 30000);
+    return () => window.clearInterval(interval);
+  }, [auth?.id]);
+
+  const saveOperationDraft = async () => {
+    if (!selectedOp || savingEditor) return;
+    setSavingEditor(true);
+    try {
+      const savedSquads = prepareSquadsForSave(selectedOp.squads);
+      const opRes = await fetch(`${API}/ops/${selectedOp.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({
+          serverName: selectedOp.serverName || '',
+          tsAddress: selectedOp.tsAddress || '',
+          campaignId: selectedOp.campaignId ?? null,
+          squads: savedSquads
+        })
+      });
+      if (!opRes.ok) throw new Error((await opRes.json().catch(() => ({}))).error || 'Could not save operation');
+      const savedIdByDraftId = new Map((selectedOp.squads || []).map((squad, index) => [String(squad.id), savedSquads[index]?.id]));
+      setCanvasLayout((prev) => {
+        const migrated = {};
+        Object.entries(prev?.[selectedOp.id] || {}).forEach(([squadId, node]) => {
+          const savedId = savedIdByDraftId.get(String(squadId)) ?? squadId;
+          migrated[savedId] = { ...node, parentId: node.parentId == null ? null : (savedIdByDraftId.get(String(node.parentId)) ?? node.parentId) };
+        });
+        return { ...prev, [selectedOp.id]: migrated };
+      });
+      setFlowEdges((prev) => ({ ...prev, [selectedOp.id]: (prev?.[selectedOp.id] || []).map((edge) => ({
+        ...edge,
+        sourceId: savedIdByDraftId.get(String(edge.sourceId)) ?? edge.sourceId,
+        targetId: savedIdByDraftId.get(String(edge.targetId)) ?? edge.targetId
+      })) }));
+      setOps((prev) => prev.map((item) => item.id === selectedOp.id ? { ...item, squads: savedSquads } : item));
+      window.setTimeout(() => alignInactiveSquads(selectedOp.id, savedSquads), 0);
+      const recurrence = selectedRecurrenceId ? recurrences.find((item) => item.id === selectedRecurrenceId) : null;
+      if (recurrence) {
+        const recurrenceRes = await fetch(`${API}/recurrences/${recurrence.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+          body: JSON.stringify(recurrence)
+        });
+        if (!recurrenceRes.ok) throw new Error((await recurrenceRes.json().catch(() => ({}))).error || 'Could not save recurrence');
+      }
+      setEditorDirty(false);
+      showEditorSaved();
+    } catch (error) {
+      alert(error.message || 'Could not save operation');
+    } finally {
+      setSavingEditor(false);
+    }
+  };
   const getTemplateName = (templateId) => templates.find((template) => template.id === Number(templateId))?.name || 'Unknown template';
   const getRankLabel = (rankVal) => {
     if (!rankVal && rankVal !== 0) return '-';
@@ -2153,14 +2433,14 @@ function App() {
     const edges = getTemplateFlowEdges(templateId, squads);
 
     const MAX_COLUMNS = 4;
-    const NODE_WIDTH = 280; // Keep this in sync with .orbat-node in styles.css.
+    const NODE_WIDTH = ORBAT_NODE_WIDTH;
     const HORIZONTAL_GAP = CANVAS_GRID_UNIT;
     const VERTICAL_GAP = 60;
-    const DEFAULT_NODE_HEIGHT = 124;
     const START_X = 40;
     const START_Y = 40;
 
-    const nodeHeight = (id) => nodeHeights[`flow-${templateId}-${id}`] || DEFAULT_NODE_HEIGHT;
+    const squadById = new Map(squads.map((squad) => [squad.id, squad]));
+    const nodeHeight = (id) => getOrbatNodeHeight(squadById.get(id));
 
     const childrenMap = new Map();
     edges.forEach((edge) => {
@@ -2184,7 +2464,7 @@ function App() {
         };
         placed.add(id);
       });
-      const tallest = Math.max(DEFAULT_NODE_HEIGHT, ...rowIds.map(nodeHeight));
+      const tallest = Math.max(...rowIds.map(nodeHeight));
       nextY += tallest + VERTICAL_GAP;
     };
 
@@ -2231,8 +2511,12 @@ function App() {
     const inactiveSquads = squads.filter((squad) => squad.active === false);
     layoutSection(activeSquads);
     if (inactiveSquads.length > 0) {
-      // Always reserve a clear lower band for disabled squads.
-      if (activeSquads.length > 0) nextY += VERTICAL_GAP;
+      // Keep disabled squads below the fixed visual divider, including when
+      // there are no active squads to establish a lower boundary themselves.
+      nextY = Math.max(
+        nextY + (activeSquads.length > 0 ? VERTICAL_GAP : 0),
+        360 + VERTICAL_GAP
+      );
       layoutSection(inactiveSquads);
     }
 
@@ -2248,6 +2532,147 @@ function App() {
       });
       return { ...prev, [templateId]: templateLayout };
     });
+  };
+
+  const alignInactiveSquads = (templateId, layoutSquads) => {
+    const squads = Array.isArray(layoutSquads) ? layoutSquads : [];
+    const activeSquads = squads.filter((squad) => squad.active !== false);
+    const inactiveSquads = squads.filter((squad) => squad.active === false);
+    if (inactiveSquads.length === 0) return;
+    const activeBottom = activeSquads.reduce((bottom, squad, index) => {
+      const node = getCanvasNode(templateId, squad.id, squads.indexOf(squad));
+      return Math.max(bottom, node.y + getOrbatNodeHeight(squad));
+    }, 300);
+    const startY = snapToCanvasGrid(Math.max(360, activeBottom + 60) + 60);
+    setCanvasLayout((prev) => {
+      const nextLayout = { ...(prev?.[templateId] || {}) };
+      let rowY = startY;
+      for (let offset = 0; offset < inactiveSquads.length; offset += 4) {
+        const row = inactiveSquads.slice(offset, offset + 4);
+        row.forEach((squad, column) => {
+          nextLayout[squad.id] = {
+            ...(nextLayout[squad.id] || {}),
+            x: 40 + column * (ORBAT_NODE_WIDTH + CANVAS_GRID_UNIT),
+            y: rowY
+          };
+        });
+        rowY += Math.max(...row.map(getOrbatNodeHeight)) + 60;
+      }
+      return { ...prev, [templateId]: nextLayout };
+    });
+  };
+
+  const autoLayoutSingleSquad = (templateId, layoutSquads, squadId) => {
+    const squads = Array.isArray(layoutSquads) ? layoutSquads : [];
+    const targetIndex = squads.findIndex((squad) => String(squad.id) === String(squadId));
+    if (targetIndex < 0) return;
+
+    const target = squads[targetIndex];
+    const NODE_WIDTH = 280;
+    const GAP = CANVAS_GRID_UNIT;
+    const VERTICAL_GAP = 60;
+    const DEFAULT_HEIGHT = 124;
+    const edges = getTemplateFlowEdges(templateId, squads);
+    const incomingEdge = edges.find((edge) => String(edge.targetId) === String(squadId));
+    const parentIndex = incomingEdge
+      ? squads.findIndex((squad) => String(squad.id) === String(incomingEdge.sourceId))
+      : -1;
+    const parentNode = parentIndex >= 0
+      ? getCanvasNode(templateId, squads[parentIndex].id, parentIndex)
+      : null;
+
+    const rectangles = squads
+      .map((squad, index) => {
+        if (String(squad.id) === String(squadId)) return null;
+        const node = getCanvasNode(templateId, squad.id, index);
+        return {
+          x: node.x,
+          y: node.y,
+          width: NODE_WIDTH,
+          height: nodeHeights[`flow-${templateId}-${squad.id}`] || DEFAULT_HEIGHT,
+          active: squad.active !== false
+        };
+      })
+      .filter(Boolean);
+
+    let desiredY;
+    if (target.active === false) {
+      const activeBottom = rectangles
+        .filter((rect) => rect.active)
+        .reduce((bottom, rect) => Math.max(bottom, rect.y + rect.height), 40);
+      desiredY = snapToCanvasGrid(activeBottom + VERTICAL_GAP);
+    } else if (parentNode) {
+      const parentHeight = nodeHeights[`flow-${templateId}-${incomingEdge.sourceId}`] || DEFAULT_HEIGHT;
+      desiredY = snapToCanvasGrid(parentNode.y + parentHeight + VERTICAL_GAP);
+    } else {
+      const activeTop = rectangles
+        .filter((rect) => rect.active)
+        .reduce((top, rect) => Math.min(top, rect.y), Number.POSITIVE_INFINITY);
+      desiredY = Number.isFinite(activeTop) ? snapToCanvasGrid(activeTop) : 40;
+    }
+
+    const currentNode = getCanvasNode(templateId, target.id, targetIndex);
+    const rowRectangles = rectangles.filter((rect) => (
+      desiredY < rect.y + rect.height + GAP
+      && desiredY + (nodeHeights[`flow-${templateId}-${target.id}`] || DEFAULT_HEIGHT) + GAP > rect.y
+    ));
+    const rowCenter = rowRectangles.length
+      ? (Math.min(...rowRectangles.map((rect) => rect.x)) + Math.max(...rowRectangles.map((rect) => rect.x + rect.width))) / 2
+      : 40 + NODE_WIDTH / 2;
+    const anchorX = parentNode ? parentNode.x : rowCenter - NODE_WIDTH / 2;
+    const existingXs = rectangles.map((rect) => snapToCanvasGrid(rect.x));
+    const xCandidates = [...new Set([
+      snapToCanvasGrid(anchorX),
+      ...existingXs.flatMap((x) => [x, x - (NODE_WIDTH + GAP), x + (NODE_WIDTH + GAP)]),
+      40,
+      40 + (NODE_WIDTH + GAP),
+      40 + 2 * (NODE_WIDTH + GAP),
+      40 + 3 * (NODE_WIDTH + GAP)
+    ].filter((x) => x >= 40))];
+
+    const compactRowScore = (x) => {
+      if (parentNode) return Math.abs(x - anchorX);
+      if (rowRectangles.length === 0) return Math.abs(x - 40);
+      const minX = Math.min(x, ...rowRectangles.map((rect) => rect.x));
+      const maxRight = Math.max(x + NODE_WIDTH, ...rowRectangles.map((rect) => rect.x + rect.width));
+      const span = maxRight - minX;
+      const candidateCenter = x + NODE_WIDTH / 2;
+      return span * 10 + Math.abs(candidateCenter - rowCenter);
+    };
+    xCandidates.sort((a, b) => compactRowScore(a) - compactRowScore(b));
+
+    const targetHeight = nodeHeights[`flow-${templateId}-${target.id}`] || DEFAULT_HEIGHT;
+    const overlaps = (x, y) => rectangles.some((rect) => (
+      x < rect.x + rect.width + GAP
+      && x + NODE_WIDTH + GAP > rect.x
+      && y < rect.y + rect.height + GAP
+      && y + targetHeight + GAP > rect.y
+    ));
+
+    let position = null;
+    const rowStep = Math.max(targetHeight, DEFAULT_HEIGHT) + VERTICAL_GAP;
+    for (let row = 0; row < 20 && !position; row += 1) {
+      const y = snapToCanvasGrid(desiredY + row * rowStep);
+      const cardsOnRow = rectangles.filter((rect) => (
+        y < rect.y + rect.height + GAP && y + targetHeight + GAP > rect.y
+      )).length;
+      if (cardsOnRow >= 4) continue;
+      const freeX = xCandidates.find((x) => !overlaps(x, y));
+      if (freeX !== undefined) position = { x: freeX, y };
+    }
+    if (!position) position = { x: 40, y: snapToCanvasGrid(desiredY + 20 * rowStep) };
+
+    setCanvasLayout((prev) => ({
+      ...prev,
+      [templateId]: {
+        ...(prev?.[templateId] || {}),
+        [target.id]: {
+          ...(prev?.[templateId]?.[target.id] || {}),
+          ...position
+        }
+      }
+    }));
+    if (page === 'builder') return;
   };
 
   const handleFlowConnectorClick = (templateId, squadId, anchor, event) => {
@@ -2331,13 +2756,13 @@ function App() {
     squads.forEach((squad, index) => {
       const node = getCanvasNode(template.id, squad.id, index);
       maxX = Math.max(maxX, node.x);
-      maxY = Math.max(maxY, node.y);
+      maxY = Math.max(maxY, node.y + getOrbatNodeHeight(squad));
     });
 
     const expansion = canvasExpansion?.[template.id] || {};
     return {
       width: Math.max(1000, maxX + 360, expansion.width || 0),
-      height: Math.max(700, maxY + 320, expansion.height || 0)
+      height: Math.max(700, maxY + 80, expansion.height || 0)
     };
   };
 
@@ -2777,7 +3202,15 @@ function App() {
               </>
           ) : (
               <>
-                
+                <Notifications
+                  open={notificationsOpen}
+                  notifications={notifications}
+                  loading={notificationsLoading}
+                  onToggle={() => { setNotificationsOpen((value) => !value); if (!notificationsOpen) loadNotifications(); }}
+                  onRead={markNotificationRead}
+                  onReadAll={markAllNotificationsRead}
+                  onOpenOperation={(id) => { setNotificationsOpen(false); showOpInScheduler(Number(id)); }}
+                />
                 <button onClick={logout}>
                   Logout
                 </button>
@@ -2789,15 +3222,19 @@ function App() {
       {!auth && showLoginPanel ? (
         <div className="login-popover" role="dialog" aria-modal="false">
           <div className="login-modal">
-            <form onSubmit={login}>
+            <form onSubmit={login} autoComplete="on">
               <h2>Login</h2>
               <input
+                name="username"
+                autoComplete="username"
                 placeholder="Username"
                 value={loginForm.username}
                 onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
               />
               <input
                 type="password"
+                name="password"
+                autoComplete="current-password"
                 placeholder="Password"
                 value={loginForm.password}
                 onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
@@ -2824,20 +3261,20 @@ function App() {
               <p>Complete the signup form. You must be older than {minSignupAge - 1} to register.</p>
             </div>
           </div>
-          <form onSubmit={signup} className="signup-card">
+          <form onSubmit={signup} className="signup-card" autoComplete="on">
             <div className="signup-fields-grid">
               <div className="signup-credentials-row">
                 <div className="signup-field">
                   <label>Username</label>
                   <small>Choose a unique username for the unit.</small>
-                  <input placeholder="Username" value={signupForm.username} onChange={(e) => setSignupForm((prev) => ({ ...prev, username: e.target.value }))} />
+                  <input name="signup-username" autoComplete="username" placeholder="Username" value={signupForm.username} onChange={(e) => updateSignupField('username', e.target.value)} />
                   {signupErrors.username ? <div className="field-error">{signupErrors.username}</div> : null}
                 </div>
 
                 <div className="signup-field">
                   <label>Password</label>
                   <small>Pick a secure password (min 8 characters recommended).</small>
-                  <input type="password" placeholder="Password" value={signupForm.password} onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))} />
+                  <input type="password" name="signup-password" autoComplete="new-password" placeholder="Password" value={signupForm.password} onChange={(e) => updateSignupField('password', e.target.value)} />
                   {signupErrors.password ? <div className="field-error">{signupErrors.password}</div> : null}
                 </div>
               </div>
@@ -2845,7 +3282,7 @@ function App() {
               <div className="signup-field">
                 <label>Age</label>
                 <small>Enter your age as a whole number.</small>
-                <input type="number" min="0" max="120" step="1" value={signupForm.age} onChange={(e) => setSignupForm((prev) => ({ ...prev, age: e.target.value }))} />
+                <input type="number" min="0" max="120" step="1" value={signupForm.age} onChange={(e) => updateSignupField('age', e.target.value)} />
                 {signupErrors.age ? <div className="field-error">{signupErrors.age}</div> : null}
               </div>
 
@@ -2896,7 +3333,7 @@ function App() {
               <div className="signup-field">
                 <h4>Mods (Requirement)</h4>
                 <small>You must be willing to install multiple modlists to join.</small>
-                <select value={signupForm.ok_multiple_modlists} onChange={(e) => setSignupForm((prev) => ({ ...prev, ok_multiple_modlists: e.target.value }))}>
+                <select value={signupForm.ok_multiple_modlists} onChange={(e) => updateSignupField('ok_multiple_modlists', e.target.value)}>
                   <option>Yes</option>
                   <option>No</option>
                 </select>
@@ -2906,7 +3343,7 @@ function App() {
               <div className="signup-field">
                 <h4>Orders (Requirement)</h4>
                 <small>Members must follow mission orders and instructions.</small>
-                <select value={signupForm.ok_follow_orders} onChange={(e) => setSignupForm((prev) => ({ ...prev, ok_follow_orders: e.target.value }))}>
+                <select value={signupForm.ok_follow_orders} onChange={(e) => updateSignupField('ok_follow_orders', e.target.value)}>
                   <option>No</option>
                   <option>Yes</option>
                 </select>
@@ -2968,29 +3405,18 @@ function App() {
               <div className="builder-toolbar">
                 <div>
                   <h3>Overview</h3>
-                  <p>
-                    {auth
-                      ? 'The next scheduled operation opens automatically.'
-                      : 'The next scheduled operation opens automatically. Login is only required when you want to join.'}
-                  </p>
-                </div>
-                <div className="builder-actions">
-                  <span className="slot-meta">
-                    {effectiveOverviewMode === 'orbat'
-                      ? 'ORBAT viewer active'
-                      : 'Card viewer fallback active (small screen)'}
-                  </span>
                 </div>
               </div>
 
-              <div className="template-list">
+              <div className="template-list overview-operation-tabs">
                 {sortedOps.length === 0 ? (
                   <div className="empty-state">No operations scheduled yet.</div>
                 ) : (
                   sortedOps.map((op) => (
                     <div key={op.id} className="template-list-item">
                       <button className={selectedOpId === op.id ? 'selected' : ''} onClick={() => showOpOnDashboard(op.id)}>
-                        {op.name} - {op.date} {op.time} ({getTemplateName(op.templateId)})
+                        <span>{op.name}</span>
+                        <span className="overview-operation-date">{op.date}</span>
                       </button>
                     </div>
                   ))
@@ -3026,7 +3452,7 @@ function App() {
                   flushOpSlotUpdate={flushOpSlotUpdate}
                     setShowLoginPanel={setShowLoginPanel}
                     showOpInScheduler={showOpInScheduler}
-                    campaignImage={campaigns?.[0]?.image}
+                    campaign={campaigns.find((campaignItem) => String(campaignItem.id) === String(op.campaignId)) || null}
                 />
               ))}
             </section>
@@ -3037,7 +3463,6 @@ function App() {
                   setDefaultOpSettings={setDefaultOpSettings}
                   templates={templates}
                 changePassword={changePassword}
-                uploadCustomMarker={uploadCustomMarker}
                   allRoles={allRoles}
                   isAdmin={isAdmin}
                   clearDb={clearDb}
@@ -3240,7 +3665,12 @@ function App() {
                 addSlot={addSlot}
                 dragSnapPreview={dragSnapPreview}
                 autoLayoutTemplate={autoLayoutTemplate}
+                alignInactiveSquads={alignInactiveSquads}
+                autoLayoutSingleSquad={autoLayoutSingleSquad}
                 squadTypes={squadTypes}
+                saveDraft={saveOperationDraft}
+                savingDraft={savingEditor}
+                savedDraft={editorSaved}
               />
             </section>
           ) : null}
@@ -3266,7 +3696,11 @@ function App() {
                         <div className="template-builder-select" style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
                           <select
                             value={selectedTemplateId ?? ''}
-                            onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}
+                            onChange={(e) => {
+                              if (!confirmEditorNavigation()) return;
+                              setEditorDirty(false);
+                              setSelectedTemplateId(e.target.value ? Number(e.target.value) : null);
+                            }}
                             style={{padding:'0.6rem',borderRadius:8,border:'1px solid var(--border)',background:'var(--panel)',color:'var(--text)'}}
                           >
                             <option value="">Choose template</option>
@@ -3299,6 +3733,9 @@ function App() {
                         <p>Edit the selected template contents.</p>
                       </div>
                       <div className="builder-actions">
+                        <button type="button" onClick={saveTemplateDraft} disabled={!selectedTemplateId || savingEditor}>
+                          {savingEditor ? 'Saving...' : editorSaved ? 'Saved' : 'Save'}
+                        </button>
                         <button
                           type="button"
                           className={builderFlowMode ? '' : 'secondary'}
@@ -3334,6 +3771,8 @@ function App() {
                           clearTemplateFlowEdges={clearTemplateFlowEdges}
                           resetTemplateCanvasLayout={resetTemplateCanvasLayout}
                           autoLayoutTemplate={autoLayoutTemplate}
+                          alignInactiveSquads={alignInactiveSquads}
+                          autoLayoutSingleSquad={autoLayoutSingleSquad}
                           moveCanvasDrag={moveCanvasDrag}
                           stopCanvasDrag={stopCanvasDrag}
                           trimCanvasTop={trimCanvasTop}
@@ -3381,14 +3820,18 @@ function App() {
 
                   {can('edit_players') ? <section className="card player-squad">
                     <h3>Create user</h3>
-                    <form onSubmit={createUser} className="player-form">
+                    <form onSubmit={createUser} className="player-form" autoComplete="off">
                       <input
+                        name="new-username"
+                        autoComplete="off"
                         placeholder="Username"
                         value={userForm.username}
                         onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
                       />
                       <input
                         type="password"
+                        name="new-password"
+                        autoComplete="new-password"
                         placeholder="Password"
                         value={userForm.password}
                         onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
