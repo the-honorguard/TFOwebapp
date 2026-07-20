@@ -119,3 +119,272 @@ Visit https://reactjs.org/link/error-boundaries to learn more about error bounda
 2026-07-18T10:22:32.845Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
 2026-07-18T10:22:36.934Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
 2026-07-18T10:22:36.936Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-19T20:48:38.578Z INFO Server running on http://localhost:3001 
+2026-07-19T20:48:38.635Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-19T20:48:38.969Z INFO Schema check complete 
+2026-07-19T20:51:58.053Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-19T20:51:58.071Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-19T20:52:15.339Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-19T20:52:18.875Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-19T20:54:50.621Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-19T20:57:23.309Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-19T20:57:24.710Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T05:51:51.477Z INFO Server running on http://localhost:3001 
+2026-07-20T05:51:51.541Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T05:51:51.753Z INFO Schema check complete 
+2026-07-20T05:52:31.662Z ERROR loadPrivateData error {"status":401,"body":{"error":"Login expired, please log in again","code":"TOKEN_EXPIRED"}} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T05:52:37.122Z ERROR loadPrivateData error {"status":401,"body":{"error":"Login expired, please log in again","code":"TOKEN_EXPIRED"}} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T05:53:19.159Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T05:53:32.524Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T05:53:33.924Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T06:11:33.668Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T06:12:31.307Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T06:12:31.985Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T06:12:34.658Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T06:51:20.620Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:00:28.025Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:01:17.769Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:01:18.321Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:01:18.326Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:07:58.489Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:07:58.497Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:08:17.462Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:08:22.321Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:08:22.407Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:08:51.249Z INFO Server running on http://localhost:3001 
+2026-07-20T07:08:51.314Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T07:08:51.524Z INFO Schema check complete 
+2026-07-20T07:08:52.145Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:08:52.155Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:17:46.045Z ERROR Add slot failed 500 {"error":"Unexpected token 'o', \"none\" is not valid JSON"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:17:47.247Z ERROR Add slot failed 500 {"error":"Unexpected token 'o', \"none\" is not valid JSON"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:18:07.409Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:18:08.132Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:18:12.402Z ERROR Add slot failed 500 {"error":"Unexpected token 'o', \"none\" is not valid JSON"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:19:55.662Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:20:32.234Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:20:32.594Z ERROR Add slot failed 500 {"error":"Unexpected token 'o', \"none\" is not valid JSON"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:20:37.825Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:20:37.830Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:20:51.546Z INFO Server running on http://localhost:3001 
+2026-07-20T07:20:51.588Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T07:20:51.751Z INFO Schema check complete 
+2026-07-20T07:20:54.532Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:20:54.546Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:23:03.223Z ERROR Add slot failed 404 {"error":"Template not found"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:23:03.490Z ERROR Add slot failed 404 {"error":"Template not found"} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:24:13.731Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:24:13.735Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:24:55.628Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:24:59.160Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:24:59.422Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:24:59.425Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:25:33.382Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:26:08.347Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:34:23.889Z ERROR Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops. {"filename":"http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=2f5c3c33","lineno":19657,"colno":19}
+2026-07-20T07:34:24.075Z ERROR Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops. {"filename":"http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=2f5c3c33","lineno":19657,"colno":19}
+2026-07-20T07:34:25.381Z ERROR The above error occurred in the <div> component:
+
+div
+div
+div
+div
+div
+div
+OrbatTemplate@http://localhost:5173/src/OrbatTemplate.jsx?t=1784532448044:19:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784532658402:39:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:40:14.722Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:40:14.813Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:43:56.809Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:44:09.171Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:44:12.045Z WARN [App] unload {"isTrusted":true} {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:44:12.049Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:45:15.736Z ERROR Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops. {"filename":"http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=2f5c3c33","lineno":19657,"colno":19}
+2026-07-20T07:45:15.739Z ERROR Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops. {"filename":"http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=2f5c3c33","lineno":19657,"colno":19}
+2026-07-20T07:45:15.742Z ERROR The above error occurred in the <div> component:
+
+div
+div
+div
+div
+div
+div
+OrbatTemplate@http://localhost:5173/src/OrbatTemplate.jsx?t=1784533406430:19:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784533419456:39:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:45:34.392Z INFO Server running on http://localhost:3001 
+2026-07-20T07:45:34.456Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T07:45:34.635Z INFO Schema check complete 
+2026-07-20T07:48:53.000Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:49:08.301Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:49:08.730Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:49:09.100Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:49:39.098Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:49:42.983Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:49:45.796Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:50:57.410Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:54:28.789Z ERROR Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops. {"filename":"http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=2f5c3c33","lineno":19657,"colno":19}
+2026-07-20T07:54:28.791Z ERROR Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops. {"filename":"http://localhost:5173/node_modules/.vite/deps/chunk-373CG7ZK.js?v=2f5c3c33","lineno":19657,"colno":19}
+2026-07-20T07:54:28.792Z ERROR The above error occurred in the <div> component:
+
+div
+div
+div
+div
+div
+div
+OrbatTemplate@http://localhost:5173/src/OrbatTemplate.jsx?t=1784534001895:19:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784533999254:39:35
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:58:38.445Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+div
+div
+div
+section
+OrbatScheduler@http://localhost:5173/src/OrbatScheduler.jsx?t=1784534313255:19:39
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534162094:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:58:40.555Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+div
+div
+div
+section
+OrbatScheduler@http://localhost:5173/src/OrbatScheduler.jsx?t=1784534313255:19:39
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534162094:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:58:46.306Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+section
+OrbatOverview@http://localhost:5173/src/OrbatOverview.jsx:17:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534162094:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:58:46.329Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+section
+OrbatOverview@http://localhost:5173/src/OrbatOverview.jsx:17:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534162094:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:58:55.269Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+section
+OrbatOverview@http://localhost:5173/src/OrbatOverview.jsx:17:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534162094:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:59:49.460Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+section
+OrbatOverview@http://localhost:5173/src/OrbatOverview.jsx:17:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534387008:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:59:49.479Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+section
+OrbatOverview@http://localhost:5173/src/OrbatOverview.jsx:17:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534387008:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:59:49.497Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+section
+OrbatOverview@http://localhost:5173/src/OrbatOverview.jsx:17:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534387008:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:59:49.517Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+section
+OrbatOverview@http://localhost:5173/src/OrbatOverview.jsx:17:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534387008:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T07:59:54.573Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T08:00:18.688Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T08:04:46.976Z INFO Server running on http://localhost:3001 
+2026-07-20T08:04:47.069Z INFO DB connected {"rows":[{"ok":1}]}
+2026-07-20T08:04:47.326Z INFO Schema check complete 
+2026-07-20T08:06:30.071Z WARN [App] visibilitychange hidden {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T08:06:30.794Z ERROR Warning: Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.%s 1784534319071 
+div
+div
+div
+div
+section
+OrbatOverview@http://localhost:5173/src/OrbatOverview.jsx:17:38
+section
+div
+div
+div
+App@http://localhost:5173/src/App.jsx?t=1784534387008:39:35 {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}
+2026-07-20T08:06:30.918Z WARN [App] visibilitychange visible {"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"}

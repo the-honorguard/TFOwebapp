@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 
 /**
  * OrbatTemplate
- * - Template builder view: renders template sections in a flow/canvas layout or grid form
+ * - Template builder view: renders template squads in a flow/canvas layout or grid form
  * - No occupant information is present here; this view is used for editing template structure
  * - Expects a set of handler functions from the parent to perform mutations (add/delete/update)
  */
@@ -17,18 +17,22 @@ export default function OrbatTemplate({
   getCanvasSize,
   getCanvasNode,
   getTemplateFlowEdges,
-  addSectionQuick,
+  addSquadQuick,
   clearTemplateFlowEdges,
   resetTemplateCanvasLayout,
   autoLayoutTemplate,
   moveCanvasDrag,
   stopCanvasDrag,
+  trimCanvasTop,
+  expandCanvas,
+  nudgeCanvasDrag,
+  prependCanvasSpace,
   startCanvasDrag,
   setNodeHeightRef,
   handleFlowConnectorClick,
-  updateSectionTitleLocal,
-  updateSectionMeta,
-  deleteSection,
+  updateSquadTitleLocal,
+  updateSquadMeta,
+  deleteSquad,
   handleSlotDragOver,
   handleSlotDrop,
   handleSlotDragStart,
@@ -49,11 +53,106 @@ export default function OrbatTemplate({
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
   const canvasScrollRef = useRef(null);
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
+  const autoScrollRef = useRef({ frame: null, dx: 0, dy: 0 });
+  const prependScrollRef = useRef(null);
   const [isPanning, setIsPanning] = useState(false);
 
+  React.useEffect(() => {
+    if (template?.id != null && typeof trimCanvasTop === 'function') {
+      trimCanvasTop(template.id, template.squads || []);
+    }
+  }, [template?.id]);
+
+  React.useEffect(() => () => {
+    if (autoScrollRef.current.frame) cancelAnimationFrame(autoScrollRef.current.frame);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const pending = prependScrollRef.current;
+    const scrollEl = canvasScrollRef.current;
+    if (!pending || !scrollEl) return;
+    scrollEl.scrollLeft += pending.x;
+    scrollEl.scrollTop += pending.y;
+    prependScrollRef.current = null;
+  });
+
+  const stopCanvasAutoScroll = () => {
+    if (autoScrollRef.current.frame) cancelAnimationFrame(autoScrollRef.current.frame);
+    autoScrollRef.current = { frame: null, dx: 0, dy: 0 };
+  };
+
+  const runCanvasAutoScroll = () => {
+    const scrollEl = canvasScrollRef.current;
+    const state = autoScrollRef.current;
+    if (!scrollEl || (!state.dx && !state.dy)) {
+      stopCanvasAutoScroll();
+      return;
+    }
+
+    const atRightEdge = state.dx > 0 && scrollEl.scrollLeft + scrollEl.clientWidth >= scrollEl.scrollWidth - 3;
+    const atBottomEdge = state.dy > 0 && scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 3;
+    const atLeftEdge = state.dx < 0 && scrollEl.scrollLeft <= 2;
+    const atTopEdge = state.dy < 0 && scrollEl.scrollTop <= 2;
+    if ((atLeftEdge || atTopEdge) && !prependScrollRef.current && typeof prependCanvasSpace === 'function') {
+      const prepend = { x: atLeftEdge ? 320 : 0, y: atTopEdge ? 280 : 0 };
+      prependScrollRef.current = prepend;
+      prependCanvasSpace(template.id, template.squads || [], prepend);
+    }
+    if ((atRightEdge || atBottomEdge) && typeof expandCanvas === 'function') {
+      expandCanvas(template.id, {
+        width: atRightEdge ? scrollEl.scrollWidth + 320 : scrollEl.scrollWidth,
+        height: atBottomEdge ? scrollEl.scrollHeight + 280 : scrollEl.scrollHeight
+      });
+    }
+
+    const previousLeft = scrollEl.scrollLeft;
+    const previousTop = scrollEl.scrollTop;
+    scrollEl.scrollBy(state.dx, state.dy);
+    if (typeof nudgeCanvasDrag === 'function') {
+      nudgeCanvasDrag(scrollEl.scrollLeft - previousLeft, scrollEl.scrollTop - previousTop);
+    }
+    autoScrollRef.current.frame = requestAnimationFrame(runCanvasAutoScroll);
+  };
+
+  const updateCanvasAutoScroll = (event) => {
+    if (dragSnapPreview?.templateId !== template.id) {
+      stopCanvasAutoScroll();
+      return;
+    }
+    const scrollEl = canvasScrollRef.current;
+    if (!scrollEl) return;
+    const rect = scrollEl.getBoundingClientRect();
+    const threshold = 64;
+    const speedForDistance = (distance) => Math.max(5, Math.min(22, Math.round((threshold - distance) / 3)));
+    let dx = 0;
+    let dy = 0;
+    if (event.clientX - rect.left < threshold) dx = -speedForDistance(event.clientX - rect.left);
+    else if (rect.right - event.clientX < threshold) dx = speedForDistance(rect.right - event.clientX);
+    if (event.clientY - rect.top < threshold) dy = -speedForDistance(event.clientY - rect.top);
+    else if (rect.bottom - event.clientY < threshold) dy = speedForDistance(rect.bottom - event.clientY);
+
+    autoScrollRef.current.dx = dx;
+    autoScrollRef.current.dy = dy;
+    if ((dx || dy) && !autoScrollRef.current.frame) {
+      autoScrollRef.current.frame = requestAnimationFrame(runCanvasAutoScroll);
+    } else if (!dx && !dy) {
+      stopCanvasAutoScroll();
+    }
+  };
+
+  const handleCanvasDragMove = (event) => {
+    moveCanvasDrag(event, template);
+    updateCanvasAutoScroll(event);
+  };
+
+  const handleCanvasDragStop = () => {
+    stopCanvasAutoScroll();
+    stopCanvasDrag();
+  };
+
   // Defensive defaults: allow opening Template Builder with no templates/demo data
-  if (!template) template = { id: null, sections: [] };
-  if (!Array.isArray(template.sections)) template.sections = [];
+  if (!template) template = { id: null, squads: [] };
+  if (!Array.isArray(template.squads)) template.squads = [];
 
   const handleCanvasPanStart = (event) => {
     if (event.button !== 0) return;
@@ -87,24 +186,50 @@ export default function OrbatTemplate({
   const builtins = Array.isArray(squadTypes) && squadTypes.length > 0
     ? squadTypes.map((s) => ({ label: s.name, value: s.name, icon: s.icon }))
     : [];
+
+  const orderedSquads = [
+    ...template.squads.filter((squad) => squad.active !== false),
+    ...template.squads.filter((squad) => squad.active === false)
+  ];
   return (
     <div>
       {/* template-level override UI removed */}
       {builderFlowMode ? (
         (() => {
           const canvasSize = getCanvasSize(template);
-          const nodes = template.sections.map((section, index) => {
-            const node = getCanvasNode(template.id, section.id, index);
+          const nodes = template.squads.map((squad, index) => {
+            const node = getCanvasNode(template.id, squad.id, index);
             return {
-              section,
+              squad,
               index,
-                nodeKey: `flow-${template.id}-${section.id}`,
+                nodeKey: `flow-${template.id}-${squad.id}`,
               x: node.x,
               y: node.y
             };
           });
-          const nodeMap = new Map(nodes.map((node) => [node.section.id, node]));
-          const edges = getTemplateFlowEdges(template.id, template.sections)
+          const nodeMap = new Map(nodes.map((node) => [node.squad.id, node]));
+          const activeNodes = nodes.filter((node) => node.squad.active !== false);
+          const inactiveSeparatorY = Math.max(360, ...activeNodes.map((node) => (
+            node.y + (nodeHeights[node.nodeKey] || 124) + 60
+          )));
+          const finishCanvasDrag = () => {
+            const preview = dragSnapPreview?.templateId === template.id ? dragSnapPreview : null;
+            const draggedSquad = preview
+              ? template.squads.find((squad) => squad.id === preview.squadId)
+              : null;
+            const shouldBeInactive = Boolean(preview && preview.y >= inactiveSeparatorY);
+            handleCanvasDragStop();
+            if (!draggedSquad) return;
+            const statusChanged = (draggedSquad.active === false) !== shouldBeInactive;
+            const nextSquads = template.squads.map((squad) => (
+              squad.id === draggedSquad.id ? { ...squad, active: !shouldBeInactive } : squad
+            ));
+            if (statusChanged) updateSquadMeta(template.id, draggedSquad.id, { active: !shouldBeInactive });
+            if (shouldBeInactive || statusChanged) {
+              window.setTimeout(() => autoLayoutTemplate(template.id, nextSquads), 0);
+            }
+          };
+          const edges = getTemplateFlowEdges(template.id, template.squads)
             .filter((edge) => nodeMap.has(edge.sourceId) && nodeMap.has(edge.targetId))
             .map((edge) => {
               const source = nodeMap.get(edge.sourceId);
@@ -113,14 +238,14 @@ export default function OrbatTemplate({
               const targetAnchor = edge.targetAnchor || 'top';
               return {
                 id: edge.id,
-                x1: source.x + 150,
+                x1: source.x + 140,
                 y1: sourceAnchor === 'top' ? source.y : source.y + (nodeHeights[source.nodeKey] || 124),
-                x2: target.x + 150,
+                x2: target.x + 140,
                 y2: targetAnchor === 'top' ? target.y : target.y + (nodeHeights[target.nodeKey] || 124)
               };
             });
-          const selectedFlowSectionId = flowLinkSource?.templateId === template.id ? flowLinkSource.sectionId : null;
-          const selectedFlowSection = template.sections.find((section) => section.id === selectedFlowSectionId);
+          const selectedFlowSquadId = flowLinkSource?.templateId === template.id ? flowLinkSource.squadId : null;
+          const selectedFlowSquad = template.squads.find((squad) => squad.id === selectedFlowSquadId);
 
           return (
             <div className="flow-layout flow-fullscreen">
@@ -129,9 +254,9 @@ export default function OrbatTemplate({
                   <button
                     type="button"
                     className="secondary small"
-                    onClick={() => addSectionQuick(template.id, template.sections.length)}
+                    onClick={() => addSquadQuick(template.id, template.squads.length)}
                   >
-                    + Section
+                    + Squad
                   </button>
                   <button type="button" className="secondary small" onClick={() => clearTemplateFlowEdges(template.id)}>
                     Clear
@@ -139,7 +264,7 @@ export default function OrbatTemplate({
                   <button type="button" className="secondary small" onClick={() => resetTemplateCanvasLayout(template.id)}>
                     Reset
                   </button>
-                  <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id)}>
+                  <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id, template.squads)}>
                     Auto-layout
                   </button>
                 </div>
@@ -154,9 +279,9 @@ export default function OrbatTemplate({
                   <div
                     className="flow-canvas-content drag-canvas"
                     style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
-                    onMouseMove={(event) => moveCanvasDrag(event, template)}
-                    onMouseUp={stopCanvasDrag}
-                    onMouseLeave={stopCanvasDrag}
+                    onMouseMove={handleCanvasDragMove}
+                    onMouseUp={finishCanvasDrag}
+                    onMouseLeave={finishCanvasDrag}
                   >
                   <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
                     <defs>
@@ -185,14 +310,18 @@ export default function OrbatTemplate({
                     ))}
                   </svg>
 
+                  <div className="inactive-separator" style={{ top: `${inactiveSeparatorY}px` }}>
+                    <span>Inactive</span>
+                  </div>
+
                   {dragSnapPreview && dragSnapPreview.templateId === template.id ? (
                     (() => {
                       const unit = 40;
-                      const sec = template.sections.find((s) => s.id === dragSnapPreview.sectionId) || {};
-                      const slots = Array.isArray(sec.slots) ? sec.slots.length : 0;
+                      const squad = template.squads.find((s) => s.id === dragSnapPreview.squadId) || {};
+                      const slots = Array.isArray(squad.slots) ? squad.slots.length : 0;
                       const widthUnits = Math.max(7, 4 + slots);
                       const w = widthUnits * unit;
-                      const h = nodeHeights[`flow-${template.id}-${dragSnapPreview.sectionId}`] || 124;
+                      const h = nodeHeights[`flow-${template.id}-${dragSnapPreview.squadId}`] || 124;
                       return (
                         <div
                           className="flow-drag-ghost"
@@ -204,55 +333,55 @@ export default function OrbatTemplate({
                   ) : null}
 
                   {nodes.map((node) => {
-                    const isSelected = selectedFlowSectionId === node.section.id;
+                    const isSelected = selectedFlowSquadId === node.squad.id;
 
                     return (
                         <div
-                        key={node.section.id}
-                        className={`orbat-node flow-node ${isSelected ? 'selected' : ''}`}
+                        key={node.squad.id}
+                        className={`orbat-node flow-node ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
                         style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${7 * 40}px` }}
                         ref={setNodeHeightRef(node.nodeKey)}
                       >
                         <button
                           type="button"
                           className={`orbat-connector top clickable ${isSelected && flowLinkSource?.anchor === 'top' ? 'active' : ''}`}
-                          onClick={(event) => handleFlowConnectorClick(template.id, node.section.id, 'top', event)}
+                          onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'top', event)}
                           aria-label="Connect from top"
                         />
                         <button
                           type="button"
                           className={`orbat-connector bottom clickable ${isSelected && flowLinkSource?.anchor === 'bottom' ? 'active' : ''}`}
-                          onClick={(event) => handleFlowConnectorClick(template.id, node.section.id, 'bottom', event)}
+                          onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'bottom', event)}
                           aria-label="Connect from bottom"
                         />
                         <div
                           className="orbat-node-head"
-                          onMouseDown={(event) => startCanvasDrag(event, template.id, node.section.id, node.index)}
+                          onMouseDown={(event) => startCanvasDrag(event, template.id, node.squad.id, node.index)}
                         >
                           <div className="orbat-title-row">
                             <input
-                              className="section-title-input"
-                              value={node.section.title}
-                              placeholder="Section title"
+                              className="squad-title-input"
+                              value={node.squad.title}
+                              placeholder="Squad title"
                               onMouseDown={(event) => event.stopPropagation()}
-                              onChange={(event) => updateSectionTitleLocal(template.id, node.section.id, event.target.value)}
-                              onBlur={(event) => updateSectionMeta(template.id, node.section.id, { title: event.target.value })}
+                              onChange={(event) => updateSquadTitleLocal(template.id, node.squad.id, event.target.value)}
+                              onBlur={(event) => updateSquadMeta(template.id, node.squad.id, { title: event.target.value })}
                             />
                             <div style={{display:'inline-block', position:'relative'}} onMouseDown={(e) => e.stopPropagation()}>
-                              <button type="button" className="marker-dropdown-btn" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === node.section.id ? null : node.section.id)}>
+                              <button type="button" className="marker-dropdown-btn" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === node.squad.id ? null : node.squad.id)}>
                                 <span className="marker-dropdown-icon">
-                                  {node.section.markerIconUrl ? <img src={node.section.markerIconUrl} alt="marker" style={{width:'100%',height:'100%',objectFit:'contain',display:'block'}} /> : node.section.marker ? <span className={`marker-badge marker-${String(node.section.marker).toLowerCase().replace(/\s+/g,'-')}`} style={{fontSize:'0.6rem'}}>{node.section.marker}</span> : null}
+                                  {node.squad.markerIconUrl ? <img src={node.squad.markerIconUrl} alt="marker" style={{width:'100%',height:'100%',objectFit:'contain',display:'block'}} /> : node.squad.marker ? <span className={`marker-badge marker-${String(node.squad.marker).toLowerCase().replace(/\s+/g,'-')}`} style={{fontSize:'0.6rem'}}>{node.squad.marker}</span> : null}
                                 </span>
                                 <span className="marker-dropdown-arrow">▾</span>
                               </button>
-                              {openMarkerDropdown === node.section.id ? (
+                              {openMarkerDropdown === node.squad.id ? (
                                 <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
                                   <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                                    <button className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
+                                    <button className="secondary small" onClick={() => { updateSquadMeta(template.id, node.squad.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
                                     {builtins.map((b) => {
                                       const iconSrc = b.icon ? (b.icon.startsWith('/') || b.icon.startsWith('http') ? b.icon : `/markers/${b.icon}`) : null;
                                       return (
-                                        <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSectionMeta(template.id, node.section.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
+                                        <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateSquadMeta(template.id, node.squad.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
                                           {iconSrc ? <img src={iconSrc} alt={b.label} style={{width:20,height:20}} /> : <span style={{width:20,height:20,display:'inline-block'}} />}
                                           {b.label}
                                         </button>
@@ -261,7 +390,7 @@ export default function OrbatTemplate({
                                     <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                                       <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
                                       {builtins.map((b) => (
-                                        <button key={b.value + '-text'} className="secondary small" onClick={() => { updateSectionMeta(template.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                        <button key={b.value + '-text'} className="secondary small" onClick={() => { updateSquadMeta(template.id, node.squad.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
                                       ))}
                                     </div>
                                   </div>
@@ -271,8 +400,8 @@ export default function OrbatTemplate({
                             <button
                               type="button"
                               className="danger-x-button"
-                              onClick={(e) => { e.stopPropagation(); deleteSection(template.id, node.section.id); }}
-                              aria-label="Delete section"
+                              onClick={(e) => { e.stopPropagation(); deleteSquad(template.id, node.squad.id); }}
+                              aria-label="Delete squad"
                             >
                               ✕
                             </button>
@@ -285,8 +414,8 @@ export default function OrbatTemplate({
                                 min="0"
                                 max="99"
                                 className="lr-sr-input"
-                                value={node.section.lrChannel ?? 1}
-                                onChange={(e) => updateSectionMeta(template.id, node.section.id, { lrChannel: Number(e.target.value) })}
+                                value={node.squad.lrChannel ?? 1}
+                                onChange={(e) => updateSquadMeta(template.id, node.squad.id, { lrChannel: Number(e.target.value) })}
                               />
                             </label>
                             <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
@@ -296,31 +425,54 @@ export default function OrbatTemplate({
                                 min="0"
                                 max="99"
                                 className="lr-sr-input"
-                                value={node.section.srChannel ?? 1}
-                                onChange={(e) => updateSectionMeta(template.id, node.section.id, { srChannel: Number(e.target.value) })}
+                                value={node.squad.srChannel ?? 1}
+                                onChange={(e) => updateSquadMeta(template.id, node.squad.id, { srChannel: Number(e.target.value) })}
                               />
                             </label>
-
+                            <button
+                              type="button"
+                              className={`squad-switch ${node.squad.active !== false ? 'is-active' : ''}`}
+                              role="switch"
+                              aria-checked={node.squad.active !== false}
+                              title="Standaard actief in nieuwe operaties"
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                updateSquadMeta(template.id, node.squad.id, { active: node.squad.active === false });
+                              }}
+                            >
+                              <span className="squad-switch-track" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="squad-sort-button"
+                              title="Alleen deze squad automatisch positioneren"
+                              aria-label="Alleen deze squad automatisch positioneren"
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onClick={(event) => { event.stopPropagation(); autoLayoutTemplate(template.id, template.squads, node.squad.id); }}
+                            >
+                              Auto
+                            </button>
                           </div>
                         </div>
                         <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
                           <div className="flow-slot-list">
-                            {node.section.slots.length === 0 ? (
+                            {node.squad.slots.length === 0 ? (
                               <p className="panel-empty">No slots yet.</p>
                             ) : (
-                              node.section.slots.map((slot) => (
+                              node.squad.slots.map((slot) => (
                                 <div
                                   key={slot.id}
                                   className="flow-slot-row"
-                                  onDragOver={(event) => handleSlotDragOver(template.id, node.section.id, event)}
-                                  onDrop={(event) => handleSlotDrop(template.id, node.section.id, slot.id, event)}
+                                  onDragOver={(event) => handleSlotDragOver(template.id, node.squad.id, event)}
+                                  onDrop={(event) => handleSlotDrop(template.id, node.squad.id, slot.id, event)}
                                 >
                                   <button
                                     type="button"
                                     className="slot-drag-handle"
                                     draggable={!slot._pendingCreate}
                                     disabled={slot._pendingCreate}
-                                    onDragStart={(event) => handleSlotDragStart(template.id, node.section.id, slot.id, event)}
+                                    onDragStart={(event) => handleSlotDragStart(template.id, node.squad.id, slot.id, event)}
                                     onDragEnd={() => setDraggedSlot(null)}
                                     aria-label="Drag slot"
                                   >
@@ -369,8 +521,8 @@ export default function OrbatTemplate({
                           <button
                             type="button"
                             className="secondary small"
-                            onClick={() => addSlot(template.id, node.section.id)}
-                            disabled={node.section._pendingCreate}
+                            onClick={() => addSlot(template.id, node.squad.id)}
+                            disabled={node.squad._pendingCreate}
                           >
                             + Slot
                           </button>
@@ -381,30 +533,34 @@ export default function OrbatTemplate({
                   </div>
                 </div>
               </div>
-              {selectedFlowSection ? (
+              {selectedFlowSquad ? (
                 <p className="flow-help">
-                  Link source: <strong>{selectedFlowSection.title}</strong>. Now click a connector on a second section..
+                  Link source: <strong>{selectedFlowSquad.title}</strong>. Now click a connector on a second squad..
                 </p>
               ) : (
-                <p className="flow-help">Click a top/bottom connector, then click a connector on a second section.</p>
+                <p className="flow-help">Click a top/bottom connector, then click a connector on a second squad.</p>
               )}
             </div>
           );
         })()
-      ) : template.sections.length === 0 ? (
-        <div className="empty-state">This template has no sections yet. Add a section to start.</div>
+      ) : template.squads.length === 0 ? (
+        <div className="empty-state">This template has no squads yet. Add a squad to start.</div>
       ) : (
           <div className={builderCompact ? 'builder-grid compact' : 'builder-grid'}>
-            {template.sections.map((section, index) => (
-              <div key={section.id} className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''}`}>
+            {orderedSquads.map((squad, index) => (
+              <React.Fragment key={squad.id}>
+              {squad.active === false && orderedSquads[index - 1]?.active !== false ? (
+                <div className="inactive-separator form-separator"><span>Inactive</span></div>
+              ) : null}
+              <div className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''} ${squad.active === false ? 'squad-inactive' : ''}`}>
                 <div className="panel-title">
                   <div className="panel-title-text">
                     <input
-                      className="section-title-input"
-                      value={section.title}
-                      placeholder="Section title"
-                      onChange={(e) => updateSectionTitleLocal(template.id, section.id, e.target.value)}
-                      onBlur={(e) => updateSectionMeta(template.id, section.id, { title: e.target.value })}
+                      className="squad-title-input"
+                      value={squad.title}
+                      placeholder="Squad title"
+                      onChange={(e) => updateSquadTitleLocal(template.id, squad.id, e.target.value)}
+                      onBlur={(e) => updateSquadMeta(template.id, squad.id, { title: e.target.value })}
                     />
                     <div className="slot-meta-row">
                       <label className="slot-meta">
@@ -414,8 +570,8 @@ export default function OrbatTemplate({
                           min="0"
                           max="99"
                           className="lr-sr-input"
-                          value={section.lrChannel ?? 1}
-                          onChange={(e) => updateSectionMeta(template.id, section.id, { lrChannel: Number(e.target.value) })}
+                          value={squad.lrChannel ?? 1}
+                          onChange={(e) => updateSquadMeta(template.id, squad.id, { lrChannel: Number(e.target.value) })}
                         />
                       </label>
                       <label className="slot-meta">
@@ -425,29 +581,46 @@ export default function OrbatTemplate({
                           min="0"
                           max="99"
                           className="lr-sr-input"
-                          value={section.srChannel ?? 1}
-                          onChange={(e) => updateSectionMeta(template.id, section.id, { srChannel: Number(e.target.value) })}
+                          value={squad.srChannel ?? 1}
+                          onChange={(e) => updateSquadMeta(template.id, squad.id, { srChannel: Number(e.target.value) })}
                         />
                       </label>
-
+                      <button
+                        type="button"
+                        className={`squad-switch ${squad.active !== false ? 'is-active' : ''}`}
+                        role="switch"
+                        aria-checked={squad.active !== false}
+                        title="Standaard actief in nieuwe operaties"
+                        onClick={() => updateSquadMeta(template.id, squad.id, { active: squad.active === false })}
+                      >
+                        <span className="squad-switch-track" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="squad-sort-button"
+                        title="Alleen deze squad automatisch positioneren"
+                        onClick={() => autoLayoutTemplate(template.id, template.squads, squad.id)}
+                      >
+                        Auto
+                      </button>
                     </div>
                   </div>
                   <div className="slot-actions">
-                    <button onClick={() => addSlot(template.id, section.id)} className="secondary small" disabled={section._pendingCreate}>
+                    <button onClick={() => addSlot(template.id, squad.id)} className="secondary small" disabled={squad._pendingCreate}>
                       Add slot
                     </button>
                   </div>
                 </div>
                 <div className="panel-content">
-                  {section.slots.length === 0 ? (
-                    <p className="panel-empty">No slots in this section.</p>
+                  {squad.slots.length === 0 ? (
+                    <p className="panel-empty">No slots in this squad.</p>
                   ) : (
-                    section.slots.map((slot) => (
+                    squad.slots.map((slot) => (
                       <div
                         key={slot.id}
                         className={`slot-card builder-slot ${builderCompact ? 'compact' : ''}`}
-                        onDragOver={(event) => handleSlotDragOver(template.id, section.id, event)}
-                        onDrop={(event) => handleSlotDrop(template.id, section.id, slot.id, event)}
+                        onDragOver={(event) => handleSlotDragOver(template.id, squad.id, event)}
+                        onDrop={(event) => handleSlotDrop(template.id, squad.id, slot.id, event)}
                       >
                         <div>
                           <button
@@ -455,7 +628,7 @@ export default function OrbatTemplate({
                             className="slot-drag-handle"
                             draggable={!slot._pendingCreate}
                             disabled={slot._pendingCreate}
-                            onDragStart={(event) => handleSlotDragStart(template.id, section.id, slot.id, event)}
+                            onDragStart={(event) => handleSlotDragStart(template.id, squad.id, slot.id, event)}
                             onDragEnd={() => setDraggedSlot(null)}
                             aria-label="Drag slot"
                           >
@@ -518,6 +691,7 @@ export default function OrbatTemplate({
                   )}
                 </div>
               </div>
+              </React.Fragment>
             ))}
           </div>
       )}

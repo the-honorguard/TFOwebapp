@@ -120,7 +120,14 @@
       
 
       initBtn.addEventListener('click', (e) => { e.preventDefault(); postJson('/init', {}); });
-      demoBtn.addEventListener('click', (e) => { e.preventDefault(); postJson('/init/demo', {}); });
+      demoBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const demo = await postJson('/init/demo', {});
+        if (demo && demo.defaultOpSettings) {
+          localStorage.setItem('defaultOpSettings', JSON.stringify(demo.defaultOpSettings));
+          status.textContent = 'Demo data and default operation settings imported';
+        }
+      });
       resetBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (!confirm('Are you sure you want to wipe the entire database? This will delete all data and uploaded files.')) return;
@@ -140,12 +147,12 @@
             if (lr.ok) {
               const lj = await lr.json();
               if (lj && lj.token) localStorage.setItem('token', lj.token);
-              status.textContent = 'Default admin created and logged in (admin/admin)';
+              status.textContent = 'Default admin and Admin permission group created/synced; logged in (admin/admin)';
             } else {
-              status.textContent = 'Default admin created (login failed)';
+              status.textContent = 'Admin permission group synced; admin account ready (login failed)';
             }
           } catch (inner) {
-            status.textContent = 'Default admin created (login error)';
+            status.textContent = 'Admin permission group synced; admin account ready (login error)';
           }
         } catch (err) {
           status.textContent = 'Request failed: ' + (err && err.message ? err.message : String(err));

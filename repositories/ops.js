@@ -1,8 +1,15 @@
 import db from '../db.js';
 
+function normalizeOpPayload(payload = {}) {
+  return {
+    ...payload,
+    squads: payload.squads || payload.sections || []
+  };
+}
+
 export async function listOps() {
   const [rows] = await db.query('SELECT * FROM ops');
-  return rows.map((r) => ({ id: r.id, templateId: r.template_id, title: r.title, payload: r.payload }));
+  return rows.map((r) => ({ id: r.id, templateId: r.template_id, title: r.title, payload: normalizeOpPayload(r.payload) }));
 }
 
 export async function createOp({ id, templateId, title, payload }) {
@@ -16,6 +23,7 @@ export async function getOpById(id) {
   const o = rows[0];
   let payload = {};
   try { payload = typeof o.payload === 'string' ? JSON.parse(o.payload) : o.payload || {}; } catch (e) { payload = o.payload || {}; }
+  payload = normalizeOpPayload(payload);
   return { id: o.id, templateId: o.template_id, title: o.title || o.name, ownerId: o.owner_id, scheduled_at: o.scheduled_at, timezone: o.timezone, recurrence: o.recurrence, payload, status: o.status };
 }
 
@@ -48,10 +56,10 @@ async function _savePayload(id, payload) {
 export async function joinSlot(opId, slotId, userId) {
   const op = await getOpById(opId);
   if (!op) throw new Error('Op not found');
-  const sections = op.payload.sections || [];
+  const squads = op.payload.squads || [];
   let changed = false;
-  for (const section of sections) {
-    for (const slot of section.slots || []) {
+  for (const squad of squads) {
+    for (const slot of squad.slots || []) {
       if (slot.id === Number(slotId)) {
         if (slot.assignedUserId && slot.assignedUserId !== userId) throw new Error('Slot taken');
         slot.assignedUserId = userId;
@@ -62,7 +70,7 @@ export async function joinSlot(opId, slotId, userId) {
     if (changed) break;
   }
   if (!changed) throw new Error('Slot not found');
-  op.payload.sections = sections;
+  op.payload.squads = squads;
   await _savePayload(opId, op.payload);
   return getOpById(opId);
 }
@@ -70,10 +78,10 @@ export async function joinSlot(opId, slotId, userId) {
 export async function signoffSlot(opId, slotId, userId) {
   const op = await getOpById(opId);
   if (!op) throw new Error('Op not found');
-  const sections = op.payload.sections || [];
+  const squads = op.payload.squads || [];
   let changed = false;
-  for (const section of sections) {
-    for (const slot of section.slots || []) {
+  for (const squad of squads) {
+    for (const slot of squad.slots || []) {
       if (slot.id === Number(slotId)) {
         if (slot.assignedUserId !== userId) throw new Error('Not assigned');
         slot.assignedUserId = null;
@@ -84,40 +92,41 @@ export async function signoffSlot(opId, slotId, userId) {
     if (changed) break;
   }
   if (!changed) throw new Error('Slot not found');
-  op.payload.sections = sections;
+  op.payload.squads = squads;
   await _savePayload(opId, op.payload);
   return getOpById(opId);
 }
 
-export async function updateSection(opId, sectionId, patch) {
+export async function updateSquad(opId, squadId, patch) {
   const op = await getOpById(opId);
   if (!op) throw new Error('Op not found');
-  const sections = op.payload.sections || [];
-  const section = sections.find((s) => s.id === Number(sectionId));
-  if (!section) throw new Error('Section not found');
-  if ('lrChannel' in patch) section.lrChannel = patch.lrChannel;
-  if ('srChannel' in patch) section.srChannel = patch.srChannel;
-  if ('marker' in patch) section.marker = patch.marker;
-  if ('markerIconUrl' in patch) section.markerIconUrl = patch.markerIconUrl;
+  const squads = op.payload.squads || [];
+  const squad = squads.find((s) => s.id === Number(squadId));
+  if (!squad) throw new Error('Squad not found');
+  if ('lrChannel' in patch) squad.lrChannel = patch.lrChannel;
+  if ('srChannel' in patch) squad.srChannel = patch.srChannel;
+  if ('marker' in patch) squad.marker = patch.marker;
+  if ('markerIconUrl' in patch) squad.markerIconUrl = patch.markerIconUrl;
+  if ('active' in patch) squad.active = patch.active;
   await _savePayload(opId, op.payload);
   return getOpById(opId);
 }
 
-export async function addSection(opId, title) {
+export async function addSquad(opId, title) {
   const op = await getOpById(opId);
   if (!op) throw new Error('Op not found');
-  const sections = op.payload.sections || [];
-  const section = {
+  const squads = op.payload.squads || [];
+  const squad = {
     id: Date.now(),
-    title: title || `Section ${sections.length + 1}`,
+    title: title || `Squad ${squads.length + 1}`,
     lrChannel: 1,
-    srChannel: sections.length + 1,
+    srChannel: squads.length + 1,
     marker: null,
     markerIconUrl: null,
     slots: []
   };
-  sections.push(section);
-  op.payload.sections = sections;
+  squads.push(squad);
+  op.payload.squads = squads;
   await _savePayload(opId, op.payload);
   return getOpById(opId);
 }
@@ -125,10 +134,10 @@ export async function addSection(opId, title) {
 export async function updateSlot(opId, slotId, patch) {
   const op = await getOpById(opId);
   if (!op) throw new Error('Op not found');
-  const sections = op.payload.sections || [];
+  const squads = op.payload.squads || [];
   let target = null;
-  for (const section of sections) {
-    const slot = (section.slots || []).find((s) => s.id === Number(slotId));
+  for (const squad of squads) {
+    const slot = (squad.slots || []).find((s) => s.id === Number(slotId));
     if (slot) { target = slot; break; }
   }
   if (!target) throw new Error('Slot not found');

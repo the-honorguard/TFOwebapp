@@ -5,7 +5,7 @@ import React, { useState, useRef } from 'react';
  * - Editable ORBAT view for one scheduled operation (scheduler detail page).
  * - Reuses the same canvas/form rendering logic as the Template Builder.
  * - Receives a large set of handlers and helpers from `App` so the scheduler
- *   can operate on the selected operation's template sections and slots.
+ *   can operate on the selected operation's template squads and slots.
  */
 export default function OrbatScheduler({
   selectedOp,
@@ -37,29 +37,29 @@ export default function OrbatScheduler({
   uploadCustomMarker,
   getCanvasSize,
   getCanvasNode,
-  resolveSectionParentId,
+  resolveSquadParentId,
   getTemplateFlowEdges,
   nodeHeights,
   setNodeHeightRef,
   moveCanvasDrag,
   stopCanvasDrag,
   startCanvasDrag,
-  updateSectionParent,
-  sectionStats,
+  updateSquadParent,
+  squadStats,
   auth,
   joinOpSlot,
   signOffOpSlot,
   setShowLoginPanel,
   flowLinkSource,
-  addOpSection,
+  addOpSquad,
   clearTemplateFlowEdges,
   resetTemplateCanvasLayout,
   handleFlowConnectorClick,
-  updateSectionTitleLocal,
-  updateSectionMeta,
-  updateOpSectionTitleLocal,
-  updateOpSectionMeta,
-  deleteSection,
+  updateSquadTitleLocal,
+  updateSquadMeta,
+  updateOpSquadTitleLocal,
+  updateOpSquadMeta,
+  deleteSquad,
   handleSlotDragOver,
   handleSlotDrop,
   handleSlotDragStart,
@@ -70,7 +70,8 @@ export default function OrbatScheduler({
   addSlot,
   dragSnapPreview,
   autoLayoutTemplate,
-  squadTypes = []
+  squadTypes = [],
+  canAssignPlayers: canAssignPlayersPermission = false
 }) {
   const [builderFlowMode, setBuilderFlowMode] = useState(true); // exact copy of OrbatTemplate's own Flow/Form toggle, local to the scheduler
   const builderCompact = false;
@@ -81,6 +82,49 @@ export default function OrbatScheduler({
   const [localTsAddress, setLocalTsAddress] = useState(selectedOp.tsAddress || '');
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const canAssignPlayers = Boolean(canAssignPlayersPermission);
+
+  const qualifiedPlayersForSlot = (slot) => {
+    const requiredRoles = [...new Set([
+      slot.role,
+      ...(Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [])
+    ].filter(Boolean))];
+    const assignedUserIds = new Set(
+      (selectedOp.squads || []).flatMap((squad) => squad.slots || [])
+        .map((operationSlot) => operationSlot.assignedUserId)
+        .filter((userId) => userId != null)
+        .map(String)
+    );
+    return users
+      .filter((user) => !assignedUserIds.has(String(user.id)))
+      .filter((user) => requiredRoles.some((role) => user.permissions?.[role] === true))
+      .sort((a, b) => String(a.username).localeCompare(String(b.username)));
+  };
+
+  const renderAssignmentPicker = (slot) => {
+    if (!canAssignPlayers || slot.assignedUserId || slot._pendingCreate) return null;
+    const qualifiedPlayers = qualifiedPlayersForSlot(slot);
+    return (
+      <select
+        className="slot-player-assignment"
+        value=""
+        aria-label={`Assign player to ${slot.name}`}
+        onChange={(event) => {
+          const userId = Number(event.target.value);
+          if (userId) joinOpSlot(selectedOp.id, slot.id, userId);
+        }}
+      >
+        <option value="">Assign qualified player...</option>
+        {qualifiedPlayers.length === 0 ? (
+          <option value="" disabled>No qualified players</option>
+        ) : qualifiedPlayers.map((user) => (
+          <option key={user.id} value={user.id}>
+            {user.username}{user.status && user.status !== 'Active' ? ` (${user.status})` : ''}
+          </option>
+        ))}
+      </select>
+    );
+  };
 
   const handleCanvasPanStart = (event) => {
     if (event.button !== 0) return;
@@ -106,21 +150,21 @@ export default function OrbatScheduler({
   };
 
   // Pseudo-template object so the copied Template Builder code can operate on this operation's
-  // current sections. For the scheduler we treat the operation itself as the
+  // current squads. For the scheduler we treat the operation itself as the
   // template key (use `selectedOp.id`) so canvas layout and flow edges are
   // stored separately per-operation and do not affect the original template.
-  const template = { id: selectedOp.id, sections: selectedOp.sections || [] };
+  const template = { id: selectedOp.id, squads: selectedOp.squads || [] };
   const fileInputs = {};
-  const triggerFileInput = (sectionId) => {
-    const el = document.getElementById(`scheduler-marker-upload-${sectionId}`);
+  const triggerFileInput = (squadId) => {
+    const el = document.getElementById(`scheduler-marker-upload-${squadId}`);
     if (el) el.click();
   };
-  const handleFileChange = async (templateId, sectionId, e) => {
+  const handleFileChange = async (templateId, squadId, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const url = await uploadCustomMarker(file);
-      await updateOpSectionMeta(selectedOp.id, sectionId, { markerIconUrl: url });
+      await updateOpSquadMeta(selectedOp.id, squadId, { markerIconUrl: url });
     } catch (err) {
       alert(err.message || 'Upload failed');
     }
@@ -134,6 +178,10 @@ export default function OrbatScheduler({
   const builtins = Array.isArray(squadTypes) && squadTypes.length > 0
     ? squadTypes.map((s) => ({ label: s.name, value: s.name, icon: s.icon }))
     : [];
+  const orderedSquads = [
+    ...template.squads.filter((squad) => squad.active !== false),
+    ...template.squads.filter((squad) => squad.active === false)
+  ];
 
   // Precompute canvas nodes/edges when showing the ORBAT canvas to avoid IIFE in JSX.
   // Reuses the exact same flow edges (getTemplateFlowEdges) the admin drew in the Template Builder,
@@ -142,19 +190,19 @@ export default function OrbatScheduler({
   let nodes = [];
   let nodeMap = new Map();
   let links = [];
-  if (builderFlowMode && template.sections.length > 0) {
-    nodes = template.sections.map((section, index) => {
-      const node = getCanvasNode(template.id, section.id, index);
+  if (builderFlowMode && template.squads.length > 0) {
+    nodes = template.squads.map((squad, index) => {
+      const node = getCanvasNode(template.id, squad.id, index);
       return {
-        section,
+        squad,
         index,
-        nodeKey: `flow-${template.id}-${section.id}`,
+        nodeKey: `flow-${template.id}-${squad.id}`,
         x: node.x,
         y: node.y
       };
     });
-    nodeMap = new Map(nodes.map((node) => [node.section.id, node]));
-    links = getTemplateFlowEdges(template.id, template.sections)
+    nodeMap = new Map(nodes.map((node) => [node.squad.id, node]));
+    links = getTemplateFlowEdges(template.id, template.squads)
       .filter((edge) => nodeMap.has(edge.sourceId) && nodeMap.has(edge.targetId))
       .map((edge) => {
         const source = nodeMap.get(edge.sourceId);
@@ -170,8 +218,25 @@ export default function OrbatScheduler({
         };
       });
   }
-  const selectedFlowSectionId = flowLinkSource?.templateId === template.id ? flowLinkSource.sectionId : null;
-  const selectedFlowSection = template.sections.find((section) => section.id === selectedFlowSectionId);
+  const selectedFlowSquadId = flowLinkSource?.templateId === template.id ? flowLinkSource.squadId : null;
+  const selectedFlowSquad = template.squads.find((squad) => squad.id === selectedFlowSquadId);
+  const activeNodes = nodes.filter((node) => node.squad.active !== false);
+  const inactiveSeparatorY = Math.max(360, ...activeNodes.map((node) => (
+    node.y + (nodeHeights[node.nodeKey] || 124) + 60
+  )));
+  const finishCanvasDrag = () => {
+    const preview = dragSnapPreview?.templateId === template.id ? dragSnapPreview : null;
+    const draggedSquad = preview ? template.squads.find((squad) => squad.id === preview.squadId) : null;
+    const shouldBeInactive = Boolean(preview && preview.y >= inactiveSeparatorY);
+    stopCanvasDrag();
+    if (!draggedSquad) return;
+    const statusChanged = (draggedSquad.active === false) !== shouldBeInactive;
+    const nextSquads = template.squads.map((squad) => (
+      squad.id === draggedSquad.id ? { ...squad, active: !shouldBeInactive } : squad
+    ));
+    if (statusChanged) updateOpSquadMeta(selectedOp.id, draggedSquad.id, { active: !shouldBeInactive });
+    if (shouldBeInactive || statusChanged) window.setTimeout(() => autoLayoutTemplate(template.id, nextSquads), 0);
+  };
 
   return (
     <section className="card">
@@ -259,9 +324,9 @@ export default function OrbatScheduler({
               <button
                 type="button"
                 className="secondary small"
-                onClick={() => addOpSection(selectedOp.id, template.sections.length)}
+                onClick={() => addOpSquad(selectedOp.id, template.squads.length)}
               >
-                + Section
+                + Squad
               </button>
               <button type="button" className="secondary small" onClick={() => clearTemplateFlowEdges(template.id)}>
                 Clear
@@ -269,7 +334,7 @@ export default function OrbatScheduler({
               <button type="button" className="secondary small" onClick={() => resetTemplateCanvasLayout(template.id)}>
                 Reset
               </button>
-              <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id)}>
+              <button type="button" className="secondary small" onClick={() => autoLayoutTemplate(template.id, template.squads)}>
                 Auto-layout
               </button>
             </div>
@@ -285,8 +350,8 @@ export default function OrbatScheduler({
                 className="flow-canvas-content drag-canvas"
                 style={{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }}
                 onMouseMove={(event) => moveCanvasDrag(event, template)}
-                onMouseUp={stopCanvasDrag}
-                onMouseLeave={stopCanvasDrag}
+                onMouseUp={finishCanvasDrag}
+                onMouseLeave={finishCanvasDrag}
               >
               <svg className="orbat-links" width={canvasSize.width} height={canvasSize.height}>
                 <defs>
@@ -315,9 +380,13 @@ export default function OrbatScheduler({
                 ))}
               </svg>
 
+              <div className="inactive-separator" style={{ top: `${inactiveSeparatorY}px` }}>
+                <span>Inactive</span>
+              </div>
+
               {dragSnapPreview && dragSnapPreview.templateId === template.id ? (
                 (() => {
-                  const h = nodeHeights[`flow-${template.id}-${dragSnapPreview.sectionId}`] || 124;
+                  const h = nodeHeights[`flow-${template.id}-${dragSnapPreview.squadId}`] || 124;
                   return (
                     <div
                       className="flow-drag-ghost"
@@ -328,55 +397,55 @@ export default function OrbatScheduler({
               ) : null}
 
               {nodes.map((node) => {
-                const isSelected = selectedFlowSectionId === node.section.id;
+                const isSelected = selectedFlowSquadId === node.squad.id;
 
                 return (
                   <div
-                    key={node.section.id}
-                    className={`orbat-node flow-node ${isSelected ? 'selected' : ''}`}
+                    key={node.squad.id}
+                    className={`orbat-node flow-node ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
                     style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${7 * 40}px` }}
                     ref={setNodeHeightRef(node.nodeKey)}
                   >
                     <button
                       type="button"
                       className={`orbat-connector top clickable ${isSelected && flowLinkSource?.anchor === 'top' ? 'active' : ''}`}
-                      onClick={(event) => handleFlowConnectorClick(template.id, node.section.id, 'top', event)}
+                      onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'top', event)}
                       aria-label="Connect from top"
                     />
                     <button
                       type="button"
                       className={`orbat-connector bottom clickable ${isSelected && flowLinkSource?.anchor === 'bottom' ? 'active' : ''}`}
-                      onClick={(event) => handleFlowConnectorClick(template.id, node.section.id, 'bottom', event)}
+                      onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'bottom', event)}
                       aria-label="Connect from bottom"
                     />
                     <div
                       className="orbat-node-head"
-                      onMouseDown={(event) => startCanvasDrag(event, template.id, node.section.id, node.index)}
+                      onMouseDown={(event) => startCanvasDrag(event, template.id, node.squad.id, node.index)}
                     >
                       <div className="orbat-title-row">
                           <input
-                          className="section-title-input"
-                          value={node.section.title}
-                          placeholder="Section title"
+                          className="squad-title-input"
+                          value={node.squad.title}
+                          placeholder="Squad title"
                           onMouseDown={(event) => event.stopPropagation()}
-                          onChange={(event) => updateOpSectionTitleLocal(selectedOp.id, node.section.id, event.target.value)}
-                          onBlur={(event) => updateOpSectionMeta(selectedOp.id, node.section.id, { title: event.target.value })}
+                          onChange={(event) => updateOpSquadTitleLocal(selectedOp.id, node.squad.id, event.target.value)}
+                          onBlur={(event) => updateOpSquadMeta(selectedOp.id, node.squad.id, { title: event.target.value })}
                         />
                         <div style={{display:'inline-block', position:'relative'}} onMouseDown={(e) => e.stopPropagation()}>
-                          <button type="button" className="marker-dropdown-btn" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === node.section.id ? null : node.section.id)}>
+                          <button type="button" className="marker-dropdown-btn" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === node.squad.id ? null : node.squad.id)}>
                             <span className="marker-dropdown-icon">
-                              {node.section.markerIconUrl ? <img src={node.section.markerIconUrl} alt="marker" style={{width:'100%',height:'100%',objectFit:'contain',display:'block'}} /> : node.section.marker ? <span className={`marker-badge marker-${String(node.section.marker).toLowerCase().replace(/\s+/g,'-')}`} style={{fontSize:'0.6rem'}}>{node.section.marker}</span> : null}
+                              {node.squad.markerIconUrl ? <img src={node.squad.markerIconUrl} alt="marker" style={{width:'100%',height:'100%',objectFit:'contain',display:'block'}} /> : node.squad.marker ? <span className={`marker-badge marker-${String(node.squad.marker).toLowerCase().replace(/\s+/g,'-')}`} style={{fontSize:'0.6rem'}}>{node.squad.marker}</span> : null}
                             </span>
                             <span className="marker-dropdown-arrow">▾</span>
                           </button>
-                          {openMarkerDropdown === node.section.id ? (
+                          {openMarkerDropdown === node.squad.id ? (
                             <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
                               <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                                <button className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
+                                <button className="secondary small" onClick={() => { updateOpSquadMeta(selectedOp.id, node.squad.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
                                 {builtins.map((b) => {
                                   const iconSrc = b.icon ? (b.icon.startsWith('/') || b.icon.startsWith('http') ? b.icon : `/markers/${b.icon}`) : null;
                                   return (
-                                    <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
+                                    <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSquadMeta(selectedOp.id, node.squad.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
                                       {iconSrc ? <img src={iconSrc} alt={b.label} style={{width:20,height:20}} /> : <span style={{width:20,height:20,display:'inline-block'}} />}
                                       {b.label}
                                     </button>
@@ -385,7 +454,7 @@ export default function OrbatScheduler({
                                 <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                                   <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
                                   {builtins.map((b) => (
-                                    <button key={b.value + '-text'} className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, node.section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                    <button key={b.value + '-text'} className="secondary small" onClick={() => { updateOpSquadMeta(selectedOp.id, node.squad.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
                                   ))}
                                 </div>
                               </div>
@@ -394,16 +463,38 @@ export default function OrbatScheduler({
                         </div>
                         <button
                           type="button"
+                          className={`squad-switch ${node.squad.active !== false ? 'is-active' : ''}`}
+                          role="switch"
+                          aria-checked={node.squad.active !== false}
+                          aria-label={node.squad.active === false ? 'Squad activeren' : 'Squad uitschakelen'}
+                          title={node.squad.active === false ? 'Squad activeren' : 'Squad uitschakelen'}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={(event) => { event.stopPropagation(); updateOpSquadMeta(selectedOp.id, node.squad.id, { active: node.squad.active === false }); }}
+                        >
+                          <span className="squad-switch-track" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="squad-sort-button"
+                          title="Alleen deze squad automatisch positioneren"
+                          aria-label="Alleen deze squad automatisch positioneren"
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={(event) => { event.stopPropagation(); autoLayoutTemplate(template.id, template.squads, node.squad.id); }}
+                        >
+                          Auto
+                        </button>
+                        <button
+                          type="button"
                           className="danger-x-button"
-                          onClick={(e) => { e.stopPropagation(); deleteSection(template.id, node.section.id); }}
-                          aria-label="Delete section"
+                          onClick={(e) => { e.stopPropagation(); deleteSquad(template.id, node.squad.id); }}
+                          aria-label="Delete squad"
                         >
                           ✕
                         </button>
                       </div>
                       <div className="flow-meta-row" onMouseDown={(e) => e.stopPropagation()}>
-                        <span className="section-count">
-                          {sectionStats(node.section).occupied}/{sectionStats(node.section).total} filled
+                        <span className="squad-count">
+                          {squadStats(node.squad).occupied}/{squadStats(node.squad).total} filled
                         </span>
                         <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
                           LR
@@ -412,8 +503,8 @@ export default function OrbatScheduler({
                             min="0"
                             max="99"
                             className="lr-sr-input"
-                            value={node.section.lrChannel ?? 1}
-                            onChange={(e) => updateOpSectionMeta(selectedOp.id, node.section.id, { lrChannel: Number(e.target.value) })}
+                            value={node.squad.lrChannel ?? 1}
+                            onChange={(e) => updateOpSquadMeta(selectedOp.id, node.squad.id, { lrChannel: Number(e.target.value) })}
                           />
                         </label>
                         <label style={{display:'flex',alignItems:'center',gap:'0.35rem',fontSize:'0.85rem'}}>
@@ -423,36 +514,36 @@ export default function OrbatScheduler({
                             min="0"
                             max="99"
                             className="lr-sr-input"
-                            value={node.section.srChannel ?? 1}
-                            onChange={(e) => updateOpSectionMeta(selectedOp.id, node.section.id, { srChannel: Number(e.target.value) })}
+                            value={node.squad.srChannel ?? 1}
+                            onChange={(e) => updateOpSquadMeta(selectedOp.id, node.squad.id, { srChannel: Number(e.target.value) })}
                           />
                         </label>
                         {canUpload ? (
                           <>
-                            <input id={`scheduler-marker-upload-${node.section.id}`} style={{display:'none'}} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={(e) => handleFileChange(template.id, node.section.id, e)} />
-                            <button type="button" className="secondary small" onClick={() => triggerFileInput(node.section.id)}>Upload</button>
+                            <input id={`scheduler-marker-upload-${node.squad.id}`} style={{display:'none'}} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={(e) => handleFileChange(template.id, node.squad.id, e)} />
+                            <button type="button" className="secondary small" onClick={() => triggerFileInput(node.squad.id)}>Upload</button>
                           </>
                         ) : null}
                       </div>
                     </div>
                     <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
                       <div className="flow-slot-list">
-                        {node.section.slots.length === 0 ? (
+                        {node.squad.slots.length === 0 ? (
                           <p className="panel-empty">No slots yet.</p>
                         ) : (
-                          node.section.slots.map((slot) => (
+                          node.squad.slots.map((slot) => (
                             <div
                               key={slot.id}
                               className="flow-slot-row"
-                              onDragOver={(event) => handleSlotDragOver(template.id, node.section.id, event)}
-                              onDrop={(event) => handleSlotDrop(template.id, node.section.id, slot.id, event)}
+                              onDragOver={(event) => handleSlotDragOver(template.id, node.squad.id, event)}
+                              onDrop={(event) => handleSlotDrop(template.id, node.squad.id, slot.id, event)}
                             >
                               <button
                                 type="button"
                                 className="slot-drag-handle"
                                 draggable={!slot._pendingCreate}
                                 disabled={slot._pendingCreate}
-                                onDragStart={(event) => handleSlotDragStart(template.id, node.section.id, slot.id, event)}
+                                onDragStart={(event) => handleSlotDragStart(template.id, node.squad.id, slot.id, event)}
                                 onDragEnd={() => setDraggedSlot(null)}
                                 aria-label="Drag slot"
                               >
@@ -475,6 +566,7 @@ export default function OrbatScheduler({
                                         {assignedUser ? 'occupied' : 'free'}
                                       </span>
                                       {assignedUser ? <span className="orbat-slot-text" style={{maxWidth:'100%'}}>{assignedUser.username}</span> : null}
+                                      {renderAssignmentPicker(slot)}
                                     </span>
                                   );
                                 })()}
@@ -514,7 +606,7 @@ export default function OrbatScheduler({
                       <button
                         type="button"
                         className="secondary small"
-                        onClick={() => addSlot(template.id, node.section.id)}
+                        onClick={() => addSlot(template.id, node.squad.id)}
                       >
                         + Slot
                       </button>
@@ -525,32 +617,55 @@ export default function OrbatScheduler({
               </div>
             </div>
           </div>
-          {selectedFlowSection ? (
+          {selectedFlowSquad ? (
             <p className="flow-help">
-              Link source: <strong>{selectedFlowSection.title}</strong>. Now click a connector on a second section..
+              Link source: <strong>{selectedFlowSquad.title}</strong>. Now click a connector on a second squad..
             </p>
           ) : (
-            <p className="flow-help">Click a top/bottom connector, then click a connector on a second section.</p>
+            <p className="flow-help">Click a top/bottom connector, then click a connector on a second squad.</p>
           )}
         </div>
-      ) : template.sections.length === 0 ? (
-        <div className="empty-state">This template has no sections yet. Add a section to start.</div>
+      ) : template.squads.length === 0 ? (
+        <div className="empty-state">This template has no squads yet. Add a squad to start.</div>
       ) : (
           <div className={builderCompact ? 'builder-grid compact' : 'builder-grid'}>
-            {template.sections.map((section, index) => (
-              <div key={section.id} className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''}`}>
+            {orderedSquads.map((squad, index) => (
+              <React.Fragment key={squad.id}>
+              {squad.active === false && orderedSquads[index - 1]?.active !== false ? (
+                <div className="inactive-separator form-separator"><span>Inactive</span></div>
+              ) : null}
+              <div className={`builder-panel panel-${index % 5} ${builderCompact ? 'compact' : ''} ${squad.active === false ? 'squad-inactive' : ''}`}>
                 <div className="panel-title">
                   <div className="panel-title-text">
                     <input
-                      className="section-title-input"
-                      value={section.title}
-                      placeholder="Section title"
-                      onChange={(e) => updateOpSectionTitleLocal(selectedOp.id, section.id, e.target.value)}
-                      onBlur={(e) => updateOpSectionMeta(selectedOp.id, section.id, { title: e.target.value })}
+                      className="squad-title-input"
+                      value={squad.title}
+                      placeholder="Squad title"
+                      onChange={(e) => updateOpSquadTitleLocal(selectedOp.id, squad.id, e.target.value)}
+                      onBlur={(e) => updateOpSquadMeta(selectedOp.id, squad.id, { title: e.target.value })}
                     />
                     <div className="slot-meta-row">
-                      <span className="section-count">
-                        {sectionStats(section).occupied}/{sectionStats(section).total} filled
+                      <button
+                        type="button"
+                        className={`squad-switch ${squad.active !== false ? 'is-active' : ''}`}
+                        role="switch"
+                        aria-checked={squad.active !== false}
+                        aria-label={squad.active === false ? 'Squad activeren' : 'Squad uitschakelen'}
+                        title={squad.active === false ? 'Squad activeren' : 'Squad uitschakelen'}
+                        onClick={() => updateOpSquadMeta(selectedOp.id, squad.id, { active: squad.active === false })}
+                      >
+                        <span className="squad-switch-track" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="squad-sort-button"
+                        title="Alleen deze squad automatisch positioneren"
+                        onClick={() => autoLayoutTemplate(template.id, template.squads, squad.id)}
+                      >
+                        Auto
+                      </button>
+                      <span className="squad-count">
+                        {squadStats(squad).occupied}/{squadStats(squad).total} filled
                       </span>
                       <label className="slot-meta">
                         LR
@@ -559,8 +674,8 @@ export default function OrbatScheduler({
                           min="0"
                           max="99"
                           className="lr-sr-input"
-                          value={section.lrChannel ?? 1}
-                          onChange={(e) => updateOpSectionMeta(selectedOp.id, section.id, { lrChannel: Number(e.target.value) })}
+                          value={squad.lrChannel ?? 1}
+                          onChange={(e) => updateOpSquadMeta(selectedOp.id, squad.id, { lrChannel: Number(e.target.value) })}
                         />
                       </label>
                       <label className="slot-meta">
@@ -570,25 +685,25 @@ export default function OrbatScheduler({
                           min="0"
                           max="99"
                           className="lr-sr-input"
-                          value={section.srChannel ?? 1}
-                          onChange={(e) => updateOpSectionMeta(selectedOp.id, section.id, { srChannel: Number(e.target.value) })}
+                          value={squad.srChannel ?? 1}
+                          onChange={(e) => updateOpSquadMeta(selectedOp.id, squad.id, { srChannel: Number(e.target.value) })}
                         />
                       </label>
                         <label className="slot-meta">
                           Marker
                           <div style={{position:'relative',display:'inline-block'}} onMouseDown={(e) => e.stopPropagation()}>
-                            <button type="button" className="secondary small" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === section.id ? null : section.id)}>
-                              {section.markerIconUrl ? <img src={section.markerIconUrl} alt="marker" className="marker-icon" /> : section.marker ? <span className={`marker-badge marker-${String(section.marker).toLowerCase().replace(/\s+/g,'-')}`}>{section.marker}</span> : 'None'}
+                            <button type="button" className="secondary small" onClick={() => setOpenMarkerDropdown(openMarkerDropdown === squad.id ? null : squad.id)}>
+                              {squad.markerIconUrl ? <img src={squad.markerIconUrl} alt="marker" className="marker-icon" /> : squad.marker ? <span className={`marker-badge marker-${String(squad.marker).toLowerCase().replace(/\s+/g,'-')}`}>{squad.marker}</span> : 'None'}
                               <span style={{marginLeft:8}}>▾</span>
                             </button>
-                            {openMarkerDropdown === section.id ? (
+                            {openMarkerDropdown === squad.id ? (
                               <div style={{position:'absolute',right:0,marginTop:6,zIndex:60,background:'var(--panel)',border:'1px solid var(--border)',borderRadius:8,padding:8,minWidth:180}}>
                                 <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                                  <button className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
+                                  <button className="secondary small" onClick={() => { updateOpSquadMeta(selectedOp.id, squad.id, { marker: null, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>None</button>
                                   {builtins.map((b) => {
                                     const iconSrc = b.icon ? (b.icon.startsWith('/') || b.icon.startsWith('http') ? b.icon : `/markers/${b.icon}`) : null;
                                     return (
-                                      <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
+                                      <button key={b.label} type="button" className="secondary small" style={{display:'flex',alignItems:'center',gap:8}} onClick={() => { updateOpSquadMeta(selectedOp.id, squad.id, { markerIconUrl: iconSrc, marker: null }); setOpenMarkerDropdown(null); }}>
                                         {iconSrc ? <img src={iconSrc} alt={b.label} style={{width:20,height:20}} /> : <span style={{width:20,height:20,display:'inline-block'}} />}
                                         {b.label}
                                       </button>
@@ -597,7 +712,7 @@ export default function OrbatScheduler({
                                   <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                                     <div style={{fontSize:12,opacity:0.8,marginBottom:6}}>Or choose type</div>
                                     {builtins.map((b) => (
-                                      <button key={b.value + '-text'} className="secondary small" onClick={() => { updateOpSectionMeta(selectedOp.id, section.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
+                                      <button key={b.value + '-text'} className="secondary small" onClick={() => { updateOpSquadMeta(selectedOp.id, squad.id, { marker: b.value, markerIconUrl: null }); setOpenMarkerDropdown(null); }}>{b.label}</button>
                                     ))}
                                   </div>
                                 </div>
@@ -606,30 +721,30 @@ export default function OrbatScheduler({
                           </div>
                           {canUpload ? (
                             <>
-                              <input id={`scheduler-marker-upload-panel-${section.id}`} style={{display:'none'}} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={(e) => handleFileChange(template.id, section.id, e)} />
-                              <button type="button" className="secondary small" onClick={() => document.getElementById(`scheduler-marker-upload-panel-${section.id}`)?.click()}>Upload</button>
+                              <input id={`scheduler-marker-upload-panel-${squad.id}`} style={{display:'none'}} type="file" accept=".svg,.png,.jpg,.jpeg" onChange={(e) => handleFileChange(template.id, squad.id, e)} />
+                              <button type="button" className="secondary small" onClick={() => document.getElementById(`scheduler-marker-upload-panel-${squad.id}`)?.click()}>Upload</button>
                             </>
                           ) : null}
-                          {section.markerIconUrl ? <img src={section.markerIconUrl} alt="marker" className="marker-icon" /> : null}
+                          {squad.markerIconUrl ? <img src={squad.markerIconUrl} alt="marker" className="marker-icon" /> : null}
                         </label>
                     </div>
                   </div>
                   <div className="slot-actions">
-                    <button onClick={() => addSlot(template.id, section.id)} className="secondary small">
+                    <button onClick={() => addSlot(template.id, squad.id)} className="secondary small">
                       Add slot
                     </button>
                   </div>
                 </div>
                 <div className="panel-content">
-                  {section.slots.length === 0 ? (
-                    <p className="panel-empty">No slots in this section.</p>
+                  {squad.slots.length === 0 ? (
+                    <p className="panel-empty">No slots in this squad.</p>
                   ) : (
-                    section.slots.map((slot) => (
+                    squad.slots.map((slot) => (
                       <div
                         key={slot.id}
                         className={`slot-card builder-slot ${builderCompact ? 'compact' : ''}`}
-                        onDragOver={(event) => handleSlotDragOver(template.id, section.id, event)}
-                        onDrop={(event) => handleSlotDrop(template.id, section.id, slot.id, event)}
+                        onDragOver={(event) => handleSlotDragOver(template.id, squad.id, event)}
+                        onDrop={(event) => handleSlotDrop(template.id, squad.id, slot.id, event)}
                       >
                         <div>
                           <button
@@ -637,7 +752,7 @@ export default function OrbatScheduler({
                             className="slot-drag-handle"
                             draggable={!slot._pendingCreate}
                             disabled={slot._pendingCreate}
-                            onDragStart={(event) => handleSlotDragStart(template.id, section.id, slot.id, event)}
+                            onDragStart={(event) => handleSlotDragStart(template.id, squad.id, slot.id, event)}
                             onDragEnd={() => setDraggedSlot(null)}
                             aria-label="Drag slot"
                           >
@@ -693,6 +808,7 @@ export default function OrbatScheduler({
                             })()}
                           </span>
                           <div className="slot-actions">
+                            {renderAssignmentPicker(slot)}
                             <button
                               type="button"
                               className="danger-x-button"
@@ -709,6 +825,7 @@ export default function OrbatScheduler({
                   )}
                 </div>
               </div>
+              </React.Fragment>
             ))}
           </div>
       )}

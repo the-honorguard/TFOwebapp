@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import Ranks from './Ranks';
 import Roles from './settings/Roles';
+import Permissions from './settings/Permissions';
 import TerminalModal from './TerminalModal';
 
 const SECTION_LABELS = {
@@ -45,7 +46,11 @@ export default function Settings({
   setRanks = null,
   uploadFile = null,
   users = [],
-  setUsers = null
+  setUsers = null,
+  can = () => false,
+  permissionGroups = [],
+  permissionDefinitions = [],
+  onPermissionGroupsChanged = null
 }) {
   const [subpage, setSubpage] = useState(() => initialSubpage || 'general');
 
@@ -169,9 +174,10 @@ export default function Settings({
     <div>
       <div className="settings-subnav" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
         <button className={subpage === 'general' ? 'tab active' : 'tab'} onClick={() => setSubpage('general')}>General</button>
-        <button className={subpage === 'ranks' ? 'tab active' : 'tab'} onClick={() => setSubpage('ranks')}>Ranks</button>
-        <button className={subpage === 'squadtypes' ? 'tab active' : 'tab'} onClick={() => setSubpage('squadtypes')}>Squad types</button>
-        <button className={subpage === 'roles' ? 'tab active' : 'tab'} onClick={() => setSubpage('roles')}>Roles</button>
+        {can('edit_ranks') ? <button className={subpage === 'ranks' ? 'tab active' : 'tab'} onClick={() => setSubpage('ranks')}>Ranks</button> : null}
+        {can('edit_squad_types') ? <button className={subpage === 'squadtypes' ? 'tab active' : 'tab'} onClick={() => setSubpage('squadtypes')}>Squad types</button> : null}
+        {can('edit_roles') ? <button className={subpage === 'roles' ? 'tab active' : 'tab'} onClick={() => setSubpage('roles')}>Roles</button> : null}
+        {can('manage_permissions') ? <button className={subpage === 'permissions' ? 'tab active' : 'tab'} onClick={() => setSubpage('permissions')}>Permissions</button> : null}
       </div>
 
       {subpage === 'general' && (
@@ -179,6 +185,7 @@ export default function Settings({
           <h3>Default values for new operations</h3>
 
           <form onSubmit={save}>
+            <fieldset disabled={!can('edit_settings')} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className="form-row">
           <label>Template</label>
           <select
@@ -245,6 +252,7 @@ export default function Settings({
         <div className="form-row">
           <button type="submit">Save</button>
         </div>
+            </fieldset>
       </form>
 
       
@@ -363,6 +371,14 @@ export default function Settings({
           <Roles allRoles={allRoles} templates={templates} customRoles={customRoles} addRole={addRole} deleteRole={deleteRole} renameRole={renameRole} goBack={goToDashboard} />
         </section>
       )}
+
+      {subpage === 'permissions' && can('manage_permissions') ? (
+        <Permissions
+          groups={permissionGroups}
+          definitions={permissionDefinitions}
+          onGroupsChanged={onPermissionGroupsChanged}
+        />
+      ) : null}
     </div>
   );
 }

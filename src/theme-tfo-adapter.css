@@ -145,7 +145,7 @@ body {
    Card / panel backgrounds
    ---------------------------------------------------------------- */
 .card,
-.section-card,
+.squad-card,
 .slot-card,
 .builder-panel,
 .orbat-node,
@@ -157,7 +157,7 @@ body {
     border-color: var(--panel-border);
 }
 
-.section-card,
+.squad-card,
 .builder-panel {
     background: var(--card-bg-alt);
 }
@@ -201,7 +201,7 @@ label.radio-row {
     padding: 0.4rem 0;
 }
 
-/* Settings page: add breathing room around form rows/sections */
+/* Settings page: add breathing room around form rows/squads */
 .settings-card,
 .settings-section,
 .settings-field,
@@ -245,6 +245,15 @@ button:hover:not(:disabled) * {
     color: #ffffff !important;
 }
 
+/* The switch track provides its own background; keep the button around it invisible. */
+button.squad-switch,
+button.squad-switch:hover:not(:disabled),
+button.squad-switch:active {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none;
+}
+
 /* Secondary / outline buttons (Login, Cancel, theme toggle, ...) */
 button.secondary,
 .theme-toggle {
@@ -271,7 +280,7 @@ button:disabled {
     cursor: not-allowed;
 }
 
-/* Destructive action button (delete slot/section/etc.) */
+/* Destructive action button (delete slot/squad/etc.) */
 .danger-x-button {
     border-radius: 5px;
     background: transparent !important;
@@ -408,7 +417,7 @@ button:disabled {
 a { color: var(--accent); }
 
 .form-section-title,
-.section-count {
+.squad-count {
     color: var(--accent);
 }
 

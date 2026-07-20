@@ -135,7 +135,7 @@ export default function Ranks({ ranks: initialRanks = [], reloadRanks, setRanks,
         </div>
       </div>
 
-      <section className="card role-add-section">
+      <section className="card role-add-squad">
         <h4>New rank</h4>
         <form className="role-add-form" onSubmit={createRank}>
           <input placeholder="Display name" value={newName} onChange={(e) => setNewName(e.target.value)} />
