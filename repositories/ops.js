@@ -3,7 +3,8 @@ import db from '../db.js';
 function normalizeOpPayload(payload = {}) {
   return {
     ...payload,
-    squads: payload.squads || payload.sections || []
+    squads: payload.squads || payload.sections || [],
+    absentUserIds: Array.isArray(payload.absentUserIds) ? payload.absentUserIds : []
   };
 }
 
@@ -71,6 +72,26 @@ export async function joinSlot(opId, slotId, userId) {
   }
   if (!changed) throw new Error('Slot not found');
   op.payload.squads = squads;
+  op.payload.absentUserIds = (op.payload.absentUserIds || []).filter((id) => String(id) !== String(userId));
+  await _savePayload(opId, op.payload);
+  return getOpById(opId);
+}
+
+export async function setPlayerAbsent(opId, userId, absent) {
+  const op = await getOpById(opId);
+  if (!op) throw new Error('Op not found');
+  const absentUserIds = new Set((op.payload.absentUserIds || []).map(String));
+  if (absent) {
+    absentUserIds.add(String(userId));
+    for (const squad of op.payload.squads || []) {
+      for (const slot of squad.slots || []) {
+        if (String(slot.assignedUserId) === String(userId)) slot.assignedUserId = null;
+      }
+    }
+  } else {
+    absentUserIds.delete(String(userId));
+  }
+  op.payload.absentUserIds = [...absentUserIds].map(Number);
   await _savePayload(opId, op.payload);
   return getOpById(opId);
 }

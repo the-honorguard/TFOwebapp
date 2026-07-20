@@ -762,6 +762,7 @@ async function generateRecurringOps(data) {
         time: nextDate.toISOString().slice(11, 16),
         createdAt: new Date().toISOString(),
         recurrenceId: recurrence.id,
+        absentUserIds: [...(recurrence.absentUserIds || recurrence.rule?.absentUserIds || [])],
         squads: recurrence.squads.map((squad) => ({
           id: squad.id,
           title: squad.title,
@@ -1489,6 +1490,21 @@ app.post('/api/ops/:id/signoff', authMiddleware, async (req, res) => {
   }
 });
 
+app.put('/api/ops/:id/absence', authMiddleware, async (req, res) => {
+  try {
+    if (typeof req.body.absent !== 'boolean') return res.status(400).json({ error: 'absent must be a boolean' });
+    const opsRepo = await import('./repositories/ops.js');
+    const existing = await opsRepo.getOpById(Number(req.params.id));
+    if (!existing) return res.status(404).json({ error: 'Operation not found' });
+    await opsRepo.setPlayerAbsent(Number(req.params.id), req.user.id, req.body.absent);
+    const dataAfter = await getData();
+    res.json({ op: findOp(dataAfter, Number(req.params.id)) });
+  } catch (err) {
+    console.error('Operation absence error', err);
+    res.status(500).json({ error: err.message || 'Could not update absence' });
+  }
+});
+
 app.put('/api/ops/:opId/squads/:squadId', authMiddleware, requireCapability('edit_operations'), async (req, res) => {
   try {
     const opsRepo = await import('./repositories/ops.js');
@@ -1865,6 +1881,27 @@ app.put('/api/recurrences/:id', authMiddleware, requireCapability('edit_operatio
 
   await persistData(data);
   res.json({ recurrence });
+});
+
+app.put('/api/recurrences/:id/absence', authMiddleware, async (req, res) => {
+  try {
+    if (typeof req.body.absent !== 'boolean') return res.status(400).json({ error: 'absent must be a boolean' });
+    const [rows] = await pool.query('SELECT id, op_id, rule, next_run FROM recurrences WHERE id = ?', [Number(req.params.id)]);
+    if (!rows[0]) return res.status(404).json({ error: 'Recurrence not found' });
+    let rule = rows[0].rule || {};
+    if (typeof rule === 'string') {
+      try { rule = JSON.parse(rule); } catch (error) { rule = {}; }
+    }
+    const absentUserIds = new Set((rule.absentUserIds || []).map(String));
+    if (req.body.absent) absentUserIds.add(String(req.user.id));
+    else absentUserIds.delete(String(req.user.id));
+    rule.absentUserIds = [...absentUserIds].map(Number);
+    await pool.query('UPDATE recurrences SET rule = ? WHERE id = ?', [JSON.stringify(rule), Number(req.params.id)]);
+    res.json({ recurrence: { id: rows[0].id, opId: rows[0].op_id, rule, nextRun: rows[0].next_run } });
+  } catch (err) {
+    console.error('Recurring operation absence error', err);
+    res.status(500).json({ error: err.message || 'Could not update recurring absence' });
+  }
 });
 
 

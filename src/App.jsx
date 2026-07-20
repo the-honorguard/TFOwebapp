@@ -51,6 +51,7 @@ function App() {
     const op = { ...raw };
     // some endpoints return op.payload.squads (DB repo), others return op.squads
     op.squads = op.squads || op.sections || (op.payload && (op.payload.squads || op.payload.sections)) || [];
+    op.absentUserIds = op.absentUserIds || op.payload?.absentUserIds || [];
     // unify template id key
     op.templateId = op.templateId ?? op.template_id ?? null;
     return op;
@@ -2165,6 +2166,67 @@ function App() {
     }
   };
 
+  const toggleOpAbsence = async (opId) => {
+    if (!auth) return;
+    const previousOps = ops;
+    const operation = ops.find((op) => op.id === opId);
+    const currentlyAbsent = (operation?.absentUserIds || []).some((id) => String(id) === String(auth.id));
+    setOps((current) => current.map((op) => op.id === opId ? {
+      ...op,
+      absentUserIds: currentlyAbsent
+        ? (op.absentUserIds || []).filter((id) => String(id) !== String(auth.id))
+        : [...(op.absentUserIds || []), auth.id],
+      squads: currentlyAbsent ? op.squads : (op.squads || []).map((squad) => ({
+        ...squad,
+        slots: (squad.slots || []).map((slot) => String(slot.assignedUserId) === String(auth.id) ? { ...slot, assignedUserId: null } : slot)
+      }))
+    } : op));
+    try {
+      const res = await fetch(`${API}/ops/${opId}/absence`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ absent: !currentlyAbsent })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.op) throw new Error(data.error || 'Could not update absence');
+      const updated = normalizeOp(data.op);
+      setOps((current) => current.map((op) => op.id === updated.id ? updated : op));
+    } catch (error) {
+      setOps(previousOps);
+      alert(error.message || 'Could not update absence');
+    }
+  };
+
+  const toggleRecurrenceAbsence = async (recurrenceId) => {
+    if (!auth) return;
+    const previousRecurrences = recurrences;
+    const recurrence = recurrences.find((item) => item.id === recurrenceId);
+    const absentIds = recurrence?.absentUserIds || recurrence?.rule?.absentUserIds || [];
+    const currentlyAbsent = absentIds.some((id) => String(id) === String(auth.id));
+    setRecurrences((current) => current.map((item) => item.id === recurrenceId ? {
+      ...item,
+      rule: {
+        ...(item.rule || {}),
+        absentUserIds: currentlyAbsent
+          ? absentIds.filter((id) => String(id) !== String(auth.id))
+          : [...absentIds, auth.id]
+      }
+    } : item));
+    try {
+      const res = await fetch(`${API}/recurrences/${recurrenceId}/absence`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ absent: !currentlyAbsent })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.recurrence) throw new Error(data.error || 'Could not update recurring absence');
+      setRecurrences((current) => current.map((item) => item.id === recurrenceId ? { ...item, ...data.recurrence } : item));
+    } catch (error) {
+      setRecurrences(previousRecurrences);
+      alert(error.message || 'Could not update recurring absence');
+    }
+  };
+
   const loadNotifications = async ({ quiet = false } = {}) => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -3434,6 +3496,13 @@ function App() {
                         <span>{op.name}</span>
                         <span className="overview-operation-date">{op.date}</span>
                       </button>
+                      {auth ? <button
+                        type="button"
+                        className={(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'small btn-danger' : 'small secondary'}
+                        onClick={() => toggleOpAbsence(op.id)}
+                      >
+                        {(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'Afmelding intrekken' : 'Afmelden'}
+                      </button> : null}
                     </div>
                   ))
                 )}
@@ -3575,20 +3644,34 @@ function App() {
                       return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
                     })
                     .map((item) => (
-                      <button
+                      <div
                         key={item.type + item.id}
                         className="op-list-row"
-                        onClick={() => item.type === 'op'
+                      >
+                        <button className="op-list-open" onClick={() => item.type === 'op'
                           ? showOpInScheduler(item.id, null)
                           : showOpInScheduler(item.id, item.recurrenceId)
-                        }
-                      >
+                        }>
                         <div className="op-list-row-top">
                           <div className="op-list-name">{item.name}</div>
                           {item.type === 'recurrence' && <span className="op-list-badge">Recurring</span>}
                         </div>
                         <div className="op-list-meta">{item.date} &middot; {item.time} &middot; {getTemplateName(item.templateId)}</div>
-                      </button>
+                        </button>
+                        {auth ? <button
+                          type="button"
+                          className={(item.type === 'op'
+                            ? (ops.find((op) => op.id === item.id)?.absentUserIds || [])
+                            : (recurrences.find((rec) => rec.id === item.id)?.rule?.absentUserIds || [])
+                          ).some((id) => String(id) === String(auth.id)) ? 'small btn-danger' : 'small secondary'}
+                          onClick={() => item.type === 'op' ? toggleOpAbsence(item.id) : toggleRecurrenceAbsence(item.id)}
+                        >
+                          {(item.type === 'op'
+                            ? (ops.find((op) => op.id === item.id)?.absentUserIds || [])
+                            : (recurrences.find((rec) => rec.id === item.id)?.rule?.absentUserIds || [])
+                          ).some((id) => String(id) === String(auth.id)) ? 'Afmelding intrekken' : 'Afmelden'}
+                        </button> : null}
+                      </div>
                     ))
                 )}
               </div>

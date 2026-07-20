@@ -7,6 +7,7 @@
 - [x] Rank page — wired into the Settings → Ranks subpage with CRUD, ordering and icon uploads
 - [ ] Add upload button to modlist boxes
 - [ ] Work on how to display the squad type
+- [ ] Extend LoA so players must enter an absence period with a start and end date
 - [x] Define and ship a default set of built-in markers — eight SVG markers are shipped in `public/markers` and seeded as squad types
 
 ---
