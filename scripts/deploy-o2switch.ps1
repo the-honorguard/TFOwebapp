@@ -9,6 +9,7 @@ param(
     [string]$NodeActivatePath = '/home/hazo1679/nodevenv/tfo.hazo1679.odns.fr/20/bin/activate',
 
     [string]$IdentityFile,
+    [string]$EnvFile,
     [switch]$SkipTests
 )
 
@@ -33,13 +34,31 @@ Assert-SafeRemoteValue 'ApplicationPath' $ApplicationPath
 Assert-SafeRemoteValue 'NodeActivatePath' $NodeActivatePath
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+$LocalEnvFile = if ([string]::IsNullOrWhiteSpace($EnvFile)) {
+    Join-Path $ProjectRoot '.env'
+} else {
+    (Resolve-Path -LiteralPath $EnvFile).Path
+}
+if (-not (Test-Path -LiteralPath $LocalEnvFile -PathType Leaf)) {
+    throw "Environment file not found: $LocalEnvFile"
+}
+
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $ArchiveName = "tfo-release-$Timestamp.tar.gz"
 $LocalArchive = Join-Path ([System.IO.Path]::GetTempPath()) $ArchiveName
+$EnvUploadName = "tfo-env-$Timestamp"
+$LocalEnvUpload = Join-Path ([System.IO.Path]::GetTempPath()) $EnvUploadName
 $RemoteArchive = "/home/$CpanelUser/$ArchiveName"
+$RemoteEnvUpload = "/home/$CpanelUser/$EnvUploadName"
 $Remote = "$CpanelUser@$HostName"
 
 $SshArguments = @()
+if (-not $IdentityFile) {
+    $defaultIdentity = Join-Path $env:USERPROFILE '.ssh\id_ed25519'
+    if (Test-Path -LiteralPath $defaultIdentity -PathType Leaf) {
+        $IdentityFile = $defaultIdentity
+    }
+}
 if ($IdentityFile) {
     $resolvedIdentity = (Resolve-Path -LiteralPath $IdentityFile).Path
     $SshArguments += @('-i', $resolvedIdentity)
@@ -72,25 +91,33 @@ try {
         .
     Assert-LastExitCode 'Release packaging'
 
-    Write-Host "Uploading release to $HostName..."
-    & scp @SshArguments $LocalArchive "${Remote}:$RemoteArchive"
-    Assert-LastExitCode 'Release upload'
+    Copy-Item -LiteralPath $LocalEnvFile -Destination $LocalEnvUpload -Force
+    Write-Host "Uploading release and environment configuration to $HostName..."
+    & scp @SshArguments $LocalArchive $LocalEnvUpload "${Remote}:/home/$CpanelUser/"
+    Assert-LastExitCode 'Release and environment upload'
 
     $RemoteScript = @"
-set -e
+set -Eeo pipefail
 APP_PATH='$ApplicationPath'
 RELEASE='$RemoteArchive'
+ENV_SOURCE='$RemoteEnvUpload'
+cleanup() { rm -f "`$RELEASE" "`$ENV_SOURCE"; }
+trap cleanup EXIT
 mkdir -p "`$APP_PATH" "`$APP_PATH/uploads" "`$APP_PATH/logs" "`$APP_PATH/tmp"
+mv -f "`$ENV_SOURCE" "`$APP_PATH/.env"
+chmod 600 "`$APP_PATH/.env"
 tar -xzf "`$RELEASE" -C "`$APP_PATH"
 cd "`$APP_PATH"
 . '$NodeActivatePath'
 npm install --omit=dev
 touch tmp/restart.txt
-rm -f "`$RELEASE"
 echo 'Deployment completed successfully.'
 "@
+    # PowerShell here-strings use CRLF on Windows. Normalize them before sending
+    # the script to Bash, where a trailing CR would become part of each argument.
+    $RemoteScript = $RemoteScript.Replace("`r`n", "`n").Replace("`r", "`n")
     $EncodedScript = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($RemoteScript))
-    $RemoteCommand = "echo '$EncodedScript' | base64 -d | bash"
+    $RemoteCommand = "echo '$EncodedScript' | base64 -d | bash -se"
 
     Write-Host 'Installing production dependencies and restarting Passenger...'
     & ssh @SshArguments $Remote $RemoteCommand
@@ -102,5 +129,8 @@ finally {
     Pop-Location
     if (Test-Path -LiteralPath $LocalArchive) {
         Remove-Item -LiteralPath $LocalArchive -Force
+    }
+    if (Test-Path -LiteralPath $LocalEnvUpload) {
+        Remove-Item -LiteralPath $LocalEnvUpload -Force
     }
 }

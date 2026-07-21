@@ -126,7 +126,7 @@
       async function verifySavedRecoveryLogin() {
         if (!recoveryAuthorization) return;
         try {
-          const response = await recoveryFetch(apiUrl('/api/init-auth'));
+          const response = await recoveryFetch(apiUrl('/api/setup-auth'));
           const result = await response.json().catch(() => null);
           if (!response.ok || result?.ok !== true) throw new Error();
           showInitPage();
@@ -143,7 +143,7 @@
         const password = document.getElementById('recoveryPassword').value;
         recoveryAuthorization = 'Basic ' + btoa(unescape(encodeURIComponent(username + ':' + password)));
         try {
-          const response = await recoveryFetch(apiUrl('/api/init-auth'));
+          const response = await recoveryFetch(apiUrl('/api/setup-auth'));
           const result = await response.json().catch(() => null);
           if (!response.ok || result?.ok !== true) throw new Error('Recovery-server niet actief of onjuiste inloggegevens');
           sessionStorage.setItem('tfoRecoveryAuthorization', recoveryAuthorization);

@@ -1,4 +1,4 @@
-import { getOrbatNodeHeight, ORBAT_NODE_WIDTH, ORBAT_VISIBLE_SLOT_LIMIT } from './orbatLayout';
+import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
 /**
  * Read-only ORBAT view used on the public/overview page for upcoming operations.
@@ -204,7 +204,7 @@ export default function OrbatOverview({
                     ) : null}
 
                     <div className="orbat-slot-list">
-                      {node.squad.slots.slice(0, ORBAT_VISIBLE_SLOT_LIMIT).map((slot) => {
+                      {node.squad.slots.map((slot) => {
                         const assignedUser = users.find((user) => user.id === slot.assignedUserId);
                         const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
                         const canJoin = !assignedUser && canUserJoinSlot(slot);
@@ -236,9 +236,6 @@ export default function OrbatOverview({
                           </div>
                         );
                       })}
-                      {node.squad.slots.length > ORBAT_VISIBLE_SLOT_LIMIT ? (
-                        <div className="orbat-slot-more">+{node.squad.slots.length - ORBAT_VISIBLE_SLOT_LIMIT} more slots</div>
-                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -250,8 +247,13 @@ export default function OrbatOverview({
         <div className="builder-grid">
           {activeSquads.map((squad, index) => (
             <div key={squad.id} className={`builder-panel panel-${index % 5}`}>
-                <div className="panel-title">
-                <strong>{squad.title}</strong>
+              <div className="panel-title">
+                <div className="panel-title-text">
+                  <strong>{squad.title}</strong>
+                  <span className="squad-count">
+                    {squadStats(squad).occupied}/{squadStats(squad).total} filled
+                  </span>
+                </div>
                 <span className="slot-meta">LR {squad.lrChannel ?? '-'} · SR {squad.srChannel ?? '-'}</span>
                 {squad.markerIconUrl ? <img src={squad.markerIconUrl} alt="marker" className="marker-icon" /> : squad.marker ? <span className={`marker-badge marker-${String(squad.marker).toLowerCase().replace(/\s+/g,'-')}`}>{squad.marker}</span> : null}
               </div>

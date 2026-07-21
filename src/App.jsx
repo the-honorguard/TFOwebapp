@@ -1915,8 +1915,6 @@ function App() {
   };
 
   const deleteSlot = async (templateId, slotId) => {
-    if (!window.confirm('Are you sure you want to delete this slot?')) return;
-
     if (page === 'builder' || page === 'scheduler-detail' || page === 'op-detail') {
       setEditorDirty(true);
       const updateSquads = (squads = []) => squads.map((squad) => ({ ...squad, slots: (squad.slots || []).filter((slot) => slot.id !== slotId) }));
@@ -2131,7 +2129,10 @@ function App() {
     return auth.capabilities?.[capability] === true;
   };
   const effectiveOverviewMode = overviewMode === 'orbat' && isNarrowViewport ? 'cards' : overviewMode;
-  const isWideCanvasPage = page === 'builder' || (page === 'overview' && effectiveOverviewMode === 'orbat');
+  const isWideCanvasPage = page === 'builder'
+    || page === 'scheduler-detail'
+    || page === 'op-detail'
+    || (page === 'overview' && effectiveOverviewMode === 'orbat');
 
   const normalizeRoleKey = (role) => role?.trim().toLowerCase();
 
@@ -2453,6 +2454,25 @@ function App() {
     setFlowLinkSource(null);
   };
 
+  const removeNodeFlowEdges = (templateId, squadId, anchor, event) => {
+    event.stopPropagation();
+    setFlowEdges((prev) => ({
+      ...prev,
+      [templateId]: (prev?.[templateId] || []).filter((edge) => (
+        anchor === 'top'
+          ? String(edge.targetId) !== String(squadId)
+          : String(edge.sourceId) !== String(squadId)
+      ))
+    }));
+    setFlowLinkSource((current) => (
+      current?.templateId === templateId
+      && String(current.squadId) === String(squadId)
+      && current.anchor === anchor
+        ? null
+        : current
+    ));
+  };
+
   const resetTemplateCanvasLayout = (templateId) => {
     setCanvasLayout((prev) => ({
       ...prev,
@@ -2469,7 +2489,7 @@ function App() {
       const nodes = squads.map((squad, index) => ({
         id: squad.id,
         node: templateLayout?.[squad.id] || {
-          x: 40 + (index % 3) * 300,
+          x: 40 + (index % 3) * (ORBAT_NODE_WIDTH + CANVAS_GRID_UNIT),
           y: 40 + Math.floor(index / 3) * 240,
           parentId: null
         }
@@ -2612,7 +2632,8 @@ function App() {
     if (inactiveSquads.length === 0) return;
     const activeBottom = activeSquads.reduce((bottom, squad, index) => {
       const node = getCanvasNode(templateId, squad.id, squads.indexOf(squad));
-      return Math.max(bottom, node.y + getOrbatNodeHeight(squad));
+      const measuredHeight = nodeHeights[`flow-${templateId}-${squad.id}`];
+      return Math.max(bottom, node.y + (measuredHeight || getOrbatNodeHeight(squad)));
     }, 300);
     const startY = snapToCanvasGrid(Math.max(360, activeBottom + 60) + 60);
     setCanvasLayout((prev) => {
@@ -2633,13 +2654,24 @@ function App() {
     });
   };
 
+  useEffect(() => {
+    if (page !== 'builder' || !selectedTemplateId) return undefined;
+    const template = templates.find((item) => item.id === selectedTemplateId);
+    if (!template?.squads?.some((squad) => squad.active === false)) return undefined;
+
+    const timer = window.setTimeout(() => {
+      alignInactiveSquads(template.id, template.squads);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [page, selectedTemplateId, templates]);
+
   const autoLayoutSingleSquad = (templateId, layoutSquads, squadId) => {
     const squads = Array.isArray(layoutSquads) ? layoutSquads : [];
     const targetIndex = squads.findIndex((squad) => String(squad.id) === String(squadId));
     if (targetIndex < 0) return;
 
     const target = squads[targetIndex];
-    const NODE_WIDTH = 280;
+    const NODE_WIDTH = ORBAT_NODE_WIDTH;
     const GAP = CANVAS_GRID_UNIT;
     const VERTICAL_GAP = 60;
     const DEFAULT_HEIGHT = 124;
@@ -2795,7 +2827,7 @@ function App() {
     if (existing) return existing;
 
     return {
-      x: 40 + (index % 3) * 300,
+      x: 40 + (index % 3) * (ORBAT_NODE_WIDTH + CANVAS_GRID_UNIT),
       y: 40 + Math.floor(index / 3) * 240,
       parentId: null
     };
@@ -2859,7 +2891,7 @@ function App() {
       const nextTemplateLayout = { ...templateLayout };
       (squads || []).forEach((squad, index) => {
         const node = templateLayout?.[squad.id] || {
-          x: 40 + (index % 3) * 300,
+          x: 40 + (index % 3) * (ORBAT_NODE_WIDTH + CANVAS_GRID_UNIT),
           y: 40 + Math.floor(index / 3) * 240,
           parentId: null
         };
@@ -3517,7 +3549,7 @@ function App() {
 
         <div className="dashboard">
           {page === 'overview' && (!auth || can('view_overview')) ? (
-            <section className="card">
+            <section className="card overview-page-card">
               <div className="builder-toolbar">
                 <div>
                   <h3>Overview</h3>
@@ -3770,6 +3802,7 @@ function App() {
                 flowLinkSource={flowLinkSource}
                 addOpSquad={addOpSquad}
                 clearTemplateFlowEdges={clearTemplateFlowEdges}
+                removeNodeFlowEdges={removeNodeFlowEdges}
                 resetTemplateCanvasLayout={resetTemplateCanvasLayout}
                 handleFlowConnectorClick={handleFlowConnectorClick}
                 updateSquadTitleLocal={updateSquadTitleLocal}
@@ -3890,6 +3923,7 @@ function App() {
                           getTemplateFlowEdges={getTemplateFlowEdges}
                           addSquadQuick={addSquadQuick}
                           clearTemplateFlowEdges={clearTemplateFlowEdges}
+                          removeNodeFlowEdges={removeNodeFlowEdges}
                           resetTemplateCanvasLayout={resetTemplateCanvasLayout}
                           autoLayoutTemplate={autoLayoutTemplate}
                           alignInactiveSquads={alignInactiveSquads}

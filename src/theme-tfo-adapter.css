@@ -141,6 +141,13 @@ body {
     min-height: 100vh;
 }
 
+/* Canvas-heavy pages should use the available screen width. */
+.app-shell.app-shell-builder {
+    max-width: calc(100vw - 1rem) !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+}
+
 /* ----------------------------------------------------------------
    Card / panel backgrounds
    ---------------------------------------------------------------- */

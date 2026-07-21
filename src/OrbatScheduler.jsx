@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { getEditorExpandedHeight, getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
+import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
 /**
  * OrbatScheduler
@@ -53,6 +53,7 @@ export default function OrbatScheduler({
   flowLinkSource,
   addOpSquad,
   clearTemplateFlowEdges,
+  removeNodeFlowEdges,
   resetTemplateCanvasLayout,
   handleFlowConnectorClick,
   updateSquadTitleLocal,
@@ -113,36 +114,32 @@ export default function OrbatScheduler({
 
   const renderAssignmentPicker = (slot) => {
     if (!canAssignPlayers || slot._pendingCreate) return null;
-    if (slot.assignedUserId) {
-      return (
-        <select
-          className="slot-player-assignment"
-          value=""
-          aria-label={`Manage assignment for ${slot.name}`}
-          onChange={(event) => {
-            if (event.target.value === 'free') signOffOpSlot(selectedOp.id, slot.id, true);
-          }}
-        >
-          <option value="">Assigned</option>
-          <option value="free">Free slot</option>
-        </select>
-      );
-    }
     const qualifiedPlayers = qualifiedPlayersForSlot(slot);
+    const assignedUser = users.find((user) => String(user.id) === String(slot.assignedUserId));
+    const selectablePlayers = assignedUser && !qualifiedPlayers.some((user) => String(user.id) === String(assignedUser.id))
+      ? [assignedUser, ...qualifiedPlayers]
+      : qualifiedPlayers;
     return (
       <select
-        className="slot-player-assignment"
-        value=""
-        aria-label={`Assign player to ${slot.name}`}
-        onChange={(event) => {
+        className={`slot-player-assignment scheduler-assignment-select ${assignedUser ? 'occupied' : 'free'}`}
+        value={assignedUser ? String(assignedUser.id) : 'free'}
+        aria-label={`Choose player for ${slot.name}`}
+        onChange={async (event) => {
+          const selectedValue = event.target.value;
+          if (selectedValue === 'free') {
+            if (assignedUser) await signOffOpSlot(selectedOp.id, slot.id, true);
+            return;
+          }
           const userId = Number(event.target.value);
-          if (userId) joinOpSlot(selectedOp.id, slot.id, userId);
+          if (!userId || String(userId) === String(slot.assignedUserId)) return;
+          if (assignedUser) await signOffOpSlot(selectedOp.id, slot.id, true);
+          await joinOpSlot(selectedOp.id, slot.id, userId);
         }}
       >
-        <option value="">Assign</option>
-        {qualifiedPlayers.length === 0 ? (
+        <option value="free">free</option>
+        {selectablePlayers.length === 0 ? (
           <option value="" disabled>No qualified players</option>
-        ) : qualifiedPlayers.map((user) => (
+        ) : selectablePlayers.map((user) => (
           <option key={user.id} value={user.id}>
             {user.username}{user.status && user.status !== 'Active' ? ` (${user.status})` : ''}
           </option>
@@ -425,21 +422,17 @@ export default function OrbatScheduler({
               {nodes.map((node) => {
                 const isSelected = selectedFlowSquadId === node.squad.id;
                 const collapsedHeight = getOrbatNodeHeight(node.squad);
-                const expandedHeight = getEditorExpandedHeight(node.squad);
                 const hoverSuppressed = draggingSquadId != null || flowLinkSource?.templateId === template.id;
 
                 return (
                   <div
                     key={node.squad.id}
-                    className={`orbat-node flow-node expandable-editor-node scheduler-node ${openMarkerDropdown === node.squad.id ? 'marker-dropdown-open' : ''} ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
+                    className={`orbat-node flow-node scheduler-node ${openMarkerDropdown === node.squad.id ? 'marker-dropdown-open' : ''} ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
                     style={{
                       left: `${node.x}px`,
                       top: `${node.y}px`,
                       width: `${ORBAT_NODE_WIDTH}px`,
-                      height: `${collapsedHeight}px`,
-                      '--orbat-collapsed-height': `${collapsedHeight}px`,
-                      '--orbat-expanded-height': `${expandedHeight}px`,
-                      '--orbat-collapsed-width': `${ORBAT_NODE_WIDTH}px`
+                      height: `${collapsedHeight}px`
                     }}
                     ref={setNodeHeightRef(node.nodeKey)}
                   >
@@ -451,10 +444,28 @@ export default function OrbatScheduler({
                     />
                     <button
                       type="button"
+                      className="orbat-connector-remove top"
+                      onClick={(event) => removeNodeFlowEdges(template.id, node.squad.id, 'top', event)}
+                      aria-label={`Remove incoming hierarchy lines from ${node.squad.title}`}
+                      title="Remove incoming hierarchy lines"
+                    >
+                      ×
+                    </button>
+                    <button
+                      type="button"
                       className={`orbat-connector bottom clickable ${isSelected && flowLinkSource?.anchor === 'bottom' ? 'active' : ''}`}
                       onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'bottom', event)}
                       aria-label="Connect from bottom"
                     />
+                    <button
+                      type="button"
+                      className="orbat-connector-remove bottom"
+                      onClick={(event) => removeNodeFlowEdges(template.id, node.squad.id, 'bottom', event)}
+                      aria-label={`Remove outgoing hierarchy lines from ${node.squad.title}`}
+                      title="Remove outgoing hierarchy lines"
+                    >
+                      ×
+                    </button>
                     <div
                       className="orbat-node-head"
                       onMouseDown={(event) => {
@@ -610,14 +621,6 @@ export default function OrbatScheduler({
                                       </option>
                                   ))}
                               </select>
-                              {(() => {
-                                const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                                return (
-                                  <span className={`scheduler-slot-status ${assignedUser ? 'occupied' : 'free'}`} title={assignedUser?.username || 'Free'}>
-                                    {assignedUser?.username || 'free'}
-                                  </span>
-                                );
-                              })()}
                               <span className="scheduler-slot-assign">
                                 {renderAssignmentPicker(slot)}
                               </span>
@@ -823,15 +826,6 @@ export default function OrbatScheduler({
                           </div>
                         </div>
                         <div className="slot-footer">
-                          <span style={{display:'flex',alignItems:'center',gap:'0.3rem'}}>
-                            <span className={`slot-badge ${slot.assignedUserId ? 'occupied' : 'free'}`}>
-                              {slot.assignedUserId ? 'occupied' : 'free'}
-                            </span>
-                            {(() => {
-                              const assignedUser = users.find((user) => user.id === slot.assignedUserId);
-                              return assignedUser ? <span className="orbat-slot-text">{assignedUser.username}</span> : null;
-                            })()}
-                          </span>
                           <div className="slot-actions">
                             {renderAssignmentPicker(slot)}
                             <button

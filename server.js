@@ -218,7 +218,9 @@ app.get('/api/db-check', async (req, res) => {
 });
 
 // Simple initialization endpoint used by public/init.html
-app.get('/api/init-auth', setupRateLimit, initAdminAuth, (req, res) => {
+// Avoid `/api/init-auth`: o2switch/Apache reserves or intercepts that path and
+// returns HTTP 421 before the request reaches Passenger.
+app.get('/api/setup-auth', setupRateLimit, initAdminAuth, (req, res) => {
   res.json({ ok: true });
 });
 

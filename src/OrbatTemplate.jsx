@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { getEditorExpandedHeight, getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
+import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
 /**
  * OrbatTemplate
@@ -20,6 +20,7 @@ export default function OrbatTemplate({
   getTemplateFlowEdges,
   addSquadQuick,
   clearTemplateFlowEdges,
+  removeNodeFlowEdges,
   resetTemplateCanvasLayout,
   autoLayoutTemplate,
   alignInactiveSquads,
@@ -345,21 +346,17 @@ export default function OrbatTemplate({
                   {nodes.map((node) => {
                     const isSelected = selectedFlowSquadId === node.squad.id;
                     const collapsedHeight = getOrbatNodeHeight(node.squad);
-                    const expandedHeight = getEditorExpandedHeight(node.squad);
                     const hoverSuppressed = draggingSquadId != null || flowLinkSource?.templateId === template.id;
 
                     return (
                         <div
                         key={node.squad.id}
-                        className={`orbat-node flow-node expandable-editor-node template-node ${openMarkerDropdown === node.squad.id ? 'marker-dropdown-open' : ''} ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
+                        className={`orbat-node flow-node template-node ${openMarkerDropdown === node.squad.id ? 'marker-dropdown-open' : ''} ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
                         style={{
                           left: `${node.x}px`,
                           top: `${node.y}px`,
                           width: `${ORBAT_NODE_WIDTH}px`,
-                          height: `${collapsedHeight}px`,
-                          '--orbat-collapsed-height': `${collapsedHeight}px`,
-                          '--orbat-expanded-height': `${expandedHeight}px`,
-                          '--orbat-collapsed-width': `${ORBAT_NODE_WIDTH}px`
+                          height: `${collapsedHeight}px`
                         }}
                         ref={setNodeHeightRef(node.nodeKey)}
                       >
@@ -371,10 +368,28 @@ export default function OrbatTemplate({
                         />
                         <button
                           type="button"
+                          className="orbat-connector-remove top"
+                          onClick={(event) => removeNodeFlowEdges(template.id, node.squad.id, 'top', event)}
+                          aria-label={`Remove incoming hierarchy lines from ${node.squad.title}`}
+                          title="Remove incoming hierarchy lines"
+                        >
+                          ×
+                        </button>
+                        <button
+                          type="button"
                           className={`orbat-connector bottom clickable ${isSelected && flowLinkSource?.anchor === 'bottom' ? 'active' : ''}`}
                           onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'bottom', event)}
                           aria-label="Connect from bottom"
                         />
+                        <button
+                          type="button"
+                          className="orbat-connector-remove bottom"
+                          onClick={(event) => removeNodeFlowEdges(template.id, node.squad.id, 'bottom', event)}
+                          aria-label={`Remove outgoing hierarchy lines from ${node.squad.title}`}
+                          title="Remove outgoing hierarchy lines"
+                        >
+                          ×
+                        </button>
                         <div
                           className="orbat-node-head"
                           onMouseDown={(event) => {
