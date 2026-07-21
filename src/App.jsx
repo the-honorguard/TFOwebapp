@@ -16,6 +16,7 @@ import apiFetch from './api';
 import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
 const API = '/api';
+const newClientId = (prefix = 'tmp') => `${prefix}-${crypto.randomUUID()}`;
 
 // Template-builder canvas grid: one "unit" approximates a single slot row, so a squad
 // with N slots naturally occupies roughly (2 + N) units tall (2 units for the header).
@@ -30,15 +31,14 @@ const resolveTemplateId = (templateList, preferredId) => {
 };
 
 const prepareSquadsForSave = (squads = []) => {
-  let nextId = Date.now();
-  const squadIds = new Map(squads.map((squad) => [String(squad.id), Number.isFinite(Number(squad.id)) ? Number(squad.id) : nextId++]));
+  const squadIds = new Map(squads.map((squad) => [String(squad.id), Number.isFinite(Number(squad.id)) ? Number(squad.id) : newClientId('squad')]));
   return squads.map(({ _pendingCreate, ...squad }) => ({
     ...squad,
     id: squadIds.get(String(squad.id)),
     parentId: squad.parentId == null ? null : (squadIds.get(String(squad.parentId)) ?? null),
     slots: (squad.slots || []).map(({ _pendingCreate: pendingCreate, _pendingUpdate, ...slot }) => ({
       ...slot,
-      id: Number.isFinite(Number(slot.id)) ? Number(slot.id) : nextId++,
+      id: Number.isFinite(Number(slot.id)) ? Number(slot.id) : newClientId('slot'),
       squadId: squadIds.get(String(squad.id))
     }))
   }));
@@ -526,7 +526,8 @@ function App() {
       errors.ok_follow_orders = 'You must be willing to follow mission orders to join.';
     }
     if (!signupForm.username) errors.username = 'Please provide a username.';
-    if (!signupForm.password || signupForm.password.length < 6) errors.password = 'Password must be at least 6 characters.';
+    if (!signupForm.password || signupForm.password.length < 8) errors.password = 'Password must be at least 8 characters.';
+    else if (signupForm.password.length > 128) errors.password = 'Password must be at most 128 characters.';
     if (Object.keys(errors).length > 0) {
       setSignupErrors(errors);
       return;
@@ -574,7 +575,7 @@ function App() {
     const token = localStorage.getItem('token');
     const name = prompt('Template name');
     if (!name) return;
-    const tempId = `tmp-tpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempId = newClientId('tmp-tpl');
     const tempTemplate = { id: tempId, name, squads: [], _pendingCreate: true };
     setTemplates((prev) => [...prev, tempTemplate]);
     setSelectedTemplateId(tempId);
@@ -640,7 +641,7 @@ function App() {
     const defaultName = `Copy of ${current?.name || ''}`;
     const name = prompt('Name for duplicated template', defaultName);
     if (!name) return;
-    const tempId = `tmp-tpl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempId = newClientId('tmp-tpl');
     const tempTemplate = { id: tempId, name, squads: [], _pendingCreate: true };
     setTemplates((prev) => [...prev, tempTemplate]);
     setSelectedTemplateId(tempId);
@@ -1311,7 +1312,7 @@ function App() {
   const addSquad = async (templateId) => {
     const title = prompt('Squad title');
     if (!title) return;
-    const tempId = `tmp-squad-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempId = newClientId('tmp-squad');
     const tempSquad = { id: tempId, title, slots: [], _pendingCreate: true };
     setTemplates((prev) => prev.map((template) => {
       if (template.id !== templateId) return template;
@@ -1364,7 +1365,7 @@ function App() {
 
   const addSquadQuick = async (templateId, currentSquadCount) => {
     const title = `Squad ${currentSquadCount + 1}`;
-    const tempId = `tmp-squad-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempId = newClientId('tmp-squad');
     const tempSquad = { id: tempId, title, slots: [], _pendingCreate: true };
     setTemplates((prev) => prev.map((template) => {
       if (template.id !== templateId) return template;
@@ -1415,7 +1416,7 @@ function App() {
 
   const addOpSquad = async (opId, currentSquadCount) => {
     const title = `Squad ${currentSquadCount + 1}`;
-    const tempId = `tmp-squad-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempId = newClientId('tmp-squad');
     const tempSquad = { id: tempId, title, slots: [], _pendingCreate: true };
 
     // optimistic local update on ops
@@ -1688,7 +1689,7 @@ function App() {
   };
 
   const addSlot = async (templateId, squadId) => {
-    const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempId = newClientId();
     const roleForNew = defaultOpSettings.defaultSlotRole || 'Rifleman';
     const tempSlot = {
       id: tempId,
@@ -1717,6 +1718,13 @@ function App() {
         })
       };
     }));
+
+    // Template builder changes are saved as one draft, including slots added to
+    // squads that do not have a database id yet.
+    if (page === 'builder') {
+      setEditorDirty(true);
+      return;
+    }
 
     // If squadId is temporary (not yet persisted), don't attempt server call.
     if (Number.isNaN(Number(squadId))) {
@@ -2427,7 +2435,7 @@ function App() {
       return {
         ...prev,
         [templateId]: [...current, {
-          id: Date.now() + Math.random(),
+          id: newClientId('edge'),
           sourceId,
           targetId,
           sourceAnchor,
@@ -3135,6 +3143,36 @@ function App() {
     }
   };
 
+  const updateUserStatus = async (userId, status) => {
+    const prevUsers = users;
+    const prevAuth = auth;
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status } : u)));
+    if (auth?.id === userId) {
+      setAuth((prev) => ({ ...prev, status }));
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API}/users/${userId}/permissions`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update status');
+      if (data.user) {
+        setUsers((prev) => prev.map((u) => (u.id === data.user.id ? data.user : u)));
+        if (auth?.id === data.user.id) setAuth(data.user);
+      }
+    } catch (err) {
+      alert(err.message || 'Could not update status');
+      setUsers(prevUsers);
+      setAuth(prevAuth);
+    }
+  };
+
   const updateDrillSergeant = async (userId, isDrillSergeant) => {
     const token = localStorage.getItem('token');
     const res = await fetch(`${API}/users/${userId}/permissions`, {
@@ -3349,7 +3387,7 @@ function App() {
                 <div className="signup-field">
                   <label>Password</label>
                   <small>Pick a secure password (min 8 characters recommended).</small>
-                  <input type="password" name="signup-password" autoComplete="new-password" placeholder="Password" value={signupForm.password} onChange={(e) => updateSignupField('password', e.target.value)} />
+                  <input type="password" name="signup-password" minLength="8" maxLength="128" autoComplete="new-password" placeholder="Password" value={signupForm.password} onChange={(e) => updateSignupField('password', e.target.value)} />
                   {signupErrors.password ? <div className="field-error">{signupErrors.password}</div> : null}
                 </div>
               </div>
@@ -3914,6 +3952,8 @@ function App() {
                       <input
                         type="password"
                         name="new-password"
+                        minLength="8"
+                        maxLength="128"
                         autoComplete="new-password"
                         placeholder="Password"
                         value={userForm.password}
@@ -3978,7 +4018,17 @@ function App() {
                                     ))}
                                   </select>
                                 </td>
-                                <td>{user.status || 'Active'}</td>
+                                <td>
+                                  <select
+                                    value={user.status || 'Active'}
+                                    disabled={!can('edit_players')}
+                                    onChange={(e) => updateUserStatus(user.id, e.target.value)}
+                                  >
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                    <option value="LoA">LoA</option>
+                                  </select>
+                                </td>
                                 <td>
                                   <select
                                     value={user.role}

@@ -29,9 +29,7 @@ export async function getRoleById(id) {
 }
 
 export async function createRole({ name, system = false, occupied = null, slots = [], allowed = [], metadata = {} }) {
-  const id = Date.now();
-  await db.query('INSERT INTO roles (id, name, is_system, occupied, slots, allowed, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)', [
-    id,
+  const [result] = await db.query('INSERT INTO roles (name, is_system, occupied, slots, allowed, metadata) VALUES (?, ?, ?, ?, ?, ?)', [
     name,
     system ? 1 : 0,
     occupied ? JSON.stringify(occupied) : null,
@@ -39,7 +37,7 @@ export async function createRole({ name, system = false, occupied = null, slots 
     JSON.stringify(allowed || []),
     JSON.stringify(metadata || {})
   ]);
-  return getRoleById(id);
+  return getRoleById(result.insertId);
 }
 
 export async function deleteRole(id) {

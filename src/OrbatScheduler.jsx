@@ -431,7 +431,7 @@ export default function OrbatScheduler({
                 return (
                   <div
                     key={node.squad.id}
-                    className={`orbat-node flow-node expandable-editor-node scheduler-node ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
+                    className={`orbat-node flow-node expandable-editor-node scheduler-node ${openMarkerDropdown === node.squad.id ? 'marker-dropdown-open' : ''} ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
                     style={{
                       left: `${node.x}px`,
                       top: `${node.y}px`,

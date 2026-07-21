@@ -17,17 +17,16 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
 import crypto from 'crypto';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import pool, { testConnection } from './db.js';
-import logger from './lib/logger.js';
 import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential } from './lib/dataStore.js';
 import * as permissionGroupsRepo from './repositories/permissionGroups.js';
 import * as notificationsRepo from './repositories/notifications.js';
 import * as trainingRepo from './repositories/training.js';
 import { buildRecurringOperation, getDueOccurrenceDates, getNextRecurrenceDate, normalizeDays } from './lib/recurrence.js';
+import { createRateLimiter, validatePassword } from './lib/authSecurity.js';
 
 const PERMISSION_DEFINITIONS = [
   { key: 'view_overview', category: 'Overview', label: 'View overview' },
@@ -56,14 +55,14 @@ const PERMISSION_DEFINITIONS = [
   ,{ key: 'manage_training_admin', category: 'Training', label: 'Manage Drill Sergeants and training settings' }
 ];
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 async function testDb() {
   try {
     const [rows] = await pool.query('SELECT 1 AS ok');
-    logger.info('DB connected', { rows });
+    console.info('DB connected', { rows });
   } catch (err) {
-    logger.error('DB connection error', { message: err && err.message ? err.message : String(err) });
+    console.error('DB connection error', { message: err && err.message ? err.message : String(err) });
   }
 }
 
@@ -112,18 +111,9 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(UPLOADS_DIR));
 
-// Endpoint for client-side logs (frontend sends errors/warnings here)
-app.post('/api/client-log', (req, res) => {
-  try {
-    const { level = 'info', message = '', meta = {} } = req.body || {};
-    if (typeof logger[level] === 'function') logger[level](message, meta);
-    else logger.info(message, meta);
-    return res.json({ ok: true });
-  } catch (e) {
-    logger.error('Failed to write client log', { err: e && e.message ? e.message : String(e) });
-    return res.status(500).json({ ok: false });
-  }
-});
+const loginRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10 });
+const signupRateLimit = createRateLimiter({ windowMs: 60 * 60_000, max: 5 });
+const setupRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10 });
 
 // Lightweight health endpoint to detect DB availability
 app.get('/health', async (req, res) => {
@@ -149,7 +139,7 @@ app.get('/api/db-health', async (req, res) => {
     }
     return res.json({ ok: true, connected: true, version });
   } catch (err) {
-    logger.warn('DB health check failed', { err: err && err.message ? err.message : String(err) });
+    console.warn('DB health check failed', { err: err && err.message ? err.message : String(err) });
     return res.status(503).json({ ok: false, connected: false, error: err && err.message ? err.message : String(err) });
   }
 });
@@ -171,7 +161,6 @@ app.get('/api/init-status', async (req, res) => {
 
 // Return table row counts and simple DB info for the setup page
 app.get('/api/db-info', async (req, res) => {
-  console.log('GET /api/db-info called from', req.ip || req.headers['x-forwarded-for'] || 'unknown');
   const tables = ['users','user_profiles','ranks','templates','ops','recurrences','campaigns','modlists','files','backups','roles','training_settings','trainer_role_rights','training_requests','training_sessions','training_participants','training_proposals','training_audit'];
   try {
     const results = [];
@@ -229,7 +218,11 @@ app.get('/api/db-check', async (req, res) => {
 });
 
 // Simple initialization endpoint used by public/init.html
-app.post('/init', async (req, res) => {
+app.get('/api/init-auth', setupRateLimit, initAdminAuth, (req, res) => {
+  res.json({ ok: true });
+});
+
+app.post('/init', setupRateLimit, initAdminAuth, async (req, res) => {
   try {
     await ensureDbInitialized();
     return res.json({ ok: true });
@@ -239,97 +232,8 @@ app.post('/init', async (req, res) => {
   }
 });
 
-// --- Log collector management (start/stop) and live stream ---
-let logCollectorProc = null;
-
-app.post('/api/logs/start', (req, res) => {
-  try {
-    if (logCollectorProc && !logCollectorProc.killed) {
-      return res.json({ ok: true, running: true, pid: logCollectorProc.pid });
-    }
-    const nodeExec = process.execPath || 'node';
-    const proc = spawn(nodeExec, ['scripts/collect-logs.js'], { cwd: process.cwd(), stdio: 'ignore', detached: true });
-    proc.unref();
-    logCollectorProc = proc;
-    logger.info('Log collector started', { pid: proc.pid });
-    return res.json({ ok: true, pid: proc.pid });
-  } catch (e) {
-    logger.error('Failed to start log collector', { err: e && e.message ? e.message : String(e) });
-    return res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
-  }
-});
-
-app.post('/api/logs/stop', (req, res) => {
-  try {
-    if (!logCollectorProc) return res.json({ ok: true, running: false });
-    try {
-      process.kill(logCollectorProc.pid);
-    } catch (e) {
-      // may already be dead
-    }
-    logger.info('Log collector stopped', { pid: logCollectorProc.pid });
-    logCollectorProc = null;
-    return res.json({ ok: true });
-  } catch (e) {
-    logger.error('Failed to stop log collector', { err: e && e.message ? e.message : String(e) });
-    return res.status(500).json({ ok: false });
-  }
-});
-
-// SSE endpoint to stream appended lines from logs/combined.log
-app.get('/api/logs/stream', (req, res) => {
-  const logPath = path.join(process.cwd(), 'logs', 'combined.log');
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  });
-
-  let pos = 0;
-  try {
-    if (fs.existsSync(logPath)) pos = fs.statSync(logPath).size;
-  } catch (e) {
-    pos = 0;
-  }
-
-  const sendChunk = (chunk) => {
-    const lines = chunk.toString().split(/\r?\n/);
-    for (const line of lines) {
-      if (!line) continue;
-      // SSE data line
-      res.write('data: ' + line.replace(/\n/g, '\\n') + '\n\n');
-    }
-  };
-
-  // watch file for changes
-  const dir = path.dirname(logPath);
-  let watcher = null;
-  try {
-    watcher = fs.watch(dir, (eventType, filename) => {
-      if (!filename || path.basename(filename) !== path.basename(logPath)) return;
-      try {
-        const st = fs.statSync(logPath);
-        if (st.size > pos) {
-          const rs = fs.createReadStream(logPath, { start: pos, end: st.size });
-          rs.on('data', sendChunk);
-          rs.on('end', () => { pos = st.size; });
-        }
-      } catch (e) {
-        // ignore
-      }
-    });
-  } catch (e) {
-    // fallback: file may not exist yet
-  }
-
-  req.on('close', () => {
-    try { if (watcher) watcher.close(); } catch (e) {}
-    res.end();
-  });
-});
-
 // Reset database: DROP all tables and re-create schema
-app.post('/init/reset', async (req, res) => {
+app.post('/init/reset', setupRateLimit, initAdminAuth, async (req, res) => {
   try {
     const wantEmpty = (req.query && req.query.empty === '1') || (req.body && req.body.empty === true);
     await resetDatabase();
@@ -357,7 +261,7 @@ app.post('/init/reset', async (req, res) => {
 });
 
 // Seed demo data only
-app.post('/init/demo', async (req, res) => {
+app.post('/init/demo', setupRateLimit, initAdminAuth, async (req, res) => {
   try {
     const demo = await seedDemo();
     return res.json({ ok: true, ...demo });
@@ -368,10 +272,13 @@ app.post('/init/demo', async (req, res) => {
 });
 
 // Create an admin user (used by init UI). Accepts JSON { username, password }.
-app.post('/init/create-admin', async (req, res) => {
+app.post('/init/create-admin', setupRateLimit, initAdminAuth, async (req, res) => {
   try {
-    const { username, password } = req.body || {};
-    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    const username = 'admin';
+    const { password } = req.body || {};
+    if (typeof password !== 'string' || password.length === 0) {
+      return res.status(400).json({ error: 'Password required' });
+    }
     await ensureDbInitialized();
     await syncAdminPermissionGroup();
     const bcryptHash = bcrypt.hashSync(password, 10);
@@ -385,9 +292,8 @@ app.post('/init/create-admin', async (req, res) => {
       }
       return res.json({ ok: true, id: existing.id, updated: true, permissionsSynced: true });
     }
-    const id = Date.now();
-    await pool.query('INSERT INTO users (id, username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, username, null, bcryptHash, 'admin', '', 'Active', JSON.stringify({})]);
-    return res.json({ ok: true, id, permissionsSynced: true });
+    const [result] = await pool.query('INSERT INTO users (username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?)', [username, null, bcryptHash, 'admin', '', 'Active', JSON.stringify({})]);
+    return res.json({ ok: true, id: result.insertId, permissionsSynced: true });
   } catch (err) {
     console.error('Create-admin endpoint error', err && err.stack ? err.stack : err);
     return res.status(500).json({ error: 'Internal error' });
@@ -395,7 +301,7 @@ app.post('/init/create-admin', async (req, res) => {
 });
 
 // Import full DB payload (JSON) either via file upload (multipart/form-data) or JSON body
-app.post('/init/import', upload.single('file'), async (req, res) => {
+app.post('/init/import', setupRateLimit, initAdminAuth, upload.single('file'), async (req, res) => {
   try {
     let payload = null;
     if (req.file && req.file.path) {
@@ -459,6 +365,36 @@ function authMiddleware(req, res, next) {
     }
     return res.status(401).json({ error: 'Invalid login session, please log in again', code: 'TOKEN_INVALID' });
   }
+}
+
+/** Database-independent recovery login for the complete initialization surface. */
+function initAdminAuth(req, res, next) {
+  const expectedUsername = process.env.INIT_ADMIN_USERNAME;
+  const expectedPassword = process.env.INIT_ADMIN_PASSWORD;
+  const header = String(req.headers.authorization || '');
+
+  if (!expectedUsername || !expectedPassword) {
+    return res.status(503).json({ error: 'Recovery login is not configured' });
+  }
+
+  if (header.startsWith('Basic ')) {
+    try {
+      const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
+      const separator = decoded.indexOf(':');
+      const username = separator >= 0 ? decoded.slice(0, separator) : '';
+      const password = separator >= 0 ? decoded.slice(separator + 1) : '';
+      const usernameMatches = username.length === expectedUsername.length
+        && crypto.timingSafeEqual(Buffer.from(username), Buffer.from(expectedUsername));
+      const passwordMatches = password.length === expectedPassword.length
+        && crypto.timingSafeEqual(Buffer.from(password), Buffer.from(expectedPassword));
+      if (usernameMatches && passwordMatches) return next();
+    } catch (error) {
+      // Treat malformed credentials as an authentication failure.
+    }
+  }
+
+  res.set('WWW-Authenticate', 'Basic realm="TFO recovery", charset="UTF-8"');
+  return res.status(401).send('Recovery login required');
 }
 
 async function getCapabilities(role) {
@@ -578,10 +514,8 @@ function buildOpSquadsFromTemplate(template, existingSquads = []) {
     // by matching `originalSquadId` if present (preserve previous op-specific ids/assignments).
     const existingSquad = existingSquads.find((item) => item.originalSquadId === squad.id) || null;
 
-    const opSquadId = existingSquad ? existingSquad.id : (Date.now() + Math.floor(Math.random() * 1000) + index);
-
     return {
-      id: opSquadId,
+      ...(existingSquad ? { id: existingSquad.id } : {}),
       originalSquadId: squad.id,
       title: squad.title,
       lrChannel: squad.lrChannel ?? existingSquad?.lrChannel ?? 1,
@@ -591,10 +525,8 @@ function buildOpSquadsFromTemplate(template, existingSquads = []) {
       active: existingSquad ? existingSquad.active !== false : squad.active !== false,
       slots: (squad.slots || []).map((slot, sIndex) => {
         const existingSlot = existingSquad?.slots?.find((item) => item.originalSlotId === slot.id) || null;
-        const opSlotId = existingSlot ? existingSlot.id : (Date.now() + Math.floor(Math.random() * 1000) + index * 100 + sIndex);
-
         return {
-          id: opSlotId,
+          ...(existingSlot ? { id: existingSlot.id } : {}),
           originalSlotId: slot.id,
           name: slot.name,
           role: slot.role,
@@ -679,6 +611,13 @@ function normalizeStorage(data) {
 // This is called on data load to materialize scheduled occurrences up to now.
 let recurrenceGeneration = null;
 
+function formatApiDateTime(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return value.replace(' ', 'T').slice(0, 19);
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
+}
+
 async function generateRecurringOps(inputData) {
   if (recurrenceGeneration) {
     await recurrenceGeneration;
@@ -689,22 +628,38 @@ async function generateRecurringOps(inputData) {
   recurrenceGeneration = (async () => {
     normalizeStorage(data);
     const now = new Date();
-    let changed = false;
     for (const recurrence of data.recurrences) {
-      const due = getDueOccurrenceDates(recurrence.nextDateTime, recurrence, now);
-      for (const occurrence of due.dates) {
-        const op = buildRecurringOperation(recurrence, occurrence, { id: Date.now() + Math.floor(Math.random() * 1000) });
-        data.ops.push(op);
-        changed = true;
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [locked] = await connection.query('SELECT id, op_id, rule, next_run FROM recurrences WHERE id = ? FOR UPDATE', [recurrence.id]);
+        if (!locked[0]) { await connection.rollback(); continue; }
+        const storedRule = typeof locked[0].rule === 'string' ? JSON.parse(locked[0].rule) : locked[0].rule;
+        const nextRun = formatApiDateTime(locked[0].next_run) || recurrence.nextDateTime;
+        const due = getDueOccurrenceDates(nextRun, storedRule, now);
+        const opsRepo = await import('./repositories/ops.js');
+        const root = await opsRepo.getOpById(locked[0].op_id);
+        if (!root) { await connection.rollback(); continue; }
+        const source = { ...storedRule, id: recurrence.id, squads: root.payload.squads || [] };
+        for (const occurrence of due.dates) {
+          const payload = buildRecurringOperation(source, occurrence, { id: null });
+          await opsRepo.createOp({ templateId: source.templateId, title: payload.name, payload,
+            scheduled_at: occurrence.replace('T', ' '), recurrenceId: recurrence.id,
+            occurrenceAt: occurrence.replace('T', ' ') }, connection);
+        }
+        await connection.query('UPDATE recurrences SET next_run = ? WHERE id = ?', [due.nextRun ? due.nextRun.replace('T', ' ') : null, recurrence.id]);
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        if (error?.code !== 'ER_DUP_ENTRY') throw error;
+      } finally {
+        connection.release();
       }
-      if (recurrence.nextDateTime !== due.nextRun) changed = true;
-      recurrence.nextDateTime = due.nextRun;
     }
-    if (changed) await persistData(data);
   })();
   try {
     await recurrenceGeneration;
-    return data;
+    return getData();
   } finally {
     recurrenceGeneration = null;
   }
@@ -712,8 +667,11 @@ async function generateRecurringOps(inputData) {
 
 import * as usersRepo from './repositories/users.js';
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginRateLimit, async (req, res) => {
   const { username, password } = req.body;
+  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
   try {
     const user = await usersRepo.getUserByUsername(username);
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
@@ -728,15 +686,17 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/signup', async (req, res) => {
+app.post('/api/signup', signupRateLimit, async (req, res) => {
   const username = (req.body.username || '').trim();
   if (!username) return res.status(400).json({ error: 'Username required' });
+  const passwordError = validatePassword(req.body.password);
+  if (passwordError) return res.status(400).json({ error: passwordError });
   try {
     const existing = await usersRepo.getUserByUsername(username);
     if (existing) return res.status(409).json({ error: 'User already exists' });
     const role = 'member';
-    const hashed = bcrypt.hashSync(req.body.password || 'changeme', 10);
-    const created = await usersRepo.createUser({ id: Date.now(), username, password_hash: hashed, role, rank: req.body.rank || '', status: req.body.status || 'Active', permissions: {}, email: req.body.email || null });
+    const hashed = bcrypt.hashSync(req.body.password, 10);
+    const created = await usersRepo.createUser({ username, password_hash: hashed, role, rank: req.body.rank || '', status: req.body.status || 'Active', permissions: {}, email: req.body.email || null });
     // create profile if provided
     if (req.body.profile) {
       const profileSettings = req.body.profile.settings || req.body.profile;
@@ -1081,10 +1041,13 @@ app.delete('/api/permission-groups/:slug', authMiddleware, requireCapability('ma
 
 app.post('/api/users', authMiddleware, requireCapability('edit_players'), async (req, res) => {
   try {
+    if (!String(req.body.username || '').trim()) return res.status(400).json({ error: 'Username required' });
+    const passwordError = validatePassword(req.body.password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
     const selectedGroup = await permissionGroupsRepo.getPermissionGroup(req.body.role || 'member');
     if (!selectedGroup) return res.status(400).json({ error: 'Unknown permission group' });
-    const hashed = bcrypt.hashSync(req.body.password || 'changeme', 10);
-    const created = await usersRepo.createUser({ id: Date.now(), username: req.body.username, email: req.body.email || null, password_hash: hashed, role: req.body.role || 'member', rank: req.body.rank || '', status: req.body.status || 'Active', permissions: req.body.permissions || {} });
+    const hashed = bcrypt.hashSync(req.body.password, 10);
+    const created = await usersRepo.createUser({ username: req.body.username, email: req.body.email || null, password_hash: hashed, role: req.body.role || 'member', rank: req.body.rank || '', status: req.body.status || 'Active', permissions: req.body.permissions || {} });
     const user = await usersRepo.getUserById(created.id);
     const { password_hash, ...safeUser } = user;
     res.json({ user: safeUser });
@@ -1136,9 +1099,8 @@ app.put('/api/users/me/password', authMiddleware, async (req, res) => {
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: 'Current and new password are required' });
   }
-  if (newPassword.length < 6) {
-    return res.status(400).json({ error: 'New password must be at least 6 characters' });
-  }
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) return res.status(400).json({ error: passwordError });
 
   try {
     const user = await usersRepo.getUserById(req.user.id);
@@ -1157,7 +1119,7 @@ app.put('/api/users/me/password', authMiddleware, async (req, res) => {
 app.post('/api/templates', authMiddleware, requireCapability('edit_templates'), (req, res) => {
   (async () => {
     try {
-      const t = await (await import('./repositories/templates.js')).createTemplate({ id: Date.now(), name: req.body.name, ownerId: req.user?.id || null, data: { squads: [] } });
+      const t = await (await import('./repositories/templates.js')).createTemplate({ name: req.body.name, ownerId: req.user?.id || null, data: { squads: [] } });
       res.json({ template: t });
     } catch (err) {
       console.error('Create template error', err);
@@ -1189,17 +1151,14 @@ app.post('/api/templates/:id/duplicate', authMiddleware, requireCapability('edit
       const tplRepo = await import('./repositories/templates.js');
       const source = await tplRepo.getTemplateById(Number(req.params.id));
       if (!source) return res.status(404).json({ error: 'Template not found' });
-      const nextId = () => Date.now() + Math.floor(Math.random() * 10000);
       const newTemplateData = {
         squads: (source.data.squads || []).map((squad) => ({
-          id: nextId(),
           title: squad.title,
           lrChannel: squad.lrChannel || 1,
           srChannel: squad.srChannel || 1,
           marker: squad.marker || null,
           markerIconUrl: squad.markerIconUrl || null,
           slots: (squad.slots || []).map((slot) => ({
-            id: nextId(),
             name: slot.name,
             role: slot.role,
             allowedRoles: Array.isArray(slot.allowedRoles) ? slot.allowedRoles : [],
@@ -1209,7 +1168,7 @@ app.post('/api/templates/:id/duplicate', authMiddleware, requireCapability('edit
         }))
       };
       const name = typeof req.body.name === 'string' && req.body.name.trim() ? req.body.name.trim() : `Copy of ${source.name}`;
-      const created = await tplRepo.createTemplate({ id: nextId(), name, ownerId: req.user?.id || null, data: newTemplateData });
+      const created = await tplRepo.createTemplate({ name, ownerId: req.user?.id || null, data: newTemplateData });
       res.json({ template: created });
     } catch (err) {
       console.error('Duplicate template error', err);
@@ -1225,24 +1184,17 @@ app.get('/api/campaigns', async (req, res) => {
 });
 
 app.post('/api/campaigns', authMiddleware, requireCapability('edit_campaigns'), async (req, res) => {
-  const data = await getData();
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
   const missionmakerUserId = Number(req.body.missionmakerUserId) || null;
   if (!missionmakerUserId) return res.status(400).json({ error: 'missionmakerUserId required' });
 
-  const campaign = {
-    id: Date.now(),
-    name,
-    image: req.body.image || '',
-    modlistPlayer: req.body.modlistPlayer || '',
-    modlistServer: req.body.modlistServer || '',
-    defaultTemplateId: req.body.defaultTemplateId ? Number(req.body.defaultTemplateId) : null,
-    missionmakerUserId
-  };
-  data.campaigns = data.campaigns || [];
-  data.campaigns.push(campaign);
-  await persistData(data);
+  const campaign = { name, image: req.body.image || '', modlistPlayer: req.body.modlistPlayer || '',
+    modlistServer: req.body.modlistServer || '', defaultTemplateId: req.body.defaultTemplateId ? Number(req.body.defaultTemplateId) : null, missionmakerUserId };
+  const [result] = await pool.query(`INSERT INTO campaigns
+    (name, owner_id, image, modlist_player, modlist_server, default_template_id, data) VALUES (?, ?, ?, ?, ?, ?, JSON_OBJECT())`,
+  [campaign.name, campaign.missionmakerUserId, campaign.image, campaign.modlistPlayer, campaign.modlistServer, campaign.defaultTemplateId]);
+  campaign.id = result.insertId;
   res.json({ campaign });
 });
 
@@ -1258,7 +1210,8 @@ app.put('/api/campaigns/:id', authMiddleware, requireCapability('edit_campaigns'
   if ('defaultTemplateId' in req.body) campaign.defaultTemplateId = req.body.defaultTemplateId ? Number(req.body.defaultTemplateId) : null;
   if ('missionmakerUserId' in req.body) campaign.missionmakerUserId = req.body.missionmakerUserId ? Number(req.body.missionmakerUserId) : null;
 
-  await persistData(data);
+  await pool.query(`UPDATE campaigns SET name = ?, owner_id = ?, image = ?, modlist_player = ?, modlist_server = ?, default_template_id = ? WHERE id = ?`,
+  [campaign.name, campaign.missionmakerUserId, campaign.image, campaign.modlistPlayer, campaign.modlistServer, campaign.defaultTemplateId, campaign.id]);
   res.json({ campaign });
 });
 
@@ -1266,8 +1219,7 @@ app.delete('/api/campaigns/:id', authMiddleware, requireCapability('edit_campaig
   const data = await getData();
   const idx = (data.campaigns || []).findIndex((c) => c.id === Number(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Campaign not found' });
-  data.campaigns.splice(idx, 1);
-  await persistData(data);
+  await pool.query('DELETE FROM campaigns WHERE id = ?', [data.campaigns[idx].id]);
   res.status(204).end();
 });
 
@@ -1287,7 +1239,6 @@ app.post('/api/ops', authMiddleware, requireCapability('edit_operations'), async
     }
     const recurrence = req.body.recurrence || 'none';
     const payload = {
-      id: Date.now(),
       name: req.body.name || 'New operation',
       templateId: Number(req.body.templateId),
       date: req.body.date || '',
@@ -1303,7 +1254,7 @@ app.post('/api/ops', authMiddleware, requireCapability('edit_operations'), async
     };
 
     if (recurrence === 'none') {
-      const created = await opsRepo.createOp({ id: Date.now(), templateId: Number(req.body.templateId), title: payload.name, payload });
+      const created = await opsRepo.createOp({ templateId: tplId, title: payload.name, payload });
       res.json({ op: created, recurrence: null });
     } else {
       const conn = await import('./db.js');
@@ -1317,9 +1268,6 @@ app.post('/api/ops', authMiddleware, requireCapability('edit_operations'), async
           await connection.rollback();
           return res.status(400).json({ error: 'A valid start date is required for recurrence' });
         }
-        const opId = payload.id;
-        const recurrenceId = opId + 1;
-        payload.recurrenceId = recurrenceId;
         const rule = {
           recurrence,
           creationDelayHours: 6,
@@ -1336,20 +1284,18 @@ app.post('/api/ops', authMiddleware, requireCapability('edit_operations'), async
           modlistServer: payload.modlistServer,
           tsAddress: payload.tsAddress,
           campaignId: payload.campaignId,
-          absentUserIds: [],
-          squads: structuredClone(squads)
+          absentUserIds: []
         };
-        await connection.query(
-          'INSERT INTO ops (id, template_id, title, scheduled_at, payload, status) VALUES (?, ?, ?, ?, ?, ?)',
-          [opId, tplId, payload.name, scheduledDateTime.replace('T', ' '), JSON.stringify(payload), 'scheduled']
+        const created = await opsRepo.createOp({ templateId: tplId, title: payload.name, payload,
+          scheduled_at: scheduledDateTime.replace('T', ' '), status: 'scheduled' }, connection);
+        const [recurrenceResult] = await connection.query(
+          'INSERT INTO recurrences (op_id, rule, next_run) VALUES (?, ?, ?)',
+          [created.id, JSON.stringify(rule), scheduledDateTime.replace('T', ' ')]
         );
-        await connection.query(
-          'INSERT INTO recurrences (id, op_id, rule, next_run) VALUES (?, ?, ?, ?)',
-          [recurrenceId, null, JSON.stringify(rule), scheduledDateTime.replace('T', ' ')]
-        );
+        const recurrenceId = recurrenceResult.insertId;
         await connection.commit();
         res.json({
-          op: { id: opId, templateId: tplId, title: payload.name, payload },
+          op: created,
           recurrence: { id: recurrenceId, ...rule, rule, nextRun: scheduledDateTime, nextDateTime: scheduledDateTime }
         });
       } catch (err) {
@@ -1741,15 +1687,13 @@ app.post('/api/ranks', authMiddleware, requireCapability('edit_ranks'), async (r
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
   const rank = {
-    id: Date.now(),
     name,
     short: (req.body.short || '').trim(),
     icon: typeof req.body.icon === 'string' ? req.body.icon : null,
     order: Number(req.body.order) || ((data.ranks || []).length + 1)
   };
-  data.ranks = data.ranks || [];
-  data.ranks.push(rank);
-  await persistData(data);
+  const [result] = await pool.query('INSERT INTO ranks (name, abbreviation, order_index, icon) VALUES (?, ?, ?, ?)', [rank.name, rank.short, rank.order, rank.icon]);
+  rank.id = result.insertId;
   res.json({ rank });
 });
 
@@ -1761,7 +1705,7 @@ app.put('/api/ranks/:id', authMiddleware, requireCapability('edit_ranks'), async
   if (typeof req.body.short === 'string') rank.short = req.body.short.trim();
   if ('icon' in req.body) rank.icon = req.body.icon || null;
   if ('order' in req.body) rank.order = Number(req.body.order) || rank.order;
-  await persistData(data);
+  await pool.query('UPDATE ranks SET name = ?, abbreviation = ?, order_index = ?, icon = ? WHERE id = ?', [rank.name, rank.short, rank.order, rank.icon, rank.id]);
   res.json({ rank });
 });
 
@@ -1769,12 +1713,10 @@ app.delete('/api/ranks/:id', authMiddleware, requireCapability('edit_ranks'), as
   const data = await getData();
   const idx = (data.ranks || []).findIndex((r) => r.id === Number(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Rank not found' });
-  const removed = data.ranks.splice(idx, 1)[0];
+  const removed = data.ranks[idx];
   // Clean up user references (if users stored rank by id or by name)
-  data.users.forEach((u) => {
-    if (u.rank === removed.id || u.rank === removed.name) u.rank = '';
-  });
-  await persistData(data);
+  await pool.query('UPDATE users SET `rank` = NULL WHERE `rank` IN (?, ?)', [String(removed.id), removed.name]);
+  await pool.query('DELETE FROM ranks WHERE id = ?', [removed.id]);
   res.status(204).end();
 });
 
@@ -1786,13 +1728,11 @@ app.get('/api/squad-types', async (req, res) => {
 });
 
 app.post('/api/squad-types', authMiddleware, requireCapability('edit_squad_types'), async (req, res) => {
-  const data = await getData();
   const name = (req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'Name required' });
-  const st = { id: Date.now(), name, icon: typeof req.body.icon === 'string' ? req.body.icon : null };
-  data.squadTypes = data.squadTypes || [];
-  data.squadTypes.push(st);
-  await persistData(data);
+  const st = { name, icon: typeof req.body.icon === 'string' ? req.body.icon : null };
+  const [result] = await pool.query('INSERT INTO squad_types (name, icon) VALUES (?, ?)', [st.name, st.icon]);
+  st.id = result.insertId;
   res.json({ squadType: st });
 });
 
@@ -1802,7 +1742,7 @@ app.put('/api/squad-types/:id', authMiddleware, requireCapability('edit_squad_ty
   if (!st) return res.status(404).json({ error: 'Squad type not found' });
   if (typeof req.body.name === 'string') st.name = req.body.name.trim();
   if ('icon' in req.body) st.icon = req.body.icon || null;
-  await persistData(data);
+  await pool.query('UPDATE squad_types SET name = ?, icon = ? WHERE id = ?', [st.name, st.icon, st.id]);
   res.json({ squadType: st });
 });
 
@@ -1810,8 +1750,7 @@ app.delete('/api/squad-types/:id', authMiddleware, requireCapability('edit_squad
   const data = await getData();
   const idx = (data.squadTypes || []).findIndex((s) => s.id === Number(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Squad type not found' });
-  data.squadTypes.splice(idx, 1);
-  await persistData(data);
+  await pool.query('DELETE FROM squad_types WHERE id = ?', [data.squadTypes[idx].id]);
   res.status(204).end();
 });
 
@@ -1861,15 +1800,12 @@ app.put('/api/recurrences/:id/absence', authMiddleware, async (req, res) => {
     const [rows] = await pool.query('SELECT id, op_id, rule, next_run FROM recurrences WHERE id = ?', [Number(req.params.id)]);
     if (!rows[0]) return res.status(404).json({ error: 'Recurrence not found' });
     let rule = rows[0].rule || {};
-    if (typeof rule === 'string') {
-      try { rule = JSON.parse(rule); } catch (error) { rule = {}; }
-    }
-    const absentUserIds = new Set((rule.absentUserIds || []).map(String));
-    if (req.body.absent) absentUserIds.add(String(req.user.id));
-    else absentUserIds.delete(String(req.user.id));
-    rule.absentUserIds = [...absentUserIds].map(Number);
-    await pool.query('UPDATE recurrences SET rule = ? WHERE id = ?', [JSON.stringify(rule), Number(req.params.id)]);
-    res.json({ recurrence: { id: rows[0].id, opId: rows[0].op_id, rule, nextRun: rows[0].next_run } });
+    if (typeof rule === 'string') { try { rule = JSON.parse(rule); } catch { rule = {}; } }
+    if (req.body.absent) await pool.query('INSERT IGNORE INTO recurrence_absences (recurrence_id, user_id) VALUES (?, ?)', [rows[0].id, req.user.id]);
+    else await pool.query('DELETE FROM recurrence_absences WHERE recurrence_id = ? AND user_id = ?', [rows[0].id, req.user.id]);
+    const [absences] = await pool.query('SELECT user_id FROM recurrence_absences WHERE recurrence_id = ? ORDER BY user_id', [rows[0].id]);
+    rule.absentUserIds = absences.map((row) => row.user_id);
+    res.json({ recurrence: { id: rows[0].id, opId: rows[0].op_id, rule, absentUserIds: rule.absentUserIds, nextRun: rows[0].next_run } });
   } catch (err) {
     console.error('Recurring operation absence error', err);
     res.status(500).json({ error: err.message || 'Could not update recurring absence' });
@@ -1897,20 +1833,17 @@ app.post('/api/templates/:templateId/squads', authMiddleware, requireCapability(
     try {
       console.debug('POST /api/templates/:templateId/squads', { templateId: req.params.templateId, body: req.body });
       const tplRepo = await import('./repositories/templates.js');
-      const template = await tplRepo.getTemplateById(Number(req.params.templateId));
+      const templateId = Number(req.params.templateId);
+      const template = await tplRepo.getTemplateById(templateId);
       if (!template) return res.status(404).json({ error: 'Template not found' });
-      const squad = {
-        id: Date.now(),
+      const squad = await tplRepo.addSquad(templateId, {
         title: req.body.title || 'New squad',
         lrChannel: 1,
         srChannel: (template.data.squads || []).length + 1,
         marker: req.body.marker || null,
         markerIconUrl: req.body.markerIconUrl || null,
         slots: []
-      };
-      template.data.squads = template.data.squads || [];
-      template.data.squads.push(squad);
-      const updated = await tplRepo.updateTemplate(template.id, { data: template.data });
+      });
       res.json({ squad });
     } catch (err) {
       console.error('Add squad error', err && err.stack ? err.stack : err);
@@ -1929,7 +1862,7 @@ app.put('/api/templates/:templateId/squads/:squadId', authMiddleware, requireCap
       const tplRepo = await import('./repositories/templates.js');
       const template = await tplRepo.getTemplateById(Number(req.params.templateId));
       if (!template) return res.status(404).json({ error: 'Template not found' });
-      const squad = (template.data.squads || []).find((item) => item.id === Number(req.params.squadId));
+      let squad = (template.data.squads || []).find((item) => item.id === Number(req.params.squadId));
       if (!squad) return res.status(404).json({ error: 'Squad not found' });
       if (typeof req.body.title === 'string' && req.body.title.trim()) squad.title = req.body.title.trim();
       if ('lrChannel' in req.body) { if (!isValidChannel(req.body.lrChannel)) return res.status(400).json({ error: 'lrChannel must be between 0 and 99' }); squad.lrChannel = Number(req.body.lrChannel); }
@@ -1937,7 +1870,7 @@ app.put('/api/templates/:templateId/squads/:squadId', authMiddleware, requireCap
       if ('marker' in req.body) { if (req.body.marker === null) squad.marker = null; else if (typeof req.body.marker === 'string') squad.marker = req.body.marker.trim(); else return res.status(400).json({ error: 'marker must be a string or null' }); }
       if ('markerIconUrl' in req.body) { if (req.body.markerIconUrl === null) squad.markerIconUrl = null; else if (typeof req.body.markerIconUrl === 'string') squad.markerIconUrl = req.body.markerIconUrl.trim(); else return res.status(400).json({ error: 'markerIconUrl must be a string or null' }); }
       if ('active' in req.body) { if (typeof req.body.active !== 'boolean') return res.status(400).json({ error: 'active must be a boolean' }); squad.active = req.body.active; }
-      await tplRepo.updateTemplate(template.id, { data: template.data });
+      squad = await tplRepo.updateSquad(template.id, squad.id, squad);
       res.json({ squad });
     } catch (err) {
       console.error('Update squad error', err);
@@ -1978,16 +1911,16 @@ app.delete('/api/ops/:opId/squads/:squadId', authMiddleware, requireCapability('
 
 app.delete('/api/templates/:templateId/squads/:squadId', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
   console.debug('DELETE /api/templates/:templateId/squads/:squadId', { templateId: req.params.templateId, squadId: req.params.squadId });
-  const data = await getData();
-  const template = findTemplate(data, req.params.templateId);
+  const tplRepo = await import('./repositories/templates.js');
+  const templateId = Number(req.params.templateId);
+  const template = await tplRepo.getTemplateById(templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
-  const squadIndex = template.squads.findIndex((item) => item.id === Number(req.params.squadId));
+  const squadIndex = template.data.squads.findIndex((item) => item.id === Number(req.params.squadId));
   if (squadIndex === -1) return res.status(404).json({ error: 'Squad not found' });
 
-  template.squads.splice(squadIndex, 1);
   try {
-    await persistData(data);
+    await tplRepo.deleteSquad(templateId, Number(req.params.squadId));
     res.status(204).end();
   } catch (err) {
     console.error('Delete squad persist error', err && err.stack ? err.stack : err);
@@ -1996,11 +1929,12 @@ app.delete('/api/templates/:templateId/squads/:squadId', authMiddleware, require
 });
 
 app.put('/api/templates/:templateId/squads/:squadId/slots/reorder', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
-  const data = await getData();
-  const template = findTemplate(data, req.params.templateId);
+  const tplRepo = await import('./repositories/templates.js');
+  const templateId = Number(req.params.templateId);
+  const template = await tplRepo.getTemplateById(templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
-  const squad = template.squads.find((item) => item.id === Number(req.params.squadId));
+  const squad = template.data.squads.find((item) => item.id === Number(req.params.squadId));
   if (!squad) return res.status(404).json({ error: 'Squad not found' });
 
   const slotIds = Array.isArray(req.body.slotIds) ? req.body.slotIds.map(Number) : null;
@@ -2017,31 +1951,28 @@ app.put('/api/templates/:templateId/squads/:squadId/slots/reorder', authMiddlewa
   }
 
   const slotMap = new Map(squad.slots.map((slot) => [Number(slot.id), slot]));
-  squad.slots = slotIds.map((slotId) => slotMap.get(slotId));
-
-  await persistData(data);
-  res.json({ squad });
+  await tplRepo.reorderSlots(templateId, squad.id, slotIds);
+  const updated = await tplRepo.getTemplateById(templateId);
+  res.json({ squad: updated.data.squads.find((item) => item.id === squad.id) });
 });
 
 app.post('/api/templates/:id/slots', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
   try {
     console.debug('POST /api/templates/:id/slots', { templateId: req.params.id, body: req.body });
-    const data = await getData();
-    const template = findTemplate(data, req.params.id);
+    const tplRepo = await import('./repositories/templates.js');
+    const templateId = Number(req.params.id);
+    const template = await tplRepo.getTemplateById(templateId);
     if (!template) return res.status(404).json({ error: 'Template not found' });
-    const squad = template.squads.find((squad) => squad.id === Number(req.body.squadId));
+    const squad = template.data.squads.find((squad) => squad.id === Number(req.body.squadId));
     if (!squad) return res.status(404).json({ error: 'Squad not found' });
 
-    const slot = {
-      id: Date.now(),
+    const slot = await tplRepo.addSlot(templateId, squad.id, {
       name: req.body.name || 'New role',
       role: req.body.role || 'Rifleman',
       allowedRoles: Array.isArray(req.body.allowedRoles) ? req.body.allowedRoles : [],
       notes: req.body.notes || '',
       assignedUserId: null
-    };
-    squad.slots.push(slot);
-    await persistData(data);
+    });
     res.json({ slot });
   } catch (err) {
     console.error('Add slot error', err && err.stack ? err.stack : err);
@@ -2050,33 +1981,34 @@ app.post('/api/templates/:id/slots', authMiddleware, requireCapability('edit_tem
 });
 
 app.put('/api/templates/:templateId/slots/:slotId', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
-  const data = await getData();
-  const template = findTemplate(data, req.params.templateId);
+  const tplRepo = await import('./repositories/templates.js');
+  const templateId = Number(req.params.templateId);
+  const template = await tplRepo.getTemplateById(templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
-  const slot = findSlot(template, req.params.slotId);
+  const slot = findSlot({ squads: template.data.squads }, req.params.slotId);
   if (!slot) return res.status(404).json({ error: 'Slot not found' });
   if (typeof req.body.name === 'string') slot.name = req.body.name;
   if (typeof req.body.role === 'string') slot.role = req.body.role;
   if (Array.isArray(req.body.allowedRoles)) slot.allowedRoles = req.body.allowedRoles;
   if (typeof req.body.notes === 'string') slot.notes = req.body.notes;
-  await persistData(data);
+  await tplRepo.updateSlot(templateId, slot.id, slot);
   res.json({ slot });
 });
 
 app.delete('/api/templates/:templateId/slots/:slotId', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
-  const data = await getData();
-  const template = findTemplate(data, req.params.templateId);
+  const tplRepo = await import('./repositories/templates.js');
+  const templateId = Number(req.params.templateId);
+  const template = await tplRepo.getTemplateById(templateId);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   let slotRemoved = false;
-  template.squads.forEach((squad) => {
+  template.data.squads.forEach((squad) => {
     const index = squad.slots.findIndex((slot) => slot.id === Number(req.params.slotId));
     if (index !== -1) {
-      squad.slots.splice(index, 1);
       slotRemoved = true;
     }
   });
   if (!slotRemoved) return res.status(404).json({ error: 'Slot not found' });
-  await persistData(data);
+  await tplRepo.deleteSlot(templateId, Number(req.params.slotId));
   res.status(204).end();
 });
 
@@ -2328,7 +2260,7 @@ app.put('/api/users/me', authMiddleware, async (req, res) => {
   res.json({ user: safeUser });
 });
 
-// Serve the public init page directly so first-run setup is always reachable
+// Setup and database administration are available only to authorized accounts.
 app.get('/init.html', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'init.html'));
 });
@@ -2343,16 +2275,16 @@ app.get('*', (req, res) => {
 
 // Attempt to ensure DB initialization at startup, but do not crash server if DB is unavailable.
 app.listen(PORT, async () => {
-  logger.info(`Server running on http://localhost:${PORT}`);
+  console.info(`Server running on http://localhost:${PORT}`);
   try {
     await ensureDbInitialized();
-    logger.info('Schema check complete');
+    console.info('Schema check complete');
     await generateRecurringOps();
     const recurrenceTimer = setInterval(() => {
-      generateRecurringOps().catch((error) => logger.error('Recurring operation generation failed', { err: error.message }));
+      generateRecurringOps().catch((error) => console.error('Recurring operation generation failed', { err: error.message }));
     }, 30_000);
     recurrenceTimer.unref();
   } catch (e) {
-    logger.error('Schema check failed', { err: e.message });
+    console.error('Schema check failed', { err: e.message });
   }
 });

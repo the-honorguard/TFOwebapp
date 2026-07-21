@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 let host = process.env.DB_HOST;
 let user = process.env.DB_USER;

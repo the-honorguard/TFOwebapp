@@ -10,7 +10,7 @@
 
         "build": "vite build",
         "test": "node --test",
-        "logs": "node scripts/collect-logs.js"
+        "test:db": "cross-env RUN_DB_TESTS=1 node --test repositories/idConcurrency.db.test.js"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",
@@ -26,6 +26,7 @@
     "devDependencies": {
         "@vitejs/plugin-react": "^4.3.1",
         "concurrently": "^9.0.1",
+        "cross-env": "^7.0.3",
         "vite": "^5.4.10"
     }
 }

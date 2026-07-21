@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const maxWait = Number(process.env.WAIT_DB_SECONDS || 120);
 const interval = Number(process.env.WAIT_DB_INTERVAL || 2000);

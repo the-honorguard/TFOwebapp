@@ -3,7 +3,10 @@ import apiFetch from './api';
 
 const labels = { requested: 'Requested', claimed: 'Claimed', planning: 'Planning', scheduled: 'Scheduled', completed: 'Completed', cancelled: 'Cancelled', passed: 'Passed', not_yet: 'Not yet qualified', absent: 'Absent' };
 const dateTime = (value) => value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
-const combineDateTime = (date, time) => date && time ? `${date}T${time}` : '';
+const combineDateTime = (date, time) => {
+  const match = date.match(/^(\d{2}) (\d{2}) (\d{4})$/);
+  return match && time ? `${match[3]}-${match[2]}-${match[1]}T${time}` : '';
+};
 
 export default function Training({ auth, users = [], roles = [], onQualificationsChanged }) {
   const token = localStorage.getItem('token');
@@ -149,7 +152,7 @@ function SessionCard({ session, mine, access, call, onQualificationsChanged }) {
 
 function DateTimeFields({ value, onChange }) {
   return <div className="date-time-fields">
-    <label>Date<input required type="text" inputMode="numeric" pattern="\d{4}-\d{2}-\d{2}" placeholder="YYYY-MM-DD" value={value.startsOn} onChange={(e) => onChange((current) => ({ ...current, startsOn: e.target.value }))} /></label>
+    <label>Date<input required type="text" inputMode="numeric" pattern="\d{2} \d{2} \d{4}" placeholder="DD MM YYYY" title="Enter the date as DD MM YYYY" value={value.startsOn} onChange={(e) => onChange((current) => ({ ...current, startsOn: e.target.value }))} /></label>
     <label>Time<input required type="text" inputMode="numeric" pattern="(?:[01]\d|2[0-3]):[0-5]\d" placeholder="HH:MM" value={value.startsTime} onChange={(e) => onChange((current) => ({ ...current, startsTime: e.target.value }))} /></label>
   </div>;
 }

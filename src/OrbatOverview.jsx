@@ -95,7 +95,7 @@ export default function OrbatOverview({
               className={(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'small btn-danger' : 'small secondary'}
               onClick={() => toggleOpAbsence(op.id)}
             >
-              {(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'Afmelding intrekken' : 'Afmelden'}
+              {(op.absentUserIds || []).some((id) => String(id) === String(auth.id)) ? 'Withdraw absence' : 'Report absent'}
             </button>
           ) : null}
         </div>

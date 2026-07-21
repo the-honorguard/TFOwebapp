@@ -165,6 +165,7 @@ button.btn-danger:hover { background: #991b1b; }
 .orbat-link { stroke: #94a3b8; stroke-width: 1.5; stroke-linecap: round; }
 .orbat-link-arrow { fill: #94a3b8; }
 .orbat-node { position: absolute; width: 280px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }
+.orbat-node.marker-dropdown-open { overflow: visible; z-index: 61; }
 .squad-inactive { opacity: 0.52; filter: saturate(0.35); border-style: dashed !important; }
 .squad-inactive:hover, .squad-inactive:focus-within { opacity: 0.82; }
 .inactive-separator { position: absolute; left: 24px; right: 24px; z-index: 3; height: 1px; border-top: 2px dashed rgba(148,163,184,0.65); color: var(--text); pointer-events: none; }
@@ -244,10 +245,10 @@ button.btn-danger:hover { background: #991b1b; }
 .scheduler-slot-assign { min-width: 0; }
 .scheduler-slot-assign .slot-player-assignment { width: 100%; max-width: none; }
 .danger-x-button { width: 34px; height: 34px; border-radius: 7px; border: 1px solid #ef4444; background: #b91c1c; color: #fee2e2; padding: 0; font-weight: 700; flex: 0 0 auto; }
-.marker-dropdown-btn { width: 34px; height: 34px; border-radius: 7px; border: 1px solid var(--border); background: transparent !important; color: var(--text); padding: 0; display: flex; align-items: center; justify-content: center; gap: 0; flex: 0 0 auto; overflow: hidden; }
+.marker-dropdown-btn { width: 42px; height: 36px; border-radius: 7px; border: 1px solid var(--border); background: transparent !important; color: var(--text); padding: 0; display: flex; align-items: center; justify-content: center; gap: 0; flex: 0 0 auto; overflow: hidden; }
 .marker-dropdown-btn:hover { border-color: var(--panel-border); }
-.marker-dropdown-icon { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; height: 100%; padding: 3px; min-width: 0; overflow: hidden; }
-.marker-dropdown-arrow { flex: 0 0 10px; font-size: 0.6rem; line-height: 1; padding-right: 2px; opacity: 0.7; }
+.marker-dropdown-icon { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; height: 100%; padding: 1px; min-width: 0; overflow: hidden; }
+.marker-dropdown-arrow { flex: 0 0 8px; font-size: 0.6rem; line-height: 1; padding-right: 1px; opacity: 0.7; }
 .danger-x-button:hover { background: #991b1b; }
 .slot-drag-handle { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: var(--button-secondary); color: var(--text); padding: 0; cursor: grab; line-height: 1; font-weight: 700; }
 .slot-drag-handle:active { cursor: grabbing; }

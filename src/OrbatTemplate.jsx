@@ -351,7 +351,7 @@ export default function OrbatTemplate({
                     return (
                         <div
                         key={node.squad.id}
-                        className={`orbat-node flow-node expandable-editor-node template-node ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
+                        className={`orbat-node flow-node expandable-editor-node template-node ${openMarkerDropdown === node.squad.id ? 'marker-dropdown-open' : ''} ${hoverSuppressed ? 'hover-suppressed' : ''} ${isSelected ? 'selected' : ''} ${node.squad.active === false ? 'squad-inactive' : ''}`}
                         style={{
                           left: `${node.x}px`,
                           top: `${node.y}px`,
@@ -534,7 +534,6 @@ export default function OrbatTemplate({
                                     className="danger-x-button"
                                     onClick={() => deleteSlot(template.id, slot.id)}
                                     aria-label="Delete slot"
-                                    disabled={slot._pendingCreate}
                                   >
                                     x
                                   </button>
@@ -546,7 +545,6 @@ export default function OrbatTemplate({
                             type="button"
                             className="secondary small"
                             onClick={() => addSlot(template.id, node.squad.id)}
-                            disabled={node.squad._pendingCreate}
                           >
                             + Slot
                           </button>
@@ -630,7 +628,7 @@ export default function OrbatTemplate({
                     </div>
                   </div>
                   <div className="slot-actions">
-                    <button onClick={() => addSlot(template.id, squad.id)} className="secondary small" disabled={squad._pendingCreate}>
+                    <button onClick={() => addSlot(template.id, squad.id)} className="secondary small">
                       Add slot
                     </button>
                   </div>

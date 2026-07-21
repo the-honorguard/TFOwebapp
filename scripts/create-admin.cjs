@@ -38,15 +38,20 @@ function usage() {
   const username = args[usernameIndex + 1];
   const password = args[passwordIndex + 1];
   if (!username || !password) return usage();
+  const { validatePassword } = await import('../lib/authSecurity.js');
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    console.error(passwordError);
+    process.exit(1);
+  }
 
   const cfg = await loadConfig();
   let conn;
   try {
     conn = await mysql.createConnection({ host: cfg.host, port: cfg.port, user: cfg.user, password: cfg.password, database: cfg.database });
     const hash = bcrypt.hashSync(password, 10);
-    const id = Date.now();
-    await conn.query('INSERT INTO users (id, username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, username, null, hash, 'admin', '', 'Active', JSON.stringify({})]);
-    console.log(`Created admin user '${username}' with id ${id}`);
+    const [result] = await conn.query('INSERT INTO users (username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?)', [username, null, hash, 'admin', '', 'Active', JSON.stringify({})]);
+    console.log(`Created admin user '${username}' with id ${result.insertId}`);
     await conn.end();
     process.exit(0);
   } catch (err) {

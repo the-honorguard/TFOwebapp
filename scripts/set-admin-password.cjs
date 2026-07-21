@@ -20,12 +20,20 @@ async function loadConfig() {
 
 (async () => {
   try {
+    const passwordIndex = process.argv.indexOf('--password');
+    const newPassword = passwordIndex >= 0 ? process.argv[passwordIndex + 1] : '';
+    const { validatePassword } = await import('../lib/authSecurity.js');
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      console.error(`Usage: node .\\scripts\\set-admin-password.cjs --password <password>\n${passwordError}`);
+      process.exit(1);
+    }
     const cfg = await loadConfig();
     const conn = await mysql.createConnection({ host: cfg.host, port: cfg.port, user: cfg.user, password: cfg.password, database: cfg.database });
-    const hash = bcrypt.hashSync('admin', 10);
+    const hash = bcrypt.hashSync(newPassword, 10);
     const [res] = await conn.query('UPDATE users SET password_hash = ? WHERE username = ?', [hash, 'admin']);
     if (res.affectedRows && res.affectedRows > 0) {
-      console.log('Admin password updated to "admin"');
+      console.log('Admin password updated');
     } else {
       console.error('No admin user found to update');
       process.exit(2);
