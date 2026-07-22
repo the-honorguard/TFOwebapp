@@ -453,6 +453,14 @@ See [`todo.md`](todo.md) for the full active task list, priorities, and acceptan
 
 <br />
 
+## Community
+
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/FuwCrJF)
+[![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white)](https://youtube.com/@taskforceomega)
+[![Twitch](https://img.shields.io/badge/Twitch-9146FF?style=flat-square&logo=twitch&logoColor=white)](https://twitch.tv/taskforceomega)
+[![Steam](https://img.shields.io/badge/Steam-000000?style=flat-square&logo=steam&logoColor=white)](https://steamcommunity.com/groups/taskforceomega)
+
+
 <sub>
 Built with assistance of&nbsp;
 <img src="https://img.shields.io/badge/Perplexity-20808D?style=flat-square&logo=perplexity&logoColor=white" alt="Perplexity" />
