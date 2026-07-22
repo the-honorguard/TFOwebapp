@@ -17,6 +17,27 @@ import { getOrbatNodeHeight, ORBAT_CANVAS_GRID_SIZE, ORBAT_NODE_WIDTH, trimOrbat
 import { migrateEditorCanvasState } from './editorPersistence';
 
 const API = '/api';
+const readApiResponse = async (response, fallbackMessage) => {
+  const text = await response.text();
+  let data = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (response.status === 413) {
+        throw new Error('The selected image is too large for the server. Choose a smaller image and try again.');
+      }
+      throw new Error(`${fallbackMessage} (server returned HTTP ${response.status} instead of JSON)`);
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || `${fallbackMessage} (HTTP ${response.status})`);
+  }
+  if (!data) throw new Error(`${fallbackMessage} (empty server response)`);
+  return data;
+};
 const operationCanvasKey = (operationId) => `operation:${operationId}`;
 const normalizeSupportDirection = (edge) => {
   if (edge?.sourceAnchor === 'right' && edge?.targetAnchor === 'left') {
@@ -254,8 +275,7 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
       body: formData
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    const data = await readApiResponse(res, 'Upload failed');
     return data.url;
   };
 
@@ -268,8 +288,8 @@ function App() {
       headers: { Authorization: `Bearer ${token}` },
       body: formData
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    const data = await readApiResponse(res, 'Avatar upload failed');
+    if (!data.url) throw new Error('Avatar upload failed (server response did not include a URL)');
     return data.url;
   };
 
@@ -280,8 +300,8 @@ function App() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(patch)
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Could not update profile');
+    const data = await readApiResponse(res, 'Could not update profile');
+    if (!data.user) throw new Error('Could not update profile (server response did not include the user)');
     // update local users list
     setUsers((prev) => prev.map((u) => (u.id === data.user.id ? data.user : u)));
     return data.user;
@@ -2609,15 +2629,14 @@ function App() {
         squadId: squad.id,
         ...getCanvasNode(template.id, squad.id, index)
       }));
-      const response = await fetch(`${API}/templates/${selectedTemplateId}?saveToDemo=1`, {
-        method: 'PUT',
+      const response = await fetch(`${API}/templates/${selectedTemplateId}/save-to-demo`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({
           name: template.name,
           squads: savedSquads,
           layoutNodes,
-          flowEdges: getTemplateFlowEdges(template.id, template.squads),
-          saveToDemo: true
+          flowEdges: getTemplateFlowEdges(template.id, template.squads)
         })
       });
       const result = await response.json().catch(() => ({}));
@@ -2627,8 +2646,16 @@ function App() {
         result.phase,
         result.details || result.error
       ].filter(Boolean).join(' · '));
-      if (!result.demo) throw new Error(`The server did not copy the template to demo (demoRequested: ${String(result.demoRequested)}).`);
-      alert(`Template saved to demo (${result.demo.layoutNodes} positions, ${result.demo.flowEdges} lines).`);
+      // Accept both the current nested response and the original endpoint
+      // response, which exposed the copy result at the top level. This keeps a
+      // freshly built client compatible with a server that has not restarted yet.
+      const demoResult = result.demo || (
+        result.ok && result.operationId != null && result.templateId != null
+          ? result
+          : null
+      );
+      if (!demoResult) throw new Error('The server did not confirm that the template was copied to demo.');
+      alert(`Template saved to demo (${demoResult.layoutNodes} positions, ${demoResult.flowEdges} lines).`);
       const refreshed = await apiFetch('/data', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       applyLoadedData(refreshed, refreshed.user || auth);
       setPage('builder');

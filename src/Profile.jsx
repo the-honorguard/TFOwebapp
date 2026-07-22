@@ -285,7 +285,7 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
                 >
                   <img
                     src={me.profile.avatarUrl}
-                    alt="avatar"
+                    alt="Avatar"
                     style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
                   />
                   {/* removed center focus marker per user request */}
@@ -312,7 +312,7 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
                           <div style={{ width: 360, height: 360, position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', boxSizing: 'border-box' }} onMouseDown={onCropMouseDown}>
                             <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
                               {cropImageUrl ? (
-                                <img ref={cropImgRef} src={cropImageUrl} alt="crop" style={{ position: 'absolute', left: cropState.posX + 'px', top: cropState.posY + 'px', transform: `scale(${cropState.baseScale * cropState.scale})`, transformOrigin: 'top left', willChange: 'transform' }} />
+                                <img ref={cropImgRef} src={cropImageUrl} alt="Avatar crop" style={{ position: 'absolute', left: cropState.posX + 'px', top: cropState.posY + 'px', transform: `scale(${cropState.baseScale * cropState.scale})`, transformOrigin: 'top left', willChange: 'transform' }} />
                               ) : null}
                               {/* overlay that darkens only the area outside the square (keeps center clear) */}
                                 <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 320, height: 320, borderRadius: 0, border: '6px solid rgba(255,255,255,0.95)', boxSizing: 'border-box', pointerEvents: 'none', boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)' }} />
@@ -354,7 +354,7 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
                                 if (cropInitialRef.current) setCropState(cropInitialRef.current);
                               }}>Reset</button>
                               <button type="button" onClick={closeCropModal}>Cancel</button>
-                              <button type="button" onClick={performCropAndUpload} style={{ background: 'var(--accent)', color: '#fff' }}>Apply</button>
+                              <button type="button" onClick={performCropAndUpload} style={{ background: 'var(--accent)', color: '#fff' }}>{uploading ? 'Uploading...' : 'Apply'}</button>
                             </div>
                           </div>
                         </div>

@@ -21,7 +21,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import pool, { testConnection } from './db.js';
-import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential, copyTemplateToDemo } from './lib/dataStore.js';
+import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, getDemoStatus, deleteDemo, seedEssential, copyTemplateToDemo } from './lib/dataStore.js';
 import * as permissionGroupsRepo from './repositories/permissionGroups.js';
 import * as notificationsRepo from './repositories/notifications.js';
 import * as trainingRepo from './repositories/training.js';
@@ -113,7 +113,10 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 
 const loginRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10 });
 const signupRateLimit = createRateLimiter({ windowMs: 60 * 60_000, max: 5 });
-const setupRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10 });
+// Successful authenticated setup actions are normal administration, not failed
+// login attempts. Forget them so repeated initialize/import/demo operations do
+// not lock an administrator out of the recovery page.
+const setupRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10, skipSuccessfulRequests: true });
 const recoveryLoginRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10, skipSuccessfulRequests: true });
 
 // Lightweight health endpoint to detect DB availability
@@ -266,7 +269,8 @@ app.post('/init/reset', setupRateLimit, initAdminAuth, async (req, res) => {
 // Seed demo data only
 app.post('/init/demo', setupRateLimit, initAdminAuth, async (req, res) => {
   try {
-    const demo = await seedDemo();
+    const categories = Array.isArray(req.body?.categories) ? req.body.categories : undefined;
+    const demo = await seedDemo(categories);
     return res.json({ ok: true, ...demo });
   } catch (err) {
     const errorId = crypto.randomUUID();
@@ -282,6 +286,27 @@ app.post('/init/demo', setupRateLimit, initAdminAuth, async (req, res) => {
       ...(err?.code && !knownCodes.has(err.code) ? { causeCode: err.code } : {}),
       errorId
     });
+  }
+});
+
+app.get('/init/demo/status', setupRateLimit, initAdminAuth, async (req, res) => {
+  try {
+    return res.json({ ok: true, categories: await getDemoStatus() });
+  } catch (err) {
+    console.error('Demo status error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Demo status failed', details: err?.message || String(err) });
+  }
+});
+
+app.post('/init/demo/delete', setupRateLimit, initAdminAuth, async (req, res) => {
+  try {
+    const categories = Array.isArray(req.body?.categories) ? req.body.categories : [];
+    if (categories.length === 0) return res.status(400).json({ error: 'Select at least one demo category' });
+    const result = await deleteDemo(categories);
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('Demo delete error', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Demo delete failed', details: err?.message || String(err) });
   }
 });
 
@@ -720,17 +745,23 @@ app.post('/api/signup', signupRateLimit, async (req, res) => {
     if (existing) return res.status(409).json({ error: 'User already exists' });
     const role = 'member';
     const hashed = bcrypt.hashSync(req.body.password, 10);
-    const created = await usersRepo.createUser({ username, password_hash: hashed, role, rank: req.body.rank || '', status: req.body.status || 'Active', permissions: {}, email: req.body.email || null });
-    // create profile if provided
-    if (req.body.profile) {
-      const profileSettings = req.body.profile.settings || req.body.profile;
-      await pool.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), bio=VALUES(bio), avatar_url=VALUES(avatar_url), settings=VALUES(settings)', [created.id, req.body.profile.displayName || null, req.body.profile.bio || null, req.body.profile.avatarUrl || null, JSON.stringify(profileSettings)]);
-    }
+    const conn = await pool.getConnection();
+    let created;
     try {
-      const trainingSettings = await trainingRepo.getSettings();
-      await trainingRepo.createRequest({ userId: created.id, roleName: trainingSettings.basicRole, source: 'signup', createdBy: created.id, notes: 'Automatically created from signup' });
-    } catch (trainingError) {
-      console.error('Could not create signup training request', trainingError);
+      await conn.beginTransaction();
+      created = await usersRepo.createUser({ username, password_hash: hashed, role, rank: req.body.rank || '', status: req.body.status || 'Active', permissions: {}, email: req.body.email || null }, conn);
+      if (req.body.profile) {
+        const profileSettings = req.body.profile.settings || req.body.profile;
+        await conn.query('INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, settings) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), bio=VALUES(bio), avatar_url=VALUES(avatar_url), settings=VALUES(settings)', [created.id, req.body.profile.displayName || null, req.body.profile.bio || null, req.body.profile.avatarUrl || null, JSON.stringify(profileSettings)]);
+      }
+      const trainingSettings = await trainingRepo.getSettings(conn);
+      await trainingRepo.createRequest({ userId: created.id, roleName: trainingSettings.basicRole, source: 'signup', createdBy: created.id, notes: 'Automatically created from signup' }, conn);
+      await conn.commit();
+    } catch (signupError) {
+      await conn.rollback();
+      throw signupError;
+    } finally {
+      conn.release();
     }
     const token = jwt.sign({ id: created.id, username: created.username, role: role }, SECRET, { expiresIn: '8h' });
     const userSafe = {
@@ -1194,7 +1225,7 @@ app.post('/api/templates/:id/save-to-demo', authMiddleware, requireCapability('e
     });
     if (!template) return res.status(404).json({ error: 'Could not copy template to demo', code: 'DEMO_TEMPLATE_NOT_FOUND' });
     const result = await copyTemplateToDemo(id);
-    res.json({ ok: true, template, ...result });
+    res.json({ ok: true, template, demo: result });
   } catch (err) {
     const code = err?.code || 'DEMO_COPY_FAILED';
     const status = code === 'DEMO_TEMPLATE_NOT_FOUND' ? 404 : code === 'DEMO_LAYOUT_NOT_SAVED' ? 409 : 500;
@@ -2322,6 +2353,7 @@ app.put('/api/users/me', authMiddleware, async (req, res) => {
 
 // Setup and database administration are available only to authorized accounts.
 app.get('/init.html', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(process.cwd(), 'public', 'init.html'));
 });
 

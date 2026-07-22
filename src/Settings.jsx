@@ -221,7 +221,7 @@ export default function Settings({
             </div>
             <div className="logo-setting-actions">
               <label className="button-like secondary">
-                {uploadingLogo ? 'Uploaden...' : 'Kies logo'}
+                {uploadingLogo ? 'Uploading...' : 'Choose logo'}
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
@@ -242,7 +242,7 @@ export default function Settings({
               </label>
               {local.logoUrl ? (
                 <button type="button" className="secondary" onClick={() => setLocal((current) => ({ ...current, logoUrl: '' }))}>
-                  Standaardlogo herstellen
+                  Restore default logo
                 </button>
               ) : null}
               <small>PNG, JPG, WebP, GIF of SVG. Klik daarna op Save om het logo toe te passen.</small>

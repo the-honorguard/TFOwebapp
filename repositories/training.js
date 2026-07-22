@@ -6,8 +6,8 @@ const json = (value, fallback = {}) => {
   try { return JSON.parse(value); } catch { return fallback; }
 };
 
-export async function getSettings() {
-  const [rows] = await db.query('SELECT basic_role AS basicRole, cooldown_months AS cooldownMonths FROM training_settings WHERE id = 1');
+export async function getSettings(executor = db) {
+  const [rows] = await executor.query('SELECT basic_role AS basicRole, cooldown_months AS cooldownMonths FROM training_settings WHERE id = 1');
   return rows[0] || { basicRole: 'Rifleman', cooldownMonths: 3 };
 }
 
@@ -45,15 +45,15 @@ export async function lastPassed(userId) {
   return rows[0]?.assessedAt || null;
 }
 
-export async function createRequest({ userId, roleName, source, createdBy = null, notes = null, overrideReason = null }) {
-  const [result] = await db.query(`INSERT INTO training_requests (user_id, role_name, source, created_by, notes)
+export async function createRequest({ userId, roleName, source, createdBy = null, notes = null, overrideReason = null }, executor = db) {
+  const [result] = await executor.query(`INSERT INTO training_requests (user_id, role_name, source, created_by, notes)
     VALUES (?, ?, ?, ?, ?)`, [userId, roleName, source, createdBy, notes]);
-  await audit(result.insertId, createdBy || userId, 'request_created', { source, overrideReason });
-  return getRequest(result.insertId);
+  await audit(result.insertId, createdBy || userId, 'request_created', { source, overrideReason }, executor);
+  return getRequest(result.insertId, executor);
 }
 
-export async function getRequest(id) {
-  const [rows] = await db.query(`SELECT tr.*, u.username, u.rank, u.status AS userStatus, up.settings AS survey,
+export async function getRequest(id, executor = db) {
+  const [rows] = await executor.query(`SELECT tr.*, u.username, u.rank, u.status AS userStatus, up.settings AS survey,
     c.username AS claimedByName FROM training_requests tr JOIN users u ON u.id = tr.user_id
     LEFT JOIN user_profiles up ON up.user_id = u.id LEFT JOIN users c ON c.id = tr.claimed_by WHERE tr.id = ?`, [id]);
   if (!rows[0]) return null;
@@ -62,6 +62,7 @@ export async function getRequest(id) {
 
 export async function listRequests() {
   const [rows] = await db.query(`SELECT tr.*, u.username, u.rank, c.username AS claimedByName,
+    (SELECT p.starts_at FROM training_proposals p WHERE p.request_id=tr.id AND p.status='pending' ORDER BY p.created_at DESC, p.id DESC LIMIT 1) AS latestProposalAt,
     (SELECT MAX(tp.assessed_at) FROM training_participants tp JOIN training_requests oldr ON oldr.id=tp.request_id WHERE oldr.user_id=tr.user_id AND tp.outcome='passed') AS lastPassedAt
     FROM training_requests tr JOIN users u ON u.id=tr.user_id LEFT JOIN users c ON c.id=tr.claimed_by ORDER BY FIELD(tr.status,'requested','claimed','planning','scheduled','completed','cancelled'), tr.created_at`);
   return rows;
@@ -245,8 +246,8 @@ export async function acceptProposalAndSchedule({ proposalId, requestId, actorId
   } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
 }
 
-export async function audit(requestId, actorId, action, details = {}) {
-  await db.query('INSERT INTO training_audit (request_id, actor_id, action, details) VALUES (?, ?, ?, ?)', [requestId, actorId, action, JSON.stringify(details)]);
+export async function audit(requestId, actorId, action, details = {}, executor = db) {
+  await executor.query('INSERT INTO training_audit (request_id, actor_id, action, details) VALUES (?, ?, ?, ?)', [requestId, actorId, action, JSON.stringify(details)]);
 }
 
 export async function history(requestId) {

@@ -1,7 +1,7 @@
 import db from '../db.js';
 
-export async function createUser({ id = null, username, email = null, password_hash, role = 'member', rank = null, status = 'Active', permissions = {} }) {
-  const [result] = await db.query(
+export async function createUser({ id = null, username, email = null, password_hash, role = 'member', rank = null, status = 'Active', permissions = {} }, executor = db) {
+  const [result] = await executor.query(
     'INSERT INTO users (id, username, email, password_hash, role, `rank`, status, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [id, username, email, password_hash, role, rank, status, JSON.stringify(permissions)]
   );

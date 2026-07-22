@@ -6,8 +6,21 @@
     <title>TFO Webapp — Initialization</title>
     <style>
       body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:32px}
-      .card{max-width:640px;margin:0 auto;padding:24px;border:1px solid #ddd;border-radius:8px}
+      .card{max-width:920px;margin:0 auto;padding:24px;border:1px solid #ddd;border-radius:12px}
       button{padding:10px 16px;font-size:16px}
+      button:disabled{cursor:not-allowed;opacity:.55}
+      .demo-panel{margin-top:20px;padding:18px;background:#f7f9fc;border:1px solid #dce3ec;border-radius:12px}
+      .demo-panel h3{margin:0 0 4px}.demo-panel>p{margin:0 0 14px;color:#586477}
+      .demo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+      .demo-category{padding:14px;background:#fff;border:1px solid #dce3ec;border-radius:10px;box-shadow:0 1px 2px rgba(20,35,55,.04)}
+      .demo-category-head{display:flex;justify-content:space-between;gap:8px;align-items:start}
+      .demo-category h4{margin:0}.demo-category p{min-height:40px;margin:7px 0 12px;color:#667085;font-size:14px}
+      .demo-status{flex:none;padding:3px 8px;border-radius:999px;background:#eef1f5;color:#576071;font-size:12px;font-weight:700}
+      .demo-status.present{background:#ddf7e8;color:#087443}.demo-status.partial{background:#fff2cf;color:#8a5b00}
+      .demo-actions{display:flex;gap:8px}.demo-actions button{flex:1;padding:8px 10px;font-size:14px;border:1px solid #c5cdd8;border-radius:7px;background:#fff;cursor:pointer}
+      .demo-actions .import-demo{background:#185adb;border-color:#185adb;color:#fff}.demo-actions .delete-demo{color:#a22020}
+      .demo-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid #dce3ec}
+      .demo-toolbar button{font-size:14px;border-radius:7px}.danger{color:#a22020}
       .button-link{display:inline-block;padding:10px 16px;font-size:16px;color:buttontext;background:buttonface;border:2px outset buttonborder;border-radius:2px;text-decoration:none}
       #recoveryOverlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(10,14,22,.88);padding:20px}
       #recoveryLogin{width:min(420px,100%);padding:24px;background:#fff;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
@@ -36,7 +49,6 @@
 
       <div style="margin-top:12px">
         <button id="initBtn">Create default database</button>
-        <button id="demoBtn" style="margin-left:8px">Import demo data</button>
         <button id="resetBtn" style="margin-left:8px;color:#900">Reset database (remove all data)</button>
         <button id="exportBtn" style="margin-left:8px">Export backup</button>
         <div style="margin-top:12px;display:flex;gap:8px;align-items:end;flex-wrap:wrap">
@@ -44,6 +56,43 @@
           <button id="createDefaultAdminBtn">Create admin</button>
         </div>
       </div>
+
+      <section class="demo-panel" aria-labelledby="demoDataTitle">
+        <h3 id="demoDataTitle">Manage demo data</h3>
+        <p>Import or delete individual sections. Existing administrators and custom data will not be removed.</p>
+        <div class="demo-grid" id="demoCategories">
+          <article class="demo-category" data-category="base">
+            <div class="demo-category-head"><h4>Base data</h4><span class="demo-status">Checking...</span></div>
+            <p>Default ranks and squad types used by the other demo data.</p>
+            <div class="demo-actions"><button class="import-demo">Import</button><button class="delete-demo">Delete</button></div>
+          </article>
+          <article class="demo-category" data-category="players">
+            <div class="demo-category-head"><h4>Players</h4><span class="demo-status">Checking...</span></div>
+            <p>Demo members, profiles, ranks, and training information from the player list.</p>
+            <div class="demo-actions"><button class="import-demo">Import</button><button class="delete-demo">Delete</button></div>
+          </article>
+          <article class="demo-category" data-category="roles">
+            <div class="demo-category-head"><h4>Roles</h4><span class="demo-status">Checking...</span></div>
+            <p>Available roles and the demo players allowed for each role.</p>
+            <div class="demo-actions"><button class="import-demo">Import</button><button class="delete-demo">Delete</button></div>
+          </article>
+          <article class="demo-category" data-category="template">
+            <div class="demo-category-head"><h4>ORBAT template</h4><span class="demo-status">Checking...</span></div>
+            <p>The Thursday Operation template, including squads, slots, and canvas layout.</p>
+            <div class="demo-actions"><button class="import-demo">Import</button><button class="delete-demo">Delete</button></div>
+          </article>
+          <article class="demo-category" data-category="operation">
+            <div class="demo-category-head"><h4>Demo operation</h4><span class="demo-status">Checking...</span></div>
+            <p>The scheduled Thursday Operation Demo. The ORBAT template must be present first.</p>
+            <div class="demo-actions"><button class="import-demo">Import</button><button class="delete-demo">Delete</button></div>
+          </article>
+        </div>
+        <div class="demo-toolbar">
+          <button id="importAllDemo">Import all</button>
+          <button id="deleteAllDemo" class="danger">Delete all demo data</button>
+          <button id="refreshDemoStatus">Refresh status</button>
+        </div>
+      </section>
 
       <small>The administrator username is fixed to <code>admin</code>.</small>
 
@@ -75,7 +124,7 @@
         <button id="importBtn">Import JSON</button>
       </div>
       <hr />
-      <h3>Database Health & Info</h3>
+      <h3>Database Health &amp; Info</h3>
       <div id="dbHealth" style="margin-top:8px;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
           <div id="dbStatus" style="font-weight:600">Checking...</div>
@@ -89,7 +138,6 @@
     <script>
       const status = document.getElementById('status');
       const initBtn = document.getElementById('initBtn');
-      const demoBtn = document.getElementById('demoBtn');
       const resetBtn = document.getElementById('resetBtn');
       const importBtn = document.getElementById('importBtn');
       const fileInput = document.getElementById('fileInput');
@@ -121,6 +169,7 @@
       function showInitPage() {
         document.getElementById('recoveryOverlay').style.display = 'none';
         document.getElementById('initPage').hidden = false;
+        refreshDemoStatus();
       }
 
       async function verifySavedRecoveryLogin() {
@@ -145,7 +194,7 @@
         try {
           const response = await recoveryFetch(apiUrl('/api/setup-auth'));
           const result = await response.json().catch(() => null);
-          if (!response.ok || result?.ok !== true) throw new Error('Recovery server is unavailable or the login credentials are incorrect');
+          if (!response.ok || result?.ok !== true) throw new Error('The recovery server is unavailable or the login credentials are incorrect');
           sessionStorage.setItem('tfoRecoveryAuthorization', recoveryAuthorization);
           document.getElementById('recoveryPassword').value = '';
           loginStatus.textContent = '';
@@ -189,14 +238,56 @@
       
 
       initBtn.addEventListener('click', (e) => { e.preventDefault(); postJson('/init', {}); });
-      demoBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const demo = await postJson('/init/demo', {});
+      const demoCategoryElements = [...document.querySelectorAll('.demo-category')];
+      const allDemoCategories = demoCategoryElements.map((element) => element.dataset.category);
+
+      async function refreshDemoStatus() {
+        try {
+          const response = await recoveryFetch(apiUrl('/init/demo/status'));
+          if (!response.ok) throw new Error('Could not retrieve status');
+          const result = await response.json();
+          for (const element of demoCategoryElements) {
+            const info = result.categories?.[element.dataset.category] || { count: 0, expected: 0 };
+            const badge = element.querySelector('.demo-status');
+            badge.className = 'demo-status';
+            if (info.count >= info.expected && info.expected > 0) {
+              badge.textContent = `Present · ${info.count}`;
+              badge.classList.add('present');
+            } else if (info.count > 0) {
+              badge.textContent = `Partial · ${info.count}/${info.expected}`;
+              badge.classList.add('partial');
+            } else badge.textContent = 'Not present';
+          }
+        } catch (error) {
+          for (const badge of document.querySelectorAll('.demo-status')) badge.textContent = 'Unknown';
+        }
+      }
+
+      async function importDemoCategories(categories) {
+        const demo = await postJson('/init/demo', { categories });
         if (demo && demo.defaultOpSettings) {
           localStorage.setItem('defaultOpSettings', JSON.stringify(demo.defaultOpSettings));
-          status.textContent = 'Demo data and default operation settings imported';
+          status.textContent = `${categories.length === allDemoCategories.length ? 'All demo data' : 'Demo section'} imported successfully`;
         }
-      });
+        await refreshDemoStatus();
+      }
+
+      async function deleteDemoCategories(categories, label) {
+        if (!confirm(`Are you sure you want to delete ${label}? Only recognizable demo records will be removed.`)) return;
+        const result = await postJson('/init/demo/delete', { categories });
+        if (result) status.textContent = `${label} deleted successfully`;
+        await refreshDemoStatus();
+      }
+
+      for (const element of demoCategoryElements) {
+        const category = element.dataset.category;
+        const label = element.querySelector('h4').textContent;
+        element.querySelector('.import-demo').addEventListener('click', () => importDemoCategories([category]));
+        element.querySelector('.delete-demo').addEventListener('click', () => deleteDemoCategories([category], label));
+      }
+      document.getElementById('importAllDemo').addEventListener('click', () => importDemoCategories(allDemoCategories));
+      document.getElementById('deleteAllDemo').addEventListener('click', () => deleteDemoCategories(allDemoCategories, 'all demo data'));
+      document.getElementById('refreshDemoStatus').addEventListener('click', refreshDemoStatus);
       resetBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (!confirm('Are you sure you want to wipe the entire database? This will delete all data and uploaded files.')) return;
@@ -210,7 +301,7 @@
           const username = 'admin';
           const password = document.getElementById('newAdminPassword').value;
           const res = await recoveryFetch(apiUrl('/init/create-admin'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-          if (res.status === 409) { status.textContent = 'admin user already exists'; }
+          if (res.status === 409) { status.textContent = 'The admin user already exists'; }
           else if (!res.ok) { const b = await res.json().catch(() => ({})); status.textContent = 'Error: ' + (b.error || res.statusText); return; }
           // Attempt to login immediately so the token becomes available for export
           try {
@@ -385,7 +476,7 @@
             table.appendChild(tr);
           }
           div.appendChild(table);
-          const updated = document.createElement('div'); updated.style.fontSize = '12px'; updated.style.marginTop = '6px'; updated.textContent = 'Updated: ' + new Date().toLocaleString();
+          const updated = document.createElement('div'); updated.style.fontSize = '12px'; updated.style.marginTop = '6px'; updated.textContent = 'Updated: ' + new Date().toLocaleString('en-GB');
           div.appendChild(updated);
         } catch (err) {
           document.getElementById('dbInfo').textContent = 'Error fetching DB info: ' + (err && err.message ? err.message : String(err));
@@ -410,7 +501,7 @@
             dbStatusEl.textContent = 'DB: unreachable';
             dbStatusEl.style.color = '#900';
             dbVersionEl.textContent = '';
-            dbLastCheckedEl.textContent = 'Last checked: ' + new Date().toLocaleString();
+            dbLastCheckedEl.textContent = 'Last checked: ' + new Date().toLocaleString('en-GB');
             return;
           }
           const j = await res.json();
@@ -431,7 +522,7 @@
           dbVersionEl.textContent = '';
           if (globalHealthEl) { globalHealthEl.textContent = 'Health: NOT OK'; globalHealthEl.style.color = '#900'; }
         } finally {
-          dbLastCheckedEl.textContent = 'Last checked: ' + new Date().toLocaleString();
+          dbLastCheckedEl.textContent = 'Last checked: ' + new Date().toLocaleString('en-GB');
         }
       }
 
@@ -474,7 +565,7 @@
           const j = await res.json();
           const initialized = Boolean(j.initialized);
           const initState = document.getElementById('initState');
-          const disableSel = ['initBtn','demoBtn','resetBtn','exportBtn','createDefaultAdminBtn','importBtn','restoreBtn'];
+          const disableSel = ['initBtn','resetBtn','exportBtn','createDefaultAdminBtn','importBtn','restoreBtn'];
           if (initialized) {
             initState.textContent = 'Database status: initialized.';
             initState.style.color = '#075';

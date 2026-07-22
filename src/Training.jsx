@@ -116,7 +116,10 @@ export default function Training({ auth, users = [], roles = [], onQualification
 }
 
 function RequestList({ items, onOpen, selectedId }) {
-  return <section className="card training-list"><h4>Requests</h4>{items.length ? items.map((item) => <button key={item.id} className={`training-request ${selectedId === item.id ? 'selected' : ''}`} onClick={() => onOpen(item.id)}><span><strong>{item.username}</strong><small>{item.role_name}</small></span><span><em className={`status-pill ${item.status}`}>{labels[item.status] || item.status}</em><small>{dateTime(item.created_at)}</small></span></button>) : <p>No requests.</p>}</section>;
+  return <section className="card training-list"><h4>Requests</h4>{items.length ? items.map((item) => {
+    const hasProposal = Boolean(item.latestProposalAt);
+    return <button key={item.id} className={`training-request ${selectedId === item.id ? 'selected' : ''}`} onClick={() => onOpen(item.id)}><span><strong>{item.username}</strong><small>{item.role_name}</small></span><span><em className={`status-pill ${hasProposal ? 'planning' : item.status}`}>{hasProposal ? 'Proposed' : (labels[item.status] || item.status)}</em><small>{dateTime(hasProposal ? item.latestProposalAt : item.created_at)}</small></span></button>;
+  }) : <p>No requests.</p>}</section>;
 }
 
 function RequestDetail({ detail, auth, access, busy, mutate, proposal, setProposal, close }) {

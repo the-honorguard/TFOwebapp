@@ -736,7 +736,7 @@
     "description": "TFO Thursday Operation template from the main spreadsheet",
     "squads": [
       {
-        "id": 281,
+        "id": 544,
         "parentId": null,
         "title": "HQ",
         "lrChannel": 1,
@@ -746,7 +746,7 @@
         "active": true,
         "slots": [
           {
-            "id": 1069,
+            "id": 2070,
             "name": "HQ",
             "role": "Zeus",
             "notes": "",
@@ -756,7 +756,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1070,
+            "id": 2071,
             "name": "Co-Zeus",
             "role": "Zeus",
             "notes": "",
@@ -768,7 +768,7 @@
         ]
       },
       {
-        "id": 282,
+        "id": 545,
         "parentId": null,
         "title": "X-Ray",
         "lrChannel": 1,
@@ -778,7 +778,7 @@
         "active": true,
         "slots": [
           {
-            "id": 1071,
+            "id": 2072,
             "name": "PLT leader",
             "role": "PLT leader",
             "notes": "",
@@ -788,7 +788,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1072,
+            "id": 2073,
             "name": "Grenadier 60mm",
             "role": "Grenadier",
             "notes": "",
@@ -800,7 +800,7 @@
         ]
       },
       {
-        "id": 283,
+        "id": 546,
         "parentId": null,
         "title": "Platoon Support",
         "lrChannel": 1,
@@ -810,7 +810,7 @@
         "active": true,
         "slots": [
           {
-            "id": 1073,
+            "id": 2074,
             "name": "Medic",
             "role": "Medic",
             "notes": "",
@@ -820,7 +820,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1074,
+            "id": 2075,
             "name": "AA",
             "role": "Anti air",
             "notes": "",
@@ -830,7 +830,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1075,
+            "id": 2076,
             "name": "Drone Operator",
             "role": "Drone Operator",
             "notes": "",
@@ -840,7 +840,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1076,
+            "id": 2077,
             "name": "JTAC/FO",
             "role": "JTAC/FO",
             "notes": "",
@@ -852,7 +852,7 @@
         ]
       },
       {
-        "id": 284,
+        "id": 547,
         "parentId": null,
         "title": "Alpha",
         "lrChannel": 1,
@@ -862,7 +862,7 @@
         "active": true,
         "slots": [
           {
-            "id": 1077,
+            "id": 2078,
             "name": "SQL",
             "role": "SQL",
             "notes": "",
@@ -872,7 +872,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1078,
+            "id": 2079,
             "name": "Medic",
             "role": "Medic",
             "notes": "",
@@ -882,7 +882,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1079,
+            "id": 2080,
             "name": "Rifleman (LAT)",
             "role": "Anti-tank",
             "notes": "",
@@ -892,7 +892,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1080,
+            "id": 2081,
             "name": "Grenadier",
             "role": "Grenadier",
             "notes": "",
@@ -902,7 +902,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1081,
+            "id": 2082,
             "name": "Marksman",
             "role": "Marksman",
             "notes": "",
@@ -912,7 +912,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1082,
+            "id": 2083,
             "name": "AR",
             "role": "AR",
             "notes": "",
@@ -924,7 +924,7 @@
         ]
       },
       {
-        "id": 285,
+        "id": 548,
         "parentId": null,
         "title": "Bravo",
         "lrChannel": 1,
@@ -934,7 +934,7 @@
         "active": true,
         "slots": [
           {
-            "id": 1083,
+            "id": 2084,
             "name": "SQL",
             "role": "SQL",
             "notes": "",
@@ -944,7 +944,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1084,
+            "id": 2085,
             "name": "Medic",
             "role": "Medic",
             "notes": "",
@@ -954,7 +954,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1085,
+            "id": 2086,
             "name": "Rifleman",
             "role": "Rifleman",
             "notes": "",
@@ -964,7 +964,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1086,
+            "id": 2087,
             "name": "Engineer/EOD",
             "role": "Engineer",
             "notes": "",
@@ -974,7 +974,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1087,
+            "id": 2088,
             "name": "Rifleman",
             "role": "Rifleman",
             "notes": "",
@@ -984,7 +984,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1088,
+            "id": 2089,
             "name": "AT",
             "role": "Anti-tank",
             "notes": "",
@@ -996,7 +996,7 @@
         ]
       },
       {
-        "id": 286,
+        "id": 549,
         "parentId": null,
         "title": "Charlie",
         "lrChannel": 1,
@@ -1006,7 +1006,7 @@
         "active": true,
         "slots": [
           {
-            "id": 1089,
+            "id": 2090,
             "name": "SQL",
             "role": "SQL",
             "notes": "",
@@ -1016,7 +1016,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1090,
+            "id": 2091,
             "name": "Medic",
             "role": "Medic",
             "notes": "",
@@ -1026,7 +1026,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1091,
+            "id": 2092,
             "name": "Rifleman (LAT)",
             "role": "Anti-tank",
             "notes": "",
@@ -1036,7 +1036,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1092,
+            "id": 2093,
             "name": "Grenadier",
             "role": "Grenadier",
             "notes": "",
@@ -1046,7 +1046,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1093,
+            "id": 2094,
             "name": "Marksman",
             "role": "Marksman",
             "notes": "",
@@ -1056,7 +1056,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1094,
+            "id": 2095,
             "name": "AR",
             "role": "AR",
             "notes": "",
@@ -1068,7 +1068,7 @@
         ]
       },
       {
-        "id": 287,
+        "id": 550,
         "parentId": null,
         "title": "Dagger",
         "lrChannel": 1,
@@ -1078,7 +1078,7 @@
         "active": false,
         "slots": [
           {
-            "id": 1095,
+            "id": 2096,
             "name": "Heli Pilot",
             "role": "Aerial Vehicle Heli pilot",
             "notes": "",
@@ -1088,7 +1088,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1096,
+            "id": 2097,
             "name": "Heli Co-Pilot",
             "role": "Aerial Vehicle Heli pilot",
             "notes": "",
@@ -1098,7 +1098,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1097,
+            "id": 2098,
             "name": "CAS Pilot",
             "role": "Jet pilot",
             "notes": "",
@@ -1108,7 +1108,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1098,
+            "id": 2099,
             "name": "CAS Co-Pilot",
             "role": "Jet pilot",
             "notes": "",
@@ -1120,7 +1120,7 @@
         ]
       },
       {
-        "id": 288,
+        "id": 551,
         "parentId": null,
         "title": "Turtle",
         "lrChannel": 1,
@@ -1130,7 +1130,7 @@
         "active": false,
         "slots": [
           {
-            "id": 1099,
+            "id": 2100,
             "name": "Commander",
             "role": "Ground vehicle Commander",
             "notes": "",
@@ -1140,7 +1140,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1100,
+            "id": 2101,
             "name": "Driver",
             "role": "Driver",
             "notes": "",
@@ -1150,7 +1150,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1101,
+            "id": 2102,
             "name": "Gunner",
             "role": "Gunner",
             "notes": "",
@@ -1162,7 +1162,7 @@
         ]
       },
       {
-        "id": 289,
+        "id": 552,
         "parentId": null,
         "title": "Hammer",
         "lrChannel": 1,
@@ -1172,7 +1172,7 @@
         "active": false,
         "slots": [
           {
-            "id": 1102,
+            "id": 2103,
             "name": "Teamleader",
             "role": "Fire support FS TL",
             "notes": "",
@@ -1182,7 +1182,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1103,
+            "id": 2104,
             "name": "Gunner 1",
             "role": "Fire support Gunner",
             "notes": "",
@@ -1192,7 +1192,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1104,
+            "id": 2105,
             "name": "Gunner 2",
             "role": "Fire support Gunner",
             "notes": "",
@@ -1204,7 +1204,7 @@
         ]
       },
       {
-        "id": 290,
+        "id": 553,
         "parentId": null,
         "title": "Echo",
         "lrChannel": 1,
@@ -1214,7 +1214,7 @@
         "active": false,
         "slots": [
           {
-            "id": 1105,
+            "id": 2106,
             "name": "Sniper",
             "role": "Sniper team Sniper",
             "notes": "",
@@ -1224,7 +1224,7 @@
             "assignedUserId": null
           },
           {
-            "id": 1106,
+            "id": 2107,
             "name": "Spotter",
             "role": "Spotter",
             "notes": "",
@@ -1238,87 +1238,94 @@
     ],
     "layoutNodes": [
       {
-        "x": 40,
+        "x": 80,
         "y": 120,
-        "squadId": 281,
+        "squadId": 544,
         "parentId": null
       },
       {
         "x": 560,
         "y": 120,
-        "squadId": 282,
+        "squadId": 545,
         "parentId": null
       },
       {
-        "x": 1080,
+        "x": 1040,
         "y": 40,
-        "squadId": 283,
+        "squadId": 546,
         "parentId": null
       },
       {
-        "x": 40,
+        "x": 80,
         "y": 480,
-        "squadId": 284,
+        "squadId": 547,
         "parentId": null
       },
       {
         "x": 560,
         "y": 480,
-        "squadId": 285,
+        "squadId": 548,
         "parentId": null
       },
       {
-        "x": 1080,
+        "x": 1040,
         "y": 480,
-        "squadId": 286,
+        "squadId": 549,
         "parentId": null
       },
       {
         "x": 40,
-        "y": 1000,
-        "squadId": 287,
+        "y": 1080,
+        "squadId": 550,
         "parentId": null
       },
       {
-        "x": 560,
-        "y": 1000,
-        "squadId": 288,
+        "x": 520,
+        "y": 1080,
+        "squadId": 551,
         "parentId": null
       },
       {
-        "x": 1080,
-        "y": 1000,
-        "squadId": 289,
+        "x": 1000,
+        "y": 1080,
+        "squadId": 552,
         "parentId": null
       },
       {
-        "x": 1600,
-        "y": 1000,
-        "squadId": 290,
+        "x": 40,
+        "y": 1540,
+        "squadId": 553,
         "parentId": null
       }
     ],
     "flowEdges": [
       {
         "id": "edge-223452c7-93d7-4d20-a6e3-4a39fdf355a7",
-        "sourceId": 282,
-        "targetId": 284,
+        "sourceId": 545,
+        "targetId": 547,
         "sourceAnchor": "bottom",
         "targetAnchor": "top"
       },
       {
         "id": "edge-d687ccb0-9da9-43a8-afd3-eb8a671ac46f",
-        "sourceId": 282,
-        "targetId": 285,
+        "sourceId": 545,
+        "targetId": 548,
         "sourceAnchor": "bottom",
         "targetAnchor": "top"
       },
       {
         "id": "edge-ec5eab22-01e2-4e60-98d2-5fabb86914c9",
-        "sourceId": 282,
-        "targetId": 286,
+        "sourceId": 545,
+        "targetId": 549,
         "sourceAnchor": "bottom",
         "targetAnchor": "top"
+      },
+      {
+        "id": "edge-bc891ad9-609d-4686-a516-3ae3cda11b06",
+        "sourceId": 546,
+        "targetId": 545,
+        "sourceAnchor": "left",
+        "targetAnchor": "right"
       }
     ]
   }
