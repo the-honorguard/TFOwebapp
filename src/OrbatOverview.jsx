@@ -193,8 +193,8 @@ export default function OrbatOverview({
                   >
                     <span className="orbat-connector top" aria-hidden="true" />
                     <span className="orbat-connector bottom" aria-hidden="true" />
-                    <span className="orbat-connector support left" title="Supports" aria-label="Supports" />
-                    <span className="orbat-connector support right" title="Supports" aria-label="Supports" />
+                    <span className="orbat-connector support left" title="Gives support" aria-label="Gives support" />
+                    <span className="orbat-connector support right" title="Receives support" aria-label="Receives support" />
                     <div
                       className="orbat-node-head"
                     >

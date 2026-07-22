@@ -1527,7 +1527,7 @@ app.put('/api/ops/:id', authMiddleware, requireCapability('edit_operations'), as
     const patch = {};
     if (typeof req.body.name === 'string') patch.title = req.body.name;
     const payloadFields = ['date', 'time', 'serverName', 'modlist', 'modlistPlayer', 'modlistServer', 'tsAddress', 'campaignId'];
-    const hasPayloadChange = payloadFields.some((f) => typeof req.body[f] === 'string' || (f === 'campaignId' && (typeof req.body[f] === 'number' || req.body[f] === null))) || Array.isArray(req.body.squads);
+    const hasPayloadChange = payloadFields.some((f) => typeof req.body[f] === 'string' || (f === 'campaignId' && (typeof req.body[f] === 'number' || req.body[f] === null))) || Array.isArray(req.body.squads) || Array.isArray(req.body.layoutNodes) || Array.isArray(req.body.flowEdges);
     if (hasPayloadChange) {
       // Merge into existing payload to avoid destroying stored fields (name, squads, etc.)
       patch.payload = { ...(existing.payload || {}) };
@@ -1549,6 +1549,8 @@ app.put('/api/ops/:id', authMiddleware, requireCapability('edit_operations'), as
           }))
         }));
       }
+      if (Array.isArray(req.body.layoutNodes)) patch.payload.layoutNodes = req.body.layoutNodes;
+      if (Array.isArray(req.body.flowEdges)) patch.payload.flowEdges = req.body.flowEdges;
     }
     const updated = await opsRepo.updateOp(Number(req.params.id), patch);
     const changes = [];

@@ -18,11 +18,58 @@ import { migrateEditorCanvasState } from './editorPersistence';
 
 const API = '/api';
 const operationCanvasKey = (operationId) => `operation:${operationId}`;
+const normalizeSupportDirection = (edge) => {
+  if (edge?.sourceAnchor === 'right' && edge?.targetAnchor === 'left') {
+    return {
+      ...edge,
+      sourceId: edge.targetId,
+      targetId: edge.sourceId,
+      sourceAnchor: 'left',
+      targetAnchor: 'right'
+    };
+  }
+  return edge;
+};
+const normalizeFlowEdge = (edge) => ({
+  ...normalizeSupportDirection(edge),
+  sourceAnchor: edge?.sourceAnchor || 'bottom',
+  targetAnchor: edge?.targetAnchor || 'top'
+});
 const newClientId = (prefix = 'tmp') => `${prefix}-${crypto.randomUUID()}`;
+
+const buildOperationSquadsFromTemplate = (templateSquads = [], existingSquads = []) => (
+  templateSquads.map((squad, squadIndex) => {
+    const existingSquad = existingSquads.find((item) => (
+      String(item.originalSquadId) === String(squad.id)
+      || (item.originalSquadId == null && String(item.id) === String(squad.id))
+    ));
+    return {
+      ...structuredClone(squad),
+      id: existingSquad?.id ?? newClientId('op-squad'),
+      originalSquadId: squad.id,
+      active: existingSquad ? existingSquad.active !== false : squad.active !== false,
+      lrChannel: squad.lrChannel ?? existingSquad?.lrChannel ?? 1,
+      srChannel: squad.srChannel ?? existingSquad?.srChannel ?? (squadIndex + 1),
+      slots: (squad.slots || []).map((slot) => {
+        const existingSlot = existingSquad?.slots?.find((item) => (
+          String(item.originalSlotId) === String(slot.id)
+          || (item.originalSlotId == null && String(item.id) === String(slot.id))
+        ));
+        return {
+          ...structuredClone(slot),
+          id: existingSlot?.id ?? newClientId('op-slot'),
+          originalSlotId: slot.id,
+          assignedUserId: existingSlot?.assignedUserId ?? null
+        };
+      })
+    };
+  })
+);
 
 // Template-builder canvas grid: one "unit" approximates a single slot row, so a squad
 // with N slots naturally occupies roughly (2 + N) units tall (2 units for the header).
 const CANVAS_GRID_UNIT = ORBAT_CANVAS_GRID_SIZE;
+const INACTIVE_SQUAD_MAX_COLUMNS = 3;
 const snapToCanvasGrid = (value) => Math.round(value / CANVAS_GRID_UNIT) * CANVAS_GRID_UNIT;
 
 const resolveTemplateId = (templateList, preferredId) => {
@@ -333,7 +380,7 @@ function App() {
       const next = { ...current };
       templateList.forEach((template) => {
         if (Array.isArray(template.flowEdges) && template.flowEdges.length) {
-          next[template.id] = template.flowEdges;
+          next[template.id] = template.flowEdges.map(normalizeFlowEdge);
           return;
         }
         const legacyLayoutIds = Object.keys(canvasLayout?.[template.id] || {});
@@ -361,7 +408,7 @@ function App() {
     setFlowEdges((current) => {
       const next = { ...current };
       loadedOps.forEach((op) => {
-        if (Array.isArray(op.flowEdges)) next[operationCanvasKey(op.id)] = op.flowEdges;
+        if (Array.isArray(op.flowEdges)) next[operationCanvasKey(op.id)] = op.flowEdges.map(normalizeFlowEdge);
       });
       return next;
     });
@@ -746,7 +793,7 @@ function App() {
         return `${yyyy}-${mm}-${dd}`;
       })();
       const payload = {
-        name: `Nieuwe operatie ${Date.now()}`,
+        name: `New operation ${Date.now()}`,
         templateId: tplId,
         date,
         time: defaultOpSettings.time || '',
@@ -1054,7 +1101,9 @@ function App() {
       const currentSquads = ops.find((op) => op.id === opId)?.squads || [];
       const nextSquads = currentSquads.map((squad) => squad.id === squadId ? { ...squad, ...updates } : squad);
       setOps((prev) => prev.map((op) => op.id !== opId ? op : { ...op, squads: nextSquads }));
-      if (typeof updates?.active === 'boolean') window.setTimeout(() => alignInactiveSquads(opId, nextSquads), 0);
+      if (typeof updates?.active === 'boolean') {
+        window.setTimeout(() => alignInactiveSquads(operationCanvasKey(opId), nextSquads), 0);
+      }
       return;
     }
     const isActiveToggle = typeof updates?.active === 'boolean';
@@ -1071,7 +1120,7 @@ function App() {
           squad.id === squadId ? { ...squad, active: updates.active } : squad
         ))
       })));
-      window.setTimeout(() => autoLayoutTemplate(opId, layoutSquads), 0);
+      window.setTimeout(() => autoLayoutTemplate(operationCanvasKey(opId), layoutSquads), 0);
     }
 
     const token = localStorage.getItem('token');
@@ -1335,15 +1384,18 @@ function App() {
     }
 
     if (page === 'scheduler-detail' || page === 'op-detail') {
-      setEditorDirty(true);
       const source = templates.find((template) => template.id === templateId);
       if (!source) return;
+      const currentOp = ops.find((op) => op.id === opId);
+      if (!currentOp) return;
+      const nextSquads = buildOperationSquadsFromTemplate(source.squads || [], currentOp.squads || []);
+      setEditorDirty(true);
       setOps((prev) => prev.map((op) => op.id !== opId ? op : {
         ...op,
         templateId,
-        squads: structuredClone(source.squads || [])
+        squads: nextSquads
       }));
-      copyTemplateCanvasToOperation(templateId, { id: opId, squads: source.squads || [] });
+      copyTemplateCanvasToOperation(templateId, { id: opId, squads: nextSquads });
       return;
     }
 
@@ -2356,6 +2408,11 @@ function App() {
     setSavingEditor(true);
     try {
       const savedSquads = prepareSquadsForSave(selectedOp.squads);
+      const canvasKey = operationCanvasKey(selectedOp.id);
+      const layoutNodes = (selectedOp.squads || []).map((squad, index) => ({
+        squadId: squad.id,
+        ...getCanvasNode(canvasKey, squad.id, index)
+      }));
       const opRes = await fetch(`${API}/ops/${selectedOp.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -2363,14 +2420,15 @@ function App() {
           serverName: selectedOp.serverName || '',
           tsAddress: selectedOp.tsAddress || '',
           campaignId: selectedOp.campaignId ?? null,
-          squads: savedSquads
+          squads: savedSquads,
+          layoutNodes,
+          flowEdges: getTemplateFlowEdges(canvasKey, selectedOp.squads)
         })
       });
       if (!opRes.ok) throw new Error((await opRes.json().catch(() => ({}))).error || 'Could not save operation');
       const savedIdByDraftId = new Map((selectedOp.squads || []).map((squad, index) => [String(squad.id), savedSquads[index]?.id]));
       setCanvasLayout((prev) => {
         const migrated = {};
-        const canvasKey = operationCanvasKey(selectedOp.id);
         Object.entries(prev?.[canvasKey] || {}).forEach(([squadId, node]) => {
           const savedId = savedIdByDraftId.get(String(squadId)) ?? squadId;
           migrated[savedId] = { ...node, parentId: node.parentId == null ? null : (savedIdByDraftId.get(String(node.parentId)) ?? node.parentId) };
@@ -2472,17 +2530,19 @@ function App() {
   };
 
   const getTemplateFlowEdges = (templateId, squads) => {
-    const squadIds = new Set((squads || []).map((squad) => squad.id));
-    return (flowEdges?.[templateId] || []).filter((edge) => squadIds.has(edge.sourceId) && squadIds.has(edge.targetId));
+    const squadIds = new Set((squads || []).map((squad) => String(squad.id)));
+    return (flowEdges?.[templateId] || [])
+      .filter((edge) => squadIds.has(String(edge.sourceId)) && squadIds.has(String(edge.targetId)))
+      .map(normalizeFlowEdge);
   };
 
   const copyTemplateCanvasToOperation = (templateId, op) => {
     if (!templateId || !op) return;
     const opSquads = op.squads || [];
-    const squadByOriginalId = new Map(opSquads.map((squad) => [squad.originalSquadId, squad]));
-    const mappedEdges = (flowEdges?.[templateId] || []).map((edge) => {
-      const source = squadByOriginalId.get(edge.sourceId);
-      const target = squadByOriginalId.get(edge.targetId);
+    const squadByOriginalId = new Map(opSquads.map((squad) => [String(squad.originalSquadId), squad]));
+    const mappedEdges = (flowEdges?.[templateId] || []).map(normalizeFlowEdge).map((edge) => {
+      const source = squadByOriginalId.get(String(edge.sourceId));
+      const target = squadByOriginalId.get(String(edge.targetId));
       if (!source || !target) return null;
       return {
         id: `${op.id}-${source.id}-${target.id}-${edge.id}`,
@@ -2584,11 +2644,13 @@ function App() {
     event.stopPropagation();
     setFlowEdges((prev) => ({
       ...prev,
-      [templateId]: (prev?.[templateId] || []).filter((edge) => (
-        anchor === 'top'
-          ? String(edge.targetId) !== String(squadId)
-          : String(edge.sourceId) !== String(squadId)
-      ))
+      [templateId]: (prev?.[templateId] || []).filter((edge) => {
+        const sourceMatches = String(edge.sourceId) === String(squadId)
+          && (edge.sourceAnchor || 'bottom') === anchor;
+        const targetMatches = String(edge.targetId) === String(squadId)
+          && (edge.targetAnchor || 'top') === anchor;
+        return !sourceMatches && !targetMatches;
+      })
     }));
     setFlowLinkSource((current) => (
       current?.templateId === templateId
@@ -2668,9 +2730,9 @@ function App() {
     const placed = new Set();
     const originalIndex = new Map(squads.map((squad, index) => [squad.id, index]));
 
-    const placeRow = (rowIds, centre = true) => {
+    const placeRow = (rowIds, centre = true, maxColumns = MAX_COLUMNS) => {
       // Centre short rows so a leader and its children share the same visual axis.
-      const columnOffset = centre ? (MAX_COLUMNS - rowIds.length) / 2 : 0;
+      const columnOffset = centre ? (maxColumns - rowIds.length) / 2 : 0;
       rowIds.forEach((id, column) => {
         positions[id] = {
           x: START_X + (columnOffset + column) * (NODE_WIDTH + HORIZONTAL_GAP),
@@ -2682,7 +2744,7 @@ function App() {
       nextY += tallest + VERTICAL_GAP;
     };
 
-    const layoutSection = (sectionSquads) => {
+    const layoutSection = (sectionSquads, maxColumns = MAX_COLUMNS) => {
       const sectionIds = new Set(sectionSquads.map((squad) => squad.id));
       const sectionEdges = edges.filter((edge) => sectionIds.has(edge.sourceId) && sectionIds.has(edge.targetId));
       const assignedIds = new Set(sectionEdges.flatMap((edge) => [edge.sourceId, edge.targetId]));
@@ -2706,8 +2768,8 @@ function App() {
           if (uniqueLevelIds.length === 0) break;
 
           uniqueLevelIds.forEach((id) => branchSeen.add(id));
-          for (let offset = 0; offset < uniqueLevelIds.length; offset += MAX_COLUMNS) {
-            placeRow(uniqueLevelIds.slice(offset, offset + MAX_COLUMNS));
+          for (let offset = 0; offset < uniqueLevelIds.length; offset += maxColumns) {
+            placeRow(uniqueLevelIds.slice(offset, offset + maxColumns), true, maxColumns);
           }
           levelIds = uniqueLevelIds.flatMap((id) => childrenMap.get(id) || []);
         }
@@ -2716,8 +2778,8 @@ function App() {
       // Squads without a flow connection belong below the connected hierarchy.
       // Keep filling each row from left to right instead of centring every squad
       // on its own row as a separate root.
-      for (let offset = 0; offset < unassignedSquads.length; offset += MAX_COLUMNS) {
-        placeRow(unassignedSquads.slice(offset, offset + MAX_COLUMNS).map((squad) => squad.id), false);
+      for (let offset = 0; offset < unassignedSquads.length; offset += maxColumns) {
+        placeRow(unassignedSquads.slice(offset, offset + maxColumns).map((squad) => squad.id), false, maxColumns);
       }
     };
 
@@ -2731,7 +2793,7 @@ function App() {
         nextY + (activeSquads.length > 0 ? VERTICAL_GAP : 0),
         360 + VERTICAL_GAP
       );
-      layoutSection(inactiveSquads);
+      layoutSection(inactiveSquads, INACTIVE_SQUAD_MAX_COLUMNS);
     }
 
     setCanvasLayout((prev) => {
@@ -2762,8 +2824,8 @@ function App() {
     setCanvasLayout((prev) => {
       const nextLayout = { ...(prev?.[templateId] || {}) };
       let rowY = startY;
-      for (let offset = 0; offset < inactiveSquads.length; offset += 4) {
-        const row = inactiveSquads.slice(offset, offset + 4);
+      for (let offset = 0; offset < inactiveSquads.length; offset += INACTIVE_SQUAD_MAX_COLUMNS) {
+        const row = inactiveSquads.slice(offset, offset + INACTIVE_SQUAD_MAX_COLUMNS);
         row.forEach((squad, column) => {
           nextLayout[squad.id] = {
             ...(nextLayout[squad.id] || {}),
@@ -2917,17 +2979,17 @@ function App() {
     const sourceIsSupport = ['left', 'right'].includes(flowLinkSource.anchor);
     const targetIsSupport = ['left', 'right'].includes(anchor);
 
-    // Support links are directional: the first side dot is the supporting
-    // squad and the second side dot is the squad it supports.
+    // Support direction is encoded by the connector itself, never by click
+    // order: left gives support, right receives support.
     if (sourceIsSupport && targetIsSupport) {
+      if (flowLinkSource.anchor === anchor) {
+        setFlowLinkSource({ templateId, squadId, anchor });
+        return;
+      }
       if (String(flowLinkSource.squadId) !== String(squadId)) {
-        addTemplateFlowEdge(
-          templateId,
-          flowLinkSource.squadId,
-          squadId,
-          flowLinkSource.anchor,
-          anchor
-        );
+        const giverId = flowLinkSource.anchor === 'left' ? flowLinkSource.squadId : squadId;
+        const receiverId = giverId === flowLinkSource.squadId ? squadId : flowLinkSource.squadId;
+        addTemplateFlowEdge(templateId, giverId, receiverId, 'left', 'right');
       }
       setFlowLinkSource(null);
       return;
@@ -3115,6 +3177,9 @@ function App() {
   const removeOperationNodeFlowEdges = (operationId, squadId, anchor, event) => removeNodeFlowEdges(operationCanvasKey(operationId), squadId, anchor, event);
   const resetOperationCanvasLayout = (operationId) => resetTemplateCanvasLayout(operationCanvasKey(operationId));
   const handleOperationFlowConnectorClick = (operationId, squadId, anchor, event) => handleFlowConnectorClick(operationCanvasKey(operationId), squadId, anchor, event);
+  const autoLayoutOperation = (operationId, squads) => autoLayoutTemplate(operationCanvasKey(operationId), squads);
+  const alignInactiveOperationSquads = (operationId, squads) => alignInactiveSquads(operationCanvasKey(operationId), squads);
+  const autoLayoutSingleOperationSquad = (operationId, squads, squadId) => autoLayoutSingleSquad(operationCanvasKey(operationId), squads, squadId);
 
   const nudgeCanvasDrag = (deltaX, deltaY) => {
     if (!canvasDrag || (!deltaX && !deltaY)) return;
@@ -3494,7 +3559,7 @@ function App() {
   return (
     <div className="app-shell app-shell-builder">
       <header className="app-header app-header-compact">
-        <img src="/tfo-emoji.png" alt="TFO" className="header-logo" height="40" width="40" />
+        <img src={defaultOpSettings.logoUrl || '/tfo-emoji.png'} alt="TFO" className="header-logo" height="40" width="40" />
         <h1>TFO Attendance</h1>
         <div className="header-actions">
           <button className="theme-toggle" onClick={toggleTheme}>
@@ -3983,9 +4048,9 @@ function App() {
                 deleteSlot={deleteSlot}
                 addSlot={addSlot}
                 dragSnapPreview={dragSnapPreview}
-                autoLayoutTemplate={autoLayoutTemplate}
-                alignInactiveSquads={alignInactiveSquads}
-                autoLayoutSingleSquad={autoLayoutSingleSquad}
+                autoLayoutTemplate={autoLayoutOperation}
+                alignInactiveSquads={alignInactiveOperationSquads}
+                autoLayoutSingleSquad={autoLayoutSingleOperationSquad}
                 squadTypes={squadTypes}
                 saveDraft={saveOperationDraft}
                 savingDraft={savingEditor}

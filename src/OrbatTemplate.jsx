@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
+import CanvasHelp from './CanvasHelp';
 
 /**
  * OrbatTemplate
@@ -240,7 +241,8 @@ export default function OrbatTemplate({
               window.setTimeout(() => alignInactiveSquads(template.id, nextSquads), 0);
             }
           };
-          const edges = getTemplateFlowEdges(template.id, template.squads)
+          const flowRelationships = getTemplateFlowEdges(template.id, template.squads);
+          const edges = flowRelationships
             .filter((edge) => nodeMap.has(edge.sourceId) && nodeMap.has(edge.targetId))
             .map((edge) => {
               const source = nodeMap.get(edge.sourceId);
@@ -271,6 +273,7 @@ export default function OrbatTemplate({
             <div className="flow-layout flow-fullscreen">
               <div className="orbat-wrapper flow-fullscreen-wrapper">
                 <div className="flow-canvas-controls">
+                  <CanvasHelp />
                   <button
                     type="button"
                     className="secondary small"
@@ -338,6 +341,12 @@ export default function OrbatTemplate({
                     const isSelected = selectedFlowSquadId === node.squad.id;
                     const collapsedHeight = getOrbatNodeHeight(node.squad);
                     const hoverSuppressed = draggingSquadId != null || flowLinkSource?.templateId === template.id;
+                    const supportsNames = flowRelationships
+                      .filter((edge) => String(edge.sourceId) === String(node.squad.id) && ['left', 'right'].includes(edge.sourceAnchor))
+                      .map((edge) => nodeMap.get(edge.targetId)?.squad.title || 'Unknown squad');
+                    const supportedByNames = flowRelationships
+                      .filter((edge) => String(edge.targetId) === String(node.squad.id) && ['left', 'right'].includes(edge.targetAnchor))
+                      .map((edge) => nodeMap.get(edge.sourceId)?.squad.title || 'Unknown squad');
 
                     return (
                         <div
@@ -376,16 +385,34 @@ export default function OrbatTemplate({
                           type="button"
                           className={`orbat-connector support left clickable ${isSelected && flowLinkSource?.anchor === 'left' ? 'active' : ''}`}
                           onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'left', event)}
-                          aria-label="Connect support from left"
-                          title="Support relationship"
+                          aria-label={`${node.squad.title} gives support`}
+                          title="Gives support"
                         />
+                        <button
+                          type="button"
+                          className="orbat-connector-remove support-remove left"
+                          onClick={(event) => removeNodeFlowEdges(template.id, node.squad.id, 'left', event)}
+                          aria-label={`Remove left support lines from ${node.squad.title}`}
+                          title="Remove left support lines"
+                        >
+                          ×
+                        </button>
                         <button
                           type="button"
                           className={`orbat-connector support right clickable ${isSelected && flowLinkSource?.anchor === 'right' ? 'active' : ''}`}
                           onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'right', event)}
-                          aria-label="Connect support from right"
-                          title="Support relationship"
+                          aria-label={`${node.squad.title} receives support`}
+                          title="Receives support"
                         />
+                        <button
+                          type="button"
+                          className="orbat-connector-remove support-remove right"
+                          onClick={(event) => removeNodeFlowEdges(template.id, node.squad.id, 'right', event)}
+                          aria-label={`Remove right support lines from ${node.squad.title}`}
+                          title="Remove right support lines"
+                        >
+                          ×
+                        </button>
                         <button
                           type="button"
                           className="orbat-connector-remove bottom"
@@ -478,7 +505,7 @@ export default function OrbatTemplate({
                               className={`squad-switch ${node.squad.active !== false ? 'is-active' : ''}`}
                               role="switch"
                               aria-checked={node.squad.active !== false}
-                              title="Standaard actief in nieuwe operaties"
+                              title="Active by default in new operations"
                               onMouseDown={(event) => event.stopPropagation()}
                               onClick={(event) => {
                                 event.stopPropagation();
@@ -490,8 +517,8 @@ export default function OrbatTemplate({
                             <button
                               type="button"
                               className="squad-sort-button"
-                              title="Alleen deze squad automatisch positioneren"
-                              aria-label="Alleen deze squad automatisch positioneren"
+                              title="Automatically position only this squad"
+                              aria-label="Automatically position only this squad"
                               onMouseDown={(event) => event.stopPropagation()}
                               onClick={(event) => { event.stopPropagation(); autoLayoutSingleSquad(template.id, template.squads, node.squad.id); }}
                             >
@@ -499,6 +526,12 @@ export default function OrbatTemplate({
                             </button>
                           </div>
                         </div>
+                        {(supportsNames.length || supportedByNames.length) ? (
+                          <div className="orbat-reports-to support-summary">
+                            {supportsNames.length ? <span>Supports: <strong>{supportsNames.join(', ')}</strong></span> : null}
+                            {supportedByNames.length ? <span>Supported by: <strong>{supportedByNames.join(', ')}</strong></span> : null}
+                          </div>
+                        ) : null}
                         <div className="flow-node-body" onClick={(event) => event.stopPropagation()}>
                           <div className="flow-slot-list">
                             {node.squad.slots.length === 0 ? (
@@ -632,7 +665,7 @@ export default function OrbatTemplate({
                         className={`squad-switch ${squad.active !== false ? 'is-active' : ''}`}
                         role="switch"
                         aria-checked={squad.active !== false}
-                        title="Standaard actief in nieuwe operaties"
+                        title="Active by default in new operations"
                         onClick={() => updateSquadMeta(template.id, squad.id, { active: squad.active === false })}
                       >
                         <span className="squad-switch-track" aria-hidden="true" />
@@ -640,7 +673,7 @@ export default function OrbatTemplate({
                       <button
                         type="button"
                         className="squad-sort-button"
-                        title="Alleen deze squad automatisch positioneren"
+                        title="Automatically position only this squad"
                         onClick={() => autoLayoutSingleSquad(template.id, template.squads, squad.id)}
                       >
                         Auto

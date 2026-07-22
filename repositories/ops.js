@@ -68,8 +68,28 @@ export async function updateOp(id, patch) {
   if ('status' in patch) { fields.push('status = ?'); values.push(patch.status); }
   if ('payload' in patch) {
     const { id: payloadId, squads = [], sections, absentUserIds = [], ...settings } = patch.payload || {};
+    const inputSquads = squads || sections || [];
+    const persistedSquads = await replaceOperationSquads(id, inputSquads, connection);
+    const persistedIdByInputId = new Map(inputSquads.map((squad, index) => (
+      [String(squad.id), persistedSquads[index]?.id]
+    )));
+    if (Array.isArray(settings.layoutNodes)) {
+      settings.layoutNodes = settings.layoutNodes.map((node) => ({
+        ...node,
+        squadId: persistedIdByInputId.get(String(node.squadId)) ?? node.squadId,
+        parentId: node.parentId == null
+          ? null
+          : (persistedIdByInputId.get(String(node.parentId)) ?? node.parentId)
+      }));
+    }
+    if (Array.isArray(settings.flowEdges)) {
+      settings.flowEdges = settings.flowEdges.map((edge) => ({
+        ...edge,
+        sourceId: persistedIdByInputId.get(String(edge.sourceId)) ?? edge.sourceId,
+        targetId: persistedIdByInputId.get(String(edge.targetId)) ?? edge.targetId
+      }));
+    }
     fields.push('payload = ?'); values.push(JSON.stringify(settings));
-    await replaceOperationSquads(id, squads || sections || [], connection);
     await replaceOperationAbsences(id, absentUserIds, connection);
   }
   if (fields.length) {

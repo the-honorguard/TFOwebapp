@@ -17,6 +17,14 @@ html {
     scrollbar-width: thin;
 }
 
+html[data-theme='dark'] {
+    color-scheme: dark;
+}
+
+html[data-theme='light'] {
+    color-scheme: light;
+}
+
 /* ----------------------------------------------------------------
    Theme variables - Dark mode (default)
    ---------------------------------------------------------------- */
@@ -274,6 +282,25 @@ select,
 textarea {
     padding: 0.5rem 0.7rem;
     border-radius: 5px;
+}
+
+/* Native select popups are rendered by the operating system. Explicit
+   option colors prevent Windows from combining a light popup with dark-theme
+   white text. */
+select option,
+select optgroup {
+    background: var(--panel);
+    color: var(--text);
+}
+
+[data-theme='dark'] select option:checked {
+    background: var(--button);
+    color: var(--button-text);
+}
+
+[data-theme='light'] select option:checked {
+    background: var(--button);
+    color: var(--button-text);
 }
 
 input[type='checkbox'],

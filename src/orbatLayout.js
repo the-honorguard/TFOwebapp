@@ -1,7 +1,6 @@
-// Keep every squad edge on the same grid lines as the canvas. The scheduler has
-// the widest row, so twelve 40px cells provide enough room for all controls.
+// Keep every squad edge on the same grid lines as the canvas.
 export const ORBAT_CANVAS_GRID_SIZE = 40;
-export const ORBAT_NODE_WIDTH = ORBAT_CANVAS_GRID_SIZE * 12;
+export const ORBAT_NODE_WIDTH = ORBAT_CANVAS_GRID_SIZE * 11;
 
 export const snapOrbatToGrid = (value) => (
   Math.round((Number(value) || 0) / ORBAT_CANVAS_GRID_SIZE) * ORBAT_CANVAS_GRID_SIZE
@@ -27,7 +26,19 @@ export const getOrbatNodeHeight = (squad) => {
   const slotCount = Array.isArray(squad?.slots) ? squad.slots.length : 0;
   const headerHeight = 136;
   const slotRowHeight = 43;
-  const footerHeight = 18;
+  // Includes the body padding, row gap and the add-slot button. Keeping this
+  // allowance explicit prevents two-slot squads from landing exactly on a
+  // grid boundary that is a few pixels shorter than their rendered content.
+  const footerHeight = 38;
 
-  return headerHeight + (slotCount * slotRowHeight) + footerHeight;
+  // Positions already snap to the canvas grid, so the height must do the same.
+  // Always round upwards: rounding to the nearest line can make the card
+  // shorter than its contents and introduce an unnecessary scrollbar.
+  return Math.max(
+    ORBAT_CANVAS_GRID_SIZE,
+    Math.ceil(
+      (headerHeight + (slotCount * slotRowHeight) + footerHeight)
+      / ORBAT_CANVAS_GRID_SIZE
+    ) * ORBAT_CANVAS_GRID_SIZE
+  );
 };

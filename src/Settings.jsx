@@ -55,6 +55,7 @@ export default function Settings({
 }) {
   const [subpage, setSubpage] = useState(() => initialSubpage || 'general');
   const [basicTrainingRole, setBasicTrainingRole] = useState('Rifleman');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     if (initialSubpage) setSubpage(initialSubpage);
@@ -89,7 +90,8 @@ export default function Settings({
     recurrence: defaultOpSettings.recurrence || 'none',
     minSignupAge: defaultOpSettings.minSignupAge ?? 17,
     squadTypes: defaultOpSettings.squadTypes || [],
-    defaultSlotRole: defaultOpSettings.defaultSlotRole || ''
+    defaultSlotRole: defaultOpSettings.defaultSlotRole || '',
+    logoUrl: defaultOpSettings.logoUrl || ''
   });
   
 
@@ -103,7 +105,8 @@ export default function Settings({
       recurrence: defaultOpSettings.recurrence || 'none',
       minSignupAge: defaultOpSettings.minSignupAge ?? 17,
       squadTypes: defaultOpSettings.squadTypes || [],
-      defaultSlotRole: defaultOpSettings.defaultSlotRole || ''
+      defaultSlotRole: defaultOpSettings.defaultSlotRole || '',
+      logoUrl: defaultOpSettings.logoUrl || ''
     });
   }, [defaultOpSettings]);
 
@@ -135,7 +138,8 @@ export default function Settings({
       recurrence: local.recurrence || 'none',
       minSignupAge: Number(local.minSignupAge) || 17,
       squadTypes: Array.isArray(local.squadTypes) ? local.squadTypes : [],
-      defaultSlotRole: local.defaultSlotRole || ''
+      defaultSlotRole: local.defaultSlotRole || '',
+      logoUrl: local.logoUrl || ''
     });
     alert('Default settings saved');
   };
@@ -209,6 +213,43 @@ export default function Settings({
 
           <form onSubmit={save}>
             <fieldset disabled={!can('edit_settings')} style={{ border: 0, padding: 0, margin: 0 }}>
+        <div className="form-row">
+          <label>Logo linksboven</label>
+          <div className="logo-setting">
+            <div className="logo-setting-preview">
+              <img src={local.logoUrl || '/tfo-emoji.png'} alt="Voorbeeld van het applicatielogo" />
+            </div>
+            <div className="logo-setting-actions">
+              <label className="button-like secondary">
+                {uploadingLogo ? 'Uploaden...' : 'Kies logo'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                  disabled={uploadingLogo}
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (!file || !uploadFile) return;
+                    setUploadingLogo(true);
+                    try {
+                      const logoUrl = await uploadFile(file);
+                      if (logoUrl) setLocal((current) => ({ ...current, logoUrl }));
+                    } finally {
+                      setUploadingLogo(false);
+                    }
+                  }}
+                />
+              </label>
+              {local.logoUrl ? (
+                <button type="button" className="secondary" onClick={() => setLocal((current) => ({ ...current, logoUrl: '' }))}>
+                  Standaardlogo herstellen
+                </button>
+              ) : null}
+              <small>PNG, JPG, WebP, GIF of SVG. Klik daarna op Save om het logo toe te passen.</small>
+            </div>
+          </div>
+        </div>
+
         <div className="form-row">
           <label>Template</label>
           <select

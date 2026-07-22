@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="nl">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -18,17 +18,17 @@
     <div id="recoveryOverlay">
       <form id="recoveryLogin">
         <h2>Recovery login</h2>
-        <p>Deze login staat los van de database.</p>
-        <label>Gebruikersnaam<input id="recoveryUsername" autocomplete="username" value="admin" /></label>
-        <label>Wachtwoord<input id="recoveryPassword" type="password" autocomplete="current-password" autofocus /></label>
-        <button type="submit">Inloggen</button>
+        <p>This login is independent of the database.</p>
+        <label>Username<input id="recoveryUsername" autocomplete="username" value="admin" /></label>
+        <label>Password<input id="recoveryPassword" type="password" autocomplete="current-password" autofocus /></label>
+        <button type="submit">Log in</button>
         <div id="recoveryLoginStatus" style="margin-top:10px"></div>
       </form>
     </div>
     <div class="card" id="initPage" hidden>
       <h1>Initialize database</h1>
       <p>The database appears uninitialized. Choose an action below:</p>
-      <p><a class="button-link" href="/">Naar hoofdpagina</a></p>
+      <p><a class="button-link" href="/">Go to homepage</a></p>
       <div id="globalHealth" style="font-weight:700;margin-top:6px">Health: checking...</div>
       <div id="initState" style="margin-top:4px;color:#555">Database status: checking...</div>
       <div style="margin-top:12px;font-weight:700">Latest action</div>
@@ -69,7 +69,7 @@
       <h3>Import full dataset</h3>
       <p>Upload a JSON file containing a full database export or paste JSON below.</p>
       <input type="file" id="fileInput" accept="application/json" />
-      <div style="margin-top:8px">of</div>
+      <div style="margin-top:8px">or</div>
       <textarea id="jsonInput" rows="8" style="width:100%;margin-top:8px" placeholder='{"users":[],"templates":[],"ops":[]}'></textarea>
       <div style="margin-top:8px">
         <button id="importBtn">Import JSON</button>
@@ -145,7 +145,7 @@
         try {
           const response = await recoveryFetch(apiUrl('/api/setup-auth'));
           const result = await response.json().catch(() => null);
-          if (!response.ok || result?.ok !== true) throw new Error('Recovery-server niet actief of onjuiste inloggegevens');
+          if (!response.ok || result?.ok !== true) throw new Error('Recovery server is unavailable or the login credentials are incorrect');
           sessionStorage.setItem('tfoRecoveryAuthorization', recoveryAuthorization);
           document.getElementById('recoveryPassword').value = '';
           loginStatus.textContent = '';
@@ -153,7 +153,7 @@
         } catch (error) {
           recoveryAuthorization = '';
           sessionStorage.removeItem('tfoRecoveryAuthorization');
-          loginStatus.textContent = error.message || 'Inloggen mislukt';
+          loginStatus.textContent = error.message || 'Login failed';
         }
       });
       verifySavedRecoveryLogin();
@@ -243,7 +243,7 @@
         const txt = jsonInput.value && jsonInput.value.trim();
         if (!txt) { status.textContent = 'No JSON provided'; return; }
         let parsed;
-        try { parsed = JSON.parse(txt); } catch (err) { status.textContent = 'Geen geldige JSON: ' + err.message; return; }
+        try { parsed = JSON.parse(txt); } catch (err) { status.textContent = 'Invalid JSON: ' + err.message; return; }
         await postJson('/init/import', parsed);
       });
 
