@@ -24,7 +24,10 @@ export const trimOrbatNodesToGrid = (nodes = []) => {
 // in the builder, scheduler and overview without forcing every squad to one size.
 export const getOrbatNodeHeight = (squad) => {
   const slotCount = Array.isArray(squad?.slots) ? squad.slots.length : 0;
-  const headerHeight = 136;
+  // The template and scheduler editors can render an extra relationship line
+  // ("Supports" / "Supported by") below the regular header controls. Reserve
+  // enough space for it so the slot list does not acquire a tiny scrollbar.
+  const headerHeight = 176;
   const slotRowHeight = 43;
   // Includes the body padding, row gap and the add-slot button. Keeping this
   // allowance explicit prevents two-slot squads from landing exactly on a
