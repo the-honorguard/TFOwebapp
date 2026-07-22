@@ -114,6 +114,7 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 const loginRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10 });
 const signupRateLimit = createRateLimiter({ windowMs: 60 * 60_000, max: 5 });
 const setupRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10 });
+const recoveryLoginRateLimit = createRateLimiter({ windowMs: 15 * 60_000, max: 10, skipSuccessfulRequests: true });
 
 // Lightweight health endpoint to detect DB availability
 app.get('/health', async (req, res) => {
@@ -220,7 +221,7 @@ app.get('/api/db-check', async (req, res) => {
 // Simple initialization endpoint used by public/init.html
 // Avoid `/api/init-auth`: o2switch/Apache reserves or intercepts that path and
 // returns HTTP 421 before the request reaches Passenger.
-app.get('/api/setup-auth', setupRateLimit, initAdminAuth, (req, res) => {
+app.get('/api/setup-auth', recoveryLoginRateLimit, initAdminAuth, (req, res) => {
   res.json({ ok: true });
 });
 
@@ -408,6 +409,16 @@ function initAdminAuth(req, res, next) {
 
   res.set('WWW-Authenticate', 'Basic realm="TFO recovery", charset="UTF-8"');
   return res.status(401).send('Recovery login required');
+}
+
+/** Allow backup management through either the recovery login or a signed-in
+ * application user who has the normal backup-management capability. */
+function backupAdminAuth(req, res, next) {
+  const header = String(req.headers.authorization || '');
+  if (header.startsWith('Basic ')) {
+    return initAdminAuth(req, res, next);
+  }
+  return authMiddleware(req, res, () => requireCapability('manage_backups')(req, res, next));
 }
 
 async function getCapabilities(role) {
@@ -2151,7 +2162,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
 });
 
   // Export full application data and included uploads as a single JSON payload
-  app.get('/api/backup', authMiddleware, requireCapability('manage_backups'), async (req, res) => {
+  app.get('/api/backup', backupAdminAuth, async (req, res) => {
     try {
       const data = normalizeStorage(await _readData());
       const trainingTables = ['training_settings','trainer_role_rights','training_requests','training_sessions','training_participants','training_proposals','training_audit'];
@@ -2201,7 +2212,7 @@ app.post('/api/upload/avatar', authMiddleware, (req, res) => {
   });
 
   // Import application backup (JSON payload with `data` and optional `uploads` array)
-  app.post('/api/backup/import', authMiddleware, requireCapability('manage_backups'), async (req, res) => {
+  app.post('/api/backup/import', backupAdminAuth, async (req, res) => {
     try {
       const payload = req.body;
       if (!payload || typeof payload !== 'object' || !payload.data) {

@@ -322,10 +322,10 @@
         const payload = { data: loadedBackup.data || loadedBackup, uploads: loadedBackup.uploads || [], selectedSections, restoreUploads };
         status.textContent = 'Restoring...';
         try {
-          const token = localStorage.getItem('token');
           const headers = { 'Content-Type': 'application/json' };
-          if (token) headers['Authorization'] = 'Bearer ' + token;
-          const res = await fetch(apiUrl('/api/backup/import'), { method: 'POST', headers, body: JSON.stringify(payload) });
+          const token = localStorage.getItem('token');
+          if (token && !recoveryAuthorization) headers['Authorization'] = 'Bearer ' + token;
+          const res = await recoveryFetch(apiUrl('/api/backup/import'), { method: 'POST', headers, body: JSON.stringify(payload) });
           if (!res.ok) {
             const body = await res.json().catch(() => ({}));
             status.textContent = 'Restore failed: ' + (body && body.error ? body.error : res.statusText);
@@ -343,8 +343,8 @@
         status.textContent = 'Preparing backup...';
         try {
           const token = localStorage.getItem('token');
-          const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
-          const res = await fetch(apiUrl('/api/backup'), { headers });
+          const headers = token && !recoveryAuthorization ? { 'Authorization': 'Bearer ' + token } : {};
+          const res = await recoveryFetch(apiUrl('/api/backup'), { headers });
           const text = await res.text().catch(() => '');
           let j = null;
           try { j = text ? JSON.parse(text) : null; } catch (e) { j = { text }; }

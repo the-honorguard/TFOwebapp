@@ -74,7 +74,7 @@ header { display: flex; justify-content: space-between; align-items: center; mar
 .header-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .app-header-compact { margin-bottom: 0.55rem; }
 .app-header-compact h1 { margin: 0; font-size: 1.35rem; }
-.app-header-compact .header-logo { width: 32px; height: 32px; }
+.app-header-compact .header-logo { width: 56px; height: 56px; }
 .app-header-compact .header-logo { object-fit: contain; }
 .logo-setting { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .logo-setting-preview { width: 84px; height: 84px; padding: 0.5rem; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 10px; background: rgba(127, 127, 127, 0.08); }
