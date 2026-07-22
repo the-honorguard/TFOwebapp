@@ -1,7 +1,7 @@
 # TFO Web App — TODO
 
-Last reviewed: July 21, 2026.
-Source: current working tree and `npm test` (10 tests passed).
+Last reviewed: July 22, 2026.
+Source: current working tree, `npm test` (18 tests passed, 1 database test skipped), and player feedback supplied July 22, 2026.
 
 This is the only active task list. Items are ranked by urgency and dependency: complete P0 before production, then work from top to bottom through P1, P2, and P3. Every active item uses the same format:
 
@@ -24,8 +24,9 @@ This is the only active task list. Items are ranked by urgency and dependency: c
 
 - [ ] **TFO-SEC-004 — Protect uploads against stored XSS**
   - **Problem:** Uploaded HTML, SVG, or disguised files can execute scripts when served to users.
+  - **Player feedback:** Add and clearly communicate upload restrictions.
   - **Work:** Reject HTML/HTM; reject SVG or sanitize it with a maintained library; validate MIME type and magic bytes; add `X-Content-Type-Options: nosniff` and an appropriate CSP; and serve risky files as downloads or from a cookieless origin where practical.
-  - **Done:** Valid images still work, while automated tests reject HTML, scripted SVG, incorrect MIME types, and disguised files.
+  - **Done:** Valid images still work, allowed file types and size limits are visible before selection, invalid selections receive accessible feedback, and automated tests reject HTML, scripted SVG, incorrect MIME types, oversized files, and disguised files.
 
 - [x] **TFO-SEC-003 — Remove application logging endpoints**
   - **Resolution:** Removed `/api/logs/start`, `/api/logs/stop`, `/api/logs/stream`, and `/api/client-log`, together with the browser forwarding code, initialization UI, collector, file logger, and existing generated log files. Only normal process console output remains for the hosting provider.
@@ -80,6 +81,11 @@ This is the only active task list. Items are ranked by urgency and dependency: c
   - **Work:** Expand the relevant template content by default while the form is active and preserve intentional user-controlled state where appropriate.
   - **Done:** Opening form mode immediately shows the editable template content without requiring an extra expand action.
 
+- [ ] **TFO-BUG-012 — Restore broken form mode**
+  - **Problem:** Player feedback reports that form mode is completely unusable, preventing the intended template or operation workflow from being completed.
+  - **Work:** Reproduce and document every failure in form mode; restore loading, navigation, display, editing, validation, saving, and cancellation; preserve entered data after recoverable errors; and resolve TFO-BUG-003 as part of the repair where applicable.
+  - **Done:** An authorized user can open form mode, view all required content, edit every supported field, receive useful validation feedback, save valid changes, cancel safely, and reopen the saved result without data loss; browser regression tests cover the complete workflow on desktop and mobile widths.
+
 - [x] **TFO-BUG-005 — Display training-session dates in the intended format**
   - **Problem:** The new training-session form exposes the technical `YYYY-MM-DD` representation instead of the intended user-facing date format.
   - **Work:** Format the displayed date consistently with the rest of the application while preserving an unambiguous API and database value.
@@ -94,6 +100,32 @@ This is the only active task list. Items are ranked by urgency and dependency: c
   - **Problem:** The authenticated Overview is 461 px wide in a 390 px viewport, causing document-level horizontal scrolling.
   - **Work:** Let navigation and ORBAT controls wrap or scroll within their own containers without hiding actions.
   - **Done:** The page has no document-level horizontal overflow at 390 px and a browser regression test verifies it.
+
+- [ ] **TFO-BUG-008 — Explain why a player cannot claim a slot**
+  - **Problem:** When a player cannot join a slot, the interface does not make the reason visible.
+  - **Work:** Keep unavailable slot actions visibly disabled and show the applicable reason, such as missing qualifications, an occupied slot, an existing signup, an inactive squad, or insufficient access.
+  - **Done:** Every unavailable slot has an accessible explanation, eligible players can still claim slots normally, and tests cover the principal denial reasons.
+
+- [ ] **TFO-BUG-009 — Correct the Create Account layout and copy**
+  - **Problem:** Availability and experience controls render with excessive spacing and poor alignment, while requirement text and labels read awkwardly.
+  - **Work:** Repair the responsive form layout, align controls with their labels, and rewrite the affected English copy so requirements and questions are concise and natural.
+  - **Done:** The complete form is readable and consistently aligned on supported desktop and mobile widths, all copy has been reviewed, and a browser regression test covers the affected sections.
+
+- [ ] **TFO-BUG-010 — Make notification links open their exact target**
+  - **Problem:** Clicking a notification does not consistently navigate to the operation, training request, proposal, session, signup, or other entity described by it.
+  - **Work:** Add typed target metadata to notifications and route each supported notification type to the relevant page and entity detail.
+  - **Done:** Every notification type opens its exact target when that target still exists, missing targets produce non-blocking feedback, and navigation tests cover all supported types.
+
+- [ ] **TFO-BUG-011 — Allow training suggestions to be rejected**
+  - **Problem:** A player can accept a proposed training time but cannot explicitly reject it.
+  - **Work:** Add an authorized rejection action, persist the result, notify the trainer, and keep the request available for a new proposal where appropriate.
+  - **Done:** The intended player can reject a pending suggestion, unauthorized users cannot reject it, both parties see the updated state, and API and UI tests pass.
+
+- [ ] **TFO-BUG-013 — Limit squad notifications to squad members**
+  - **Problem:** Squad-targeted notifications are also sent to players marked absent, causing irrelevant or misleading notifications.
+  - **Player feedback:** `[RCT] Ember`, July 22, 2026.
+  - **Work:** Resolve the intended squad recipients when creating a squad notification and exclude absent players from delivery.
+  - **Done:** A squad notification is delivered only to eligible members of that squad, absent players receive no copy, unrelated squads receive no copy, and recipient-selection tests cover assigned, absent, and unrelated players.
 
 ## P2 — Testability, maintainability, and operations
 
@@ -144,10 +176,11 @@ This is the only active task list. Items are ranked by urgency and dependency: c
   - **Work:** Define Occupied, Slots, and Allowed precisely, then calculate them server-side from authoritative sources.
   - **Done:** Each metric has documented semantics, API values match source data, and tests cover empty, partial, and full occupancy.
 
-- [ ] **TFO-FEAT-002 — Make modlist uploads accessible**
+- [x] **TFO-FEAT-002 — Make modlist uploads accessible**
   - **Problem:** Player and server modlists support drag-and-drop but provide no visible file-picker control.
   - **Work:** Add an accessible upload button to both fields using the existing upload flow and feedback.
   - **Done:** Keyboard, pointer, and drag-and-drop users can upload both modlist types and receive consistent success or error feedback.
+  - **Resolution:** Added visible, keyboard-accessible player and server modlist file pickers to the Scheduler while retaining the existing drag-and-drop flow and shared upload handling. The controls stack at narrow viewport widths.
 
 - [ ] **TFO-FEAT-004 — Allow template sections to be reordered**
   - **Problem:** Slots can be ordered, but sections and squads within templates cannot.
@@ -198,6 +231,39 @@ This is the only active task list. Items are ranked by urgency and dependency: c
   - **Problem:** User-facing strings are scattered throughout the codebase and cannot be translated consistently.
   - **Work:** Centralize strings behind a documented localization interface without changing the current language.
   - **Done:** Components no longer introduce standalone user-facing strings, the existing English UI remains unchanged, and adding another locale does not require component rewrites.
+
+- [x] **TFO-FEAT-009 — Add player-list search**
+  - **Problem:** Administrators and other authorized users cannot quickly find a player in a long player list.
+  - **Work:** Add an accessible search field that filters players by username and relevant displayed profile fields without losing unsaved edits.
+  - **Done:** Search is keyboard accessible, matching is case-insensitive, clearing the query restores the full list, empty results are explained, and filtering tests pass.
+  - **Resolution:** Added client-side player filtering by username, displayed profile name, rank, status, permission group, and assigned roles. Filtering preserves the underlying user state, includes an accessible empty result, and is covered by unit tests.
+
+- [ ] **TFO-FEAT-010 — Support persistent player-list ordering**
+  - **Problem:** The player list cannot be reordered or given a clearly controlled persistent order.
+  - **Work:** Define the required manual and automatic ordering behavior, add authorized reordering controls if manual order is approved, and persist the selected order.
+  - **Done:** The ordering rules are documented, authorized changes survive reloads, unauthorized users cannot change the order, and persistence tests pass.
+
+- [ ] **TFO-FEAT-011 — Notify administrators about new signups**
+  - **Problem:** Administrators do not receive an in-app notification when a new account is created and may miss players awaiting review.
+  - **Work:** Create a notification for the appropriate administrator group after successful signup and link it directly to the new player's record.
+  - **Done:** One notification is created per successful signup, failed or duplicate signup attempts create none, clicking it opens the correct player, and tests cover delivery and authorization.
+
+- [ ] **TFO-FEAT-012 — Add per-player audit history**
+  - **Problem:** Administrators cannot review a consolidated history of important changes and actions for an individual player.
+  - **Player feedback:** `[MAJ] Henry Gibbs [TFO]`, July 22, 2026.
+  - **Work:** Define auditable player events, record the actor, target player, action, timestamp, and relevant before-and-after values, and expose an authorized audit-history view from the player record.
+  - **Done:** Authorized administrators can view a chronological, attributable audit history for each player; unauthorized users cannot access it; sensitive values such as passwords and tokens are never recorded; and API, authorization, and event-recording tests pass.
+
+- [x] **TFO-UX-007 — Make the application logo return to the homepage**
+  - **Problem:** The header icon looks like a home affordance but does not navigate back to the application homepage.
+  - **Work:** Make the logo an accessible home link while preserving configured branding and editor unsaved-change protection.
+  - **Done:** Pointer and keyboard users can activate the logo from every page, it returns to the correct public or authenticated homepage, and unsaved editor changes are handled safely.
+  - **Resolution:** Converted the configured header logo into an accessible home link. It routes authenticated users to Overview, users without Overview access to Profile, and public users to the public Overview while reusing the editor's unsaved-change confirmation.
+
+- [ ] **TFO-UX-008 — Make the role-overflow badge interactive** *(interaction to be defined)*
+  - **Problem:** The `+N` badge indicates that a player has additional roles, but clicking it currently does nothing and the hidden roles cannot be inspected from that control.
+  - **Work:** Decide whether activation should expand the role list inline, open a popover or dialog, or navigate to role management; then implement the selected interaction without unexpectedly enabling role editing.
+  - **Done:** Pointer and keyboard users can activate the badge and access every hidden role, the control communicates its purpose and expanded state to assistive technology, authorized editing remains clearly separated, and interaction tests pass.
 
 ## Verified as complete
 

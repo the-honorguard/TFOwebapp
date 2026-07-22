@@ -667,6 +667,23 @@ function formatApiDateTime(value) {
   return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
 }
 
+async function getApplicationSettings() {
+  const [rows] = await pool.query('SELECT enable_form_mode FROM application_settings WHERE id = 1');
+  return { enableFormMode: rows[0]?.enable_form_mode !== 0 };
+}
+
+app.put('/api/application-settings', authMiddleware, requireCapability('edit_settings'), async (req, res) => {
+  if (typeof req.body.enableFormMode !== 'boolean') {
+    return res.status(400).json({ error: 'enableFormMode must be a boolean' });
+  }
+  await pool.query(
+    `INSERT INTO application_settings (id, enable_form_mode) VALUES (1, ?)
+     ON DUPLICATE KEY UPDATE enable_form_mode = VALUES(enable_form_mode)`,
+    [req.body.enableFormMode ? 1 : 0]
+  );
+  return res.json({ settings: await getApplicationSettings() });
+});
+
 async function generateRecurringOps(inputData) {
   if (recurrenceGeneration) {
     await recurrenceGeneration;
@@ -785,7 +802,7 @@ app.get('/api/public-data', async (req, res) => {
   data = await generateRecurringOps(data);
   const publicUsers = data.users.map((user) => ({ id: user.id, username: user.username, role: user.role, rank: user.rank, status: user.status, avatarUrl: user.profile?.avatarUrl || null }));
   const publicTemplates = (data.templates || []).map((template) => ({ id: template.id, name: template.name }));
-  res.json({ users: publicUsers, templates: publicTemplates, ops: data.ops || [], campaigns: data.campaigns || [], customRoles: [] });
+  res.json({ users: publicUsers, templates: publicTemplates, ops: data.ops || [], campaigns: data.campaigns || [], customRoles: [], appSettings: await getApplicationSettings() });
 });
 
 app.get('/api/data', authMiddleware, async (req, res) => {
@@ -811,7 +828,8 @@ app.get('/api/data', authMiddleware, async (req, res) => {
     ops: capabilities.view_overview || capabilities.view_operations ? (data.ops || []) : [],
     recurrences: capabilities.view_operations ? (data.recurrences || []) : [],
     campaigns: capabilities.view_campaigns ? (data.campaigns || []) : [],
-    customRoles: capabilities.view_players || capabilities.view_settings ? (data.customRoles || []) : []
+    customRoles: capabilities.view_players || capabilities.view_settings ? (data.customRoles || []) : [],
+    appSettings: await getApplicationSettings()
   });
 });
 

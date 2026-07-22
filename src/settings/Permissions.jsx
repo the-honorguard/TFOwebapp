@@ -5,6 +5,7 @@ export default function Permissions({ groups = [], definitions = [], onGroupsCha
   const [newName, setNewName] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   useEffect(() => {
     setDrafts(Object.fromEntries(groups.map((group) => [group.slug, {
@@ -100,9 +101,11 @@ export default function Permissions({ groups = [], definitions = [], onGroupsCha
       <div className="permission-group-list">
         {groups.map((group) => {
           const draft = drafts[group.slug] || { name: group.name, permissions: {} };
+          const expanded = expandedGroups[group.slug] === true;
+          const contentId = `permission-group-content-${group.slug}`;
           return (
             <section className="card permission-group-card" key={group.slug}>
-              <div className="permission-group-header">
+              <div className={`permission-group-header${expanded ? '' : ' collapsed'}`}>
                 <div className="permission-group-identity">
                   <label htmlFor={`permission-group-${group.slug}`}>Group name</label>
                   <div className="permission-group-name-row">
@@ -115,41 +118,56 @@ export default function Permissions({ groups = [], definitions = [], onGroupsCha
                   </div>
                 </div>
                 <div className="permission-group-actions">
+                  <button
+                    type="button"
+                    className="secondary permission-group-toggle"
+                    aria-expanded={expanded}
+                    aria-controls={contentId}
+                    onClick={() => setExpandedGroups((current) => ({
+                      ...current,
+                      [group.slug]: !expanded
+                    }))}
+                  >
+                    <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+                    {expanded ? 'Hide permissions' : 'Show permissions'}
+                  </button>
                   <button type="button" onClick={() => saveGroup(group.slug)}>Save changes</button>
                   {!group.system ? <button type="button" className="secondary" onClick={() => deleteGroup(group)}>Delete</button> : null}
                 </div>
               </div>
 
-              <div className="permission-category-grid">
-                {Object.entries(categories).map(([category, items]) => (
-                  <fieldset className="permission-category" key={category}>
-                    <legend>{category}</legend>
-                    <div className="permission-category-options">
-                      {items.map((definition) => {
-                        const locked = group.slug === 'admin';
-                        return (
-                          <label className="permission-option" key={definition.key}>
-                            <input
-                              type="checkbox"
-                              checked={locked || draft.permissions[definition.key] === true}
-                              disabled={locked}
-                              onChange={(event) => setDrafts((current) => ({
-                                ...current,
-                                [group.slug]: {
-                                  ...draft,
-                                  permissions: { ...draft.permissions, [definition.key]: event.target.checked }
-                                }
-                              }))}
-                            />
-                            <span>{definition.label}</span>
-                            {locked ? <small>Locked</small> : null}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </fieldset>
-                ))}
-              </div>
+              {expanded ? (
+                <div className="permission-category-grid" id={contentId}>
+                  {Object.entries(categories).map(([category, items]) => (
+                    <fieldset className="permission-category" key={category}>
+                      <legend>{category}</legend>
+                      <div className="permission-category-options">
+                        {items.map((definition) => {
+                          const locked = group.slug === 'admin';
+                          return (
+                            <label className="permission-option" key={definition.key}>
+                              <input
+                                type="checkbox"
+                                checked={locked || draft.permissions[definition.key] === true}
+                                disabled={locked}
+                                onChange={(event) => setDrafts((current) => ({
+                                  ...current,
+                                  [group.slug]: {
+                                    ...draft,
+                                    permissions: { ...draft.permissions, [definition.key]: event.target.checked }
+                                  }
+                                }))}
+                              />
+                              <span>{definition.label}</span>
+                              {locked ? <small>Locked</small> : null}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                  ))}
+                </div>
+              ) : null}
             </section>
           );
         })}

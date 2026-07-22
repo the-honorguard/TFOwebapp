@@ -5,10 +5,16 @@ import React, { useEffect, useState, useRef } from 'react';
 //   editing profile fields, uploading avatar and changing password.
 // - Falls back to provided `auth` + `users` props if the API does not return data.
 export default function Profile({ auth, users = [], ops = [], changePassword, uploadAvatar, updateMyProfile, allRoles = [], ranks = [] }) {
-  const [me, setMe] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const localUser = (auth && (users.find((user) => String(user.id) === String(auth.id))
+    || users.find((user) => user.username === auth.username))) || auth || null;
+  const [me, setMe] = useState(localUser);
+  const [loading, setLoading] = useState(!localUser);
   const [error, setError] = useState(null);
-  const [edit, setEdit] = useState({});
+  const [edit, setEdit] = useState(() => localUser ? {
+    rank: localUser.rank || '',
+    status: localUser.status || 'Active',
+    profile: { ...(localUser.profile || {}) }
+  } : {});
   const [uploading, setUploading] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState('No file selected');
   const fileInputRef = useRef(null);
@@ -36,8 +42,8 @@ export default function Profile({ auth, users = [], ops = [], changePassword, up
           throw new Error(msg);
         }
         if (!data || !data.user) {
-          // Fallback: try to populate from provided props (auth + users)
-          const fallback = (auth && (users.find((u) => u.id === auth.id) || users.find((u) => u.username === auth.username))) || null;
+          // Keep rendering the locally loaded profile if the refresh is incomplete.
+          const fallback = localUser;
           if (fallback) {
             if (mounted) {
               setMe(fallback);

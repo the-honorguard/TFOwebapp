@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import OrbatOverview from './OrbatOverview';
 import OrbatScheduler from './OrbatScheduler';
+import { filterPlayers } from './playerSearch';
 import OrbatTemplate from './OrbatTemplate';
 import Settings from './Settings';
 import Ranks from './Ranks';
@@ -130,7 +131,9 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [playerAvatarPreview, setPlayerAvatarPreview] = useState(null);
   const [users, setUsers] = useState([]);
+  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
   const [templates, setTemplates] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [ops, setOps] = useState([]);
@@ -235,6 +238,18 @@ function App() {
       return {};
     }
   });
+  const saveDefaultOpSettings = async (settings) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API}/application-settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ enableFormMode: settings.enableFormMode !== false })
+    });
+    const data = await readApiResponse(response, 'Could not save application settings');
+    const next = { ...settings, ...(data.settings || {}) };
+    setDefaultOpSettings(next);
+    return next;
+  };
   const [creatingDefaultOp, setCreatingDefaultOp] = useState(false);
   const changePassword = async (currentPassword, newPassword) => {
     try {
@@ -303,7 +318,10 @@ function App() {
     const data = await readApiResponse(res, 'Could not update profile');
     if (!data.user) throw new Error('Could not update profile (server response did not include the user)');
     // update local users list
-    setUsers((prev) => prev.map((u) => (u.id === data.user.id ? data.user : u)));
+    setUsers((prev) => prev.map((u) => (String(u.id) === String(data.user.id) ? data.user : u)));
+    setAuth((current) => current && String(current.id) === String(data.user.id)
+      ? { ...current, ...data.user }
+      : current);
     return data.user;
   };
   
@@ -327,6 +345,12 @@ function App() {
   useEffect(() => {
     localStorage.setItem('builderFlowMode', String(builderFlowMode));
   }, [builderFlowMode]);
+
+  useEffect(() => {
+    if (defaultOpSettings.enableFormMode === false && !builderFlowMode) {
+      setBuilderFlowMode(true);
+    }
+  }, [defaultOpSettings.enableFormMode, builderFlowMode]);
 
   useEffect(() => {
     try {
@@ -438,7 +462,13 @@ function App() {
     setCustomRoles(data.customRoles || []);
     setPermissionGroups(data.permissionGroups || []);
     setPermissionDefinitions(data.permissionDefinitions || []);
-    setAuth(nextAuth);
+    if (data.appSettings) {
+      setDefaultOpSettings((current) => ({ ...current, ...data.appSettings }));
+    }
+    const authenticatedUser = nextAuth
+      ? (data.users || []).find((user) => String(user.id) === String(nextAuth.id))
+      : null;
+    setAuth(nextAuth ? { ...(authenticatedUser || {}), ...nextAuth } : null);
     setSelectedTemplateId(resolvedDefaultTemplateId);
     setSelectedOpId(null);
     const templateDefaults = templateList?.[0]?.defaultSettings || {};
@@ -549,6 +579,7 @@ function App() {
   const goToPlayers = () => leaveEditor(() => setPage('players'));
   const goToRanks = () => leaveEditor(() => { setSettingsInitialSubpage('ranks'); setPage('settings'); });
   const goToDashboard = () => leaveEditor(() => setPage('overview'));
+  const goToHome = () => leaveEditor(() => setPage(auth?.capabilities?.view_overview === false ? 'profile' : 'overview'));
   const goToSettings = () => leaveEditor(() => setPage('settings'));
   const goToCampaigns = () => leaveEditor(() => setPage('campaigns'));
   const showOpOnDashboard = (opId) => {
@@ -1385,14 +1416,23 @@ function App() {
     } catch (e) { alert('Could not delete campaign'); }
   };
 
-  const handleModlistDrop = async (opId, type, event) => {
-    event.preventDefault();
-    const file = event.dataTransfer.files?.[0];
+  const uploadOperationModlist = async (opId, type, file) => {
     if (!file) return;
     const url = await uploadFile(file);
     if (!url) return;
     if (type === 'player') updateOpMeta(opId, { modlistPlayer: url });
     else if (type === 'server') updateOpMeta(opId, { modlistServer: url });
+  };
+
+  const handleModlistDrop = async (opId, type, event) => {
+    event.preventDefault();
+    await uploadOperationModlist(opId, type, event.dataTransfer.files?.[0]);
+  };
+
+  const handleModlistSelect = async (opId, type, event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    await uploadOperationModlist(opId, type, file);
   };
 
   const handleModlistDragOver = (event) => { event.preventDefault(); };
@@ -3583,10 +3623,25 @@ function App() {
     }
   };
 
+  const filteredPlayers = useMemo(
+    () => filterPlayers(users, playerSearchQuery, ranks, permissionGroups),
+    [users, playerSearchQuery, ranks, permissionGroups]
+  );
+
   return (
     <div className="app-shell app-shell-builder">
       <header className="app-header app-header-compact">
-        <img src={defaultOpSettings.logoUrl || '/tfo-emoji.png'} alt="TFO" className="header-logo" height="40" width="40" />
+        <a
+          href="/"
+          className="header-logo-link"
+          aria-label="Go to homepage"
+          onClick={(event) => {
+            event.preventDefault();
+            goToHome();
+          }}
+        >
+          <img src={defaultOpSettings.logoUrl || '/tfo-emoji.png'} alt="" className="header-logo" height="40" width="40" />
+        </a>
         <h1>TFO Attendance</h1>
         <div className="header-actions">
           <button className="theme-toggle" onClick={toggleTheme}>
@@ -3613,6 +3668,20 @@ function App() {
                   onReadAll={markAllNotificationsRead}
                   onOpenOperation={(id) => { setNotificationsOpen(false); showOpInScheduler(Number(id)); }}
                 />
+                <button
+                  className={page === 'profile' ? 'secondary header-profile-button active' : 'secondary header-profile-button'}
+                  onClick={() => leaveEditor(() => setPage('profile'))}
+                  aria-label={`Open ${auth.username}'s profile`}
+                >
+                  <span className="header-profile-avatar" aria-hidden="true">
+                    {auth.profile?.avatarUrl || auth.avatarUrl ? (
+                      <img src={auth.profile?.avatarUrl || auth.avatarUrl} alt="" />
+                    ) : (
+                      <span>{auth.username?.trim().charAt(0).toUpperCase() || '?'}</span>
+                    )}
+                  </span>
+                  <span>Profile</span>
+                </button>
                 <button onClick={logout}>
                   Logout
                 </button>
@@ -3795,13 +3864,6 @@ function App() {
               </button> : null}
             </div>
           ) : null}
-          {auth ? (
-            <div style={{ marginLeft: 12 }}>
-              <button className={page === 'profile' ? 'tab active' : 'tab'} onClick={() => setPage('profile')}>
-                Profile
-              </button>
-            </div>
-          ) : null}
         </section>
 
         <div className="dashboard">
@@ -3866,7 +3928,7 @@ function App() {
           {auth && can('view_settings') && page === 'settings' ? (
               <Settings
                   defaultOpSettings={defaultOpSettings}
-                  setDefaultOpSettings={setDefaultOpSettings}
+                  setDefaultOpSettings={saveDefaultOpSettings}
                   templates={templates}
                 changePassword={changePassword}
                   allRoles={allRoles}
@@ -4027,6 +4089,7 @@ function App() {
                 updateOpMeta={updateOpMeta}
                 handleModlistDragOver={handleModlistDragOver}
                 handleModlistDrop={handleModlistDrop}
+                handleModlistSelect={handleModlistSelect}
                 updateOpSquadMeta={updateOpSquadMeta}
                 users={users}
                 updateOpSlot={updateOpSlot}
@@ -4082,6 +4145,7 @@ function App() {
                 saveDraft={saveOperationDraft}
                 savingDraft={savingEditor}
                 savedDraft={editorSaved}
+                enableFormMode={defaultOpSettings.enableFormMode !== false}
               />
             </section>
           ) : null}
@@ -4157,13 +4221,15 @@ function App() {
                         >
                           Flow mode
                         </button>
-                        <button
-                          type="button"
-                          className={!builderFlowMode ? '' : 'secondary'}
-                          onClick={() => setBuilderFlowMode(false)}
-                        >
-                          Form mode
-                        </button>
+                        {defaultOpSettings.enableFormMode !== false ? (
+                          <button
+                            type="button"
+                            className={!builderFlowMode ? '' : 'secondary'}
+                            onClick={() => setBuilderFlowMode(false)}
+                          >
+                            Form mode
+                          </button>
+                        ) : null}
                       </div>
                     </div>
 
@@ -4280,8 +4346,20 @@ function App() {
 
                   <section className="card">
                     <h3>Permissions per player</h3>
+                    <div className="player-search">
+                      <label htmlFor="player-search-input">Search players</label>
+                      <input
+                        id="player-search-input"
+                        type="search"
+                        value={playerSearchQuery}
+                        onChange={(event) => setPlayerSearchQuery(event.target.value)}
+                        placeholder="Search by name, rank, status, admin status, or role"
+                      />
+                    </div>
                     {users.length === 0 ? (
                       <p>No players found. Add a new player using the form above.</p>
+                    ) : filteredPlayers.length === 0 ? (
+                      <p role="status">No players match “{playerSearchQuery.trim()}”.</p>
                     ) : (
                       <div className="player-table-wrapper">
                         <table className="player-table">
@@ -4297,16 +4375,26 @@ function App() {
                             </tr>
                           </thead>
                           <tbody>
-                            {users.map((user) => (
+                            {filteredPlayers.map((user) => (
                               <tr key={user.id} className={user.status !== 'Active' ? 'inactive-row' : ''}>
                                 <td>
                                   <div className="player-identity">
                                     {user.profile?.avatarUrl || user.avatarUrl ? (
-                                      <img
-                                        className="player-avatar"
-                                        src={user.profile?.avatarUrl || user.avatarUrl}
-                                        alt={`${user.username} avatar`}
-                                      />
+                                      <button
+                                        type="button"
+                                        className="player-avatar-button"
+                                        onClick={() => setPlayerAvatarPreview({
+                                          url: user.profile?.avatarUrl || user.avatarUrl,
+                                          username: user.username
+                                        })}
+                                        aria-label={`View ${user.username}'s profile picture`}
+                                      >
+                                        <img
+                                          className="player-avatar"
+                                          src={user.profile?.avatarUrl || user.avatarUrl}
+                                          alt=""
+                                        />
+                                      </button>
                                     ) : (
                                       <span className="player-avatar player-avatar-fallback" aria-hidden="true">
                                         {(user.username || '?').trim().charAt(0).toUpperCase()}
@@ -4418,6 +4506,24 @@ function App() {
                 <div className="role-modal-buttons">
                   <button className="secondary" onClick={closeRoleModal}>Close</button>
                   <button onClick={saveRoleModal}>Save</button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {playerAvatarPreview ? (
+            <div
+              className="modal-backdrop"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${playerAvatarPreview.username}'s profile picture`}
+              onClick={() => setPlayerAvatarPreview(null)}
+            >
+              <div className="player-avatar-preview" onClick={(event) => event.stopPropagation()}>
+                <img src={playerAvatarPreview.url} alt={`${playerAvatarPreview.username}'s profile picture`} />
+                <div className="player-avatar-preview-footer">
+                  <strong>{playerAvatarPreview.username}</strong>
+                  <button type="button" className="secondary small" onClick={() => setPlayerAvatarPreview(null)}>Close</button>
                 </div>
               </div>
             </div>

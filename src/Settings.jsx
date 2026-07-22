@@ -91,7 +91,8 @@ export default function Settings({
     minSignupAge: defaultOpSettings.minSignupAge ?? 17,
     squadTypes: defaultOpSettings.squadTypes || [],
     defaultSlotRole: defaultOpSettings.defaultSlotRole || '',
-    logoUrl: defaultOpSettings.logoUrl || ''
+    logoUrl: defaultOpSettings.logoUrl || '',
+    enableFormMode: defaultOpSettings.enableFormMode !== false
   });
   
 
@@ -106,7 +107,8 @@ export default function Settings({
       minSignupAge: defaultOpSettings.minSignupAge ?? 17,
       squadTypes: defaultOpSettings.squadTypes || [],
       defaultSlotRole: defaultOpSettings.defaultSlotRole || '',
-      logoUrl: defaultOpSettings.logoUrl || ''
+      logoUrl: defaultOpSettings.logoUrl || '',
+      enableFormMode: defaultOpSettings.enableFormMode !== false
     });
   }, [defaultOpSettings]);
 
@@ -127,21 +129,26 @@ export default function Settings({
     return () => { mounted = false; };
   }, []);
 
-  const save = (e) => {
+  const save = async (e) => {
     e.preventDefault();
-    setDefaultOpSettings({
-      templateId: local.templateId || null,
-      time: local.time || '',
-      serverName: local.serverName || '',
-      modlist: local.modlist || '',
-      tsAddress: local.tsAddress || '',
-      recurrence: local.recurrence || 'none',
-      minSignupAge: Number(local.minSignupAge) || 17,
-      squadTypes: Array.isArray(local.squadTypes) ? local.squadTypes : [],
-      defaultSlotRole: local.defaultSlotRole || '',
-      logoUrl: local.logoUrl || ''
-    });
-    alert('Default settings saved');
+    try {
+      await setDefaultOpSettings({
+        templateId: local.templateId || null,
+        time: local.time || '',
+        serverName: local.serverName || '',
+        modlist: local.modlist || '',
+        tsAddress: local.tsAddress || '',
+        recurrence: local.recurrence || 'none',
+        minSignupAge: Number(local.minSignupAge) || 17,
+        squadTypes: Array.isArray(local.squadTypes) ? local.squadTypes : [],
+        defaultSlotRole: local.defaultSlotRole || '',
+        logoUrl: local.logoUrl || '',
+        enableFormMode: local.enableFormMode !== false
+      });
+      alert('Default settings saved');
+    } catch (error) {
+      alert(error.message || 'Could not save default settings');
+    }
   };
 
   const AVAILABLE_MARKERS = [
@@ -214,10 +221,10 @@ export default function Settings({
           <form onSubmit={save}>
             <fieldset disabled={!can('edit_settings')} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className="form-row">
-          <label>Logo linksboven</label>
+          <label>Top-left logo</label>
           <div className="logo-setting">
             <div className="logo-setting-preview">
-              <img src={local.logoUrl || '/tfo-emoji.png'} alt="Voorbeeld van het applicatielogo" />
+              <img src={local.logoUrl || '/tfo-emoji.png'} alt="Application logo preview" />
             </div>
             <div className="logo-setting-actions">
               <label className="button-like secondary">
@@ -245,7 +252,7 @@ export default function Settings({
                   Restore default logo
                 </button>
               ) : null}
-              <small>PNG, JPG, WebP, GIF of SVG. Klik daarna op Save om het logo toe te passen.</small>
+              <small>PNG, JPG, WebP, GIF, or SVG. Select Save afterward to apply the logo.</small>
             </div>
           </div>
         </div>
@@ -311,6 +318,18 @@ export default function Settings({
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
+        </div>
+
+        <div className="form-row">
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={local.enableFormMode !== false}
+              onChange={(event) => setLocal((current) => ({ ...current, enableFormMode: event.target.checked }))}
+            />
+            Enable Form mode in the Template Builder and Operation Scheduler
+          </label>
+          <small>Turn this off to remove the Form mode buttons and keep both editors in Flow mode.</small>
         </div>
 
         <div className="form-row">

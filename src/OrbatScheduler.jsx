@@ -24,6 +24,7 @@ export default function OrbatScheduler({
   updateOpMeta,
   handleModlistDragOver,
   handleModlistDrop,
+  handleModlistSelect,
   campaigns,
   users,
   updateOpSlot,
@@ -78,9 +79,11 @@ export default function OrbatScheduler({
   saveDraft,
   savingDraft = false,
   savedDraft = false,
+  enableFormMode = true,
   canAssignPlayers: canAssignPlayersPermission = false
 }) {
   const [builderFlowMode, setBuilderFlowMode] = useState(true); // exact copy of OrbatTemplate's own Flow/Form toggle, local to the scheduler
+  const effectiveFlowMode = !enableFormMode || builderFlowMode;
   const builderCompact = false;
   const selectedRecurrence = selectedRecurrenceId ? recurrences.find((r) => r.id === selectedRecurrenceId) : null;
   const [openMarkerDropdown, setOpenMarkerDropdown] = useState(null);
@@ -206,7 +209,7 @@ export default function OrbatScheduler({
   let nodeMap = new Map();
   let links = [];
   let flowRelationships = [];
-  if (builderFlowMode && template.squads.length > 0) {
+  if (effectiveFlowMode && template.squads.length > 0) {
     nodes = template.squads.map((squad, index) => {
       const node = getCanvasNode(template.id, squad.id, index);
       return {
@@ -308,8 +311,10 @@ export default function OrbatScheduler({
           }
           {/* per-op override toggle removed */}
           <div style={{display:'flex',gap:'0.5rem',marginLeft:8}}>
-            <button type="button" className={builderFlowMode ? '' : 'secondary small'} onClick={() => setBuilderFlowMode(true)}>Flow mode</button>
-            <button type="button" className={!builderFlowMode ? '' : 'secondary small'} onClick={() => setBuilderFlowMode(false)}>Form mode</button>
+            <button type="button" className={effectiveFlowMode ? '' : 'secondary small'} onClick={() => setBuilderFlowMode(true)}>Flow mode</button>
+            {enableFormMode ? (
+              <button type="button" className={!effectiveFlowMode ? '' : 'secondary small'} onClick={() => setBuilderFlowMode(false)}>Form mode</button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -342,24 +347,28 @@ export default function OrbatScheduler({
         </select>
       </div>
       <div className="modlist-dropzone-row">
-        <div
+        <label
           className="modlist-dropzone"
           onDragOver={handleModlistDragOver}
           onDrop={(e) => handleModlistDrop(selectedOp.id, 'player', e)}
         >
-          Drag &amp; drop a player modlist file here
-        </div>
-        <div
+          <span>Drag &amp; drop a player modlist file here</span>
+          <span className="modlist-upload-button">Choose player modlist</span>
+          <input className="visually-hidden" type="file" onChange={(e) => handleModlistSelect(selectedOp.id, 'player', e)} />
+        </label>
+        <label
           className="modlist-dropzone"
           onDragOver={handleModlistDragOver}
           onDrop={(e) => handleModlistDrop(selectedOp.id, 'server', e)}
         >
-          Drag &amp; drop a server modlist file here
-        </div>
+          <span>Drag &amp; drop a server modlist file here</span>
+          <span className="modlist-upload-button">Choose server modlist</span>
+          <input className="visually-hidden" type="file" onChange={(e) => handleModlistSelect(selectedOp.id, 'server', e)} />
+        </label>
       </div>
 
       {/* template-level override UI removed */}
-      {builderFlowMode ? (
+      {effectiveFlowMode ? (
         <div className="flow-layout flow-fullscreen">
           <div className="orbat-wrapper flow-fullscreen-wrapper">
               <div className="flow-canvas-controls">
