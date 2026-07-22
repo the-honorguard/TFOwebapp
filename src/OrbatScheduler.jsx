@@ -325,7 +325,7 @@ export default function OrbatScheduler({
           <div className="operation-absence-list">
             {absentPlayers.map((player) => <span key={player.id}>{player.username}</span>)}
           </div>
-        ) : <span className="operation-absence-empty">Niemand heeft zich afgemeld.</span>}
+        ) : <span className="operation-absence-empty">No players have reported absent.</span>}
       </div>
 
       <div className="role-add-form" style={{marginBottom:'1rem'}}>

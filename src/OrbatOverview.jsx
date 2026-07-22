@@ -81,7 +81,9 @@ export default function OrbatOverview({
         </div>
         <div className="operation-actions">
           {modlistUrl ? (
-            <a className="button-link secondary small" href={modlistUrl} target="_blank" rel="noreferrer">Modlist</a>
+            <a className="button-link secondary small" href={modlistUrl} download>
+              Download modlist
+            </a>
           ) : null}
           {ts3Url ? (
             <a className="button-link secondary small" href={ts3Url}>Connect to TS3</a>
