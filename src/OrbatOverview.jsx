@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
+const ARMA_3_STEAM_LAUNCH_URL = 'steam://run/107410';
+
 /**
  * Read-only ORBAT view used on the public/overview page for upcoming operations.
  * This component is a presentational view: it receives operation data and a set
@@ -80,13 +82,21 @@ export default function OrbatOverview({
           </dl>
         </div>
         <div className="operation-actions">
+          <a
+            className="button-link secondary small"
+            href={ARMA_3_STEAM_LAUNCH_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Start Arma 3 Launcher
+          </a>
           {modlistUrl ? (
             <a className="button-link secondary small" href={modlistUrl} download>
               Download modlist
             </a>
           ) : null}
           {ts3Url ? (
-            <a className="button-link secondary small" href={ts3Url}>Connect to TS3</a>
+            <a className="button-link secondary small" href={ts3Url} target="_blank" rel="noreferrer">Connect to TS3</a>
           ) : null}
           {(isAdmin || isMissionmaker) ? (
             <button className="secondary small" onClick={() => showOpInScheduler(op.id)}>

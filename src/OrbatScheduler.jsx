@@ -93,11 +93,60 @@ export default function OrbatScheduler({
   const panRef = useRef({ active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [draggingSquadId, setDraggingSquadId] = useState(null);
+  const [modlistUploads, setModlistUploads] = useState({ player: null, server: null });
   const canAssignPlayers = Boolean(canAssignPlayersPermission);
   const absentPlayers = (selectedOp.absentUserIds || [])
     .map((userId) => users.find((user) => String(user.id) === String(userId)))
     .filter(Boolean)
     .sort((a, b) => String(a.username).localeCompare(String(b.username)));
+
+  const uploadModlist = async (type, upload) => {
+    setModlistUploads((current) => ({ ...current, [type]: { status: 'uploading' } }));
+    const result = await upload();
+    setModlistUploads((current) => ({
+      ...current,
+      [type]: result?.success
+        ? { status: 'success', filename: result.filename }
+        : { status: 'error', error: result?.error || 'Unknown upload error.' }
+    }));
+  };
+
+  const renderModlistUpload = (type, title, currentUrl) => {
+    const uploadState = modlistUploads[type];
+    const inputId = `operation-${selectedOp.id}-${type}-modlist`;
+    const isUploading = uploadState?.status === 'uploading';
+    return (
+      <div
+        className="modlist-dropzone"
+        onDragOver={handleModlistDragOver}
+        onDrop={(event) => uploadModlist(type, () => handleModlistDrop(selectedOp.id, type, event))}
+      >
+        <strong>{title}</strong>
+        <span>Drag and drop a modlist file here</span>
+        <label className={`modlist-upload-button${isUploading ? ' disabled' : ''}`} htmlFor={inputId}>
+          {isUploading ? 'Uploading...' : 'Choose file'}
+        </label>
+        <input
+          id={inputId}
+          className="visually-hidden"
+          type="file"
+          accept=".html,.htm,.txt,.json"
+          disabled={isUploading}
+          onChange={(event) => uploadModlist(type, () => handleModlistSelect(selectedOp.id, type, event))}
+        />
+        <div className="modlist-upload-status" role="status" aria-live="polite">
+          {uploadState?.status === 'success' ? <span className="upload-success">Uploaded and saved: {uploadState.filename}</span> : null}
+          {uploadState?.status === 'error' ? (
+            <span className="upload-error">
+              Upload failed. The current modlist was not changed. {uploadState.error}
+            </span>
+          ) : null}
+          {!currentUrl && !uploadState ? <span>No modlist uploaded.</span> : null}
+          {currentUrl ? <a href={currentUrl} target="_blank" rel="noreferrer">Open current {type} modlist</a> : null}
+        </div>
+      </div>
+    );
+  };
 
   const qualifiedPlayersForSlot = (slot) => {
     const requiredRoles = [...new Set([
@@ -347,24 +396,8 @@ export default function OrbatScheduler({
         </select>
       </div>
       <div className="modlist-dropzone-row">
-        <label
-          className="modlist-dropzone"
-          onDragOver={handleModlistDragOver}
-          onDrop={(e) => handleModlistDrop(selectedOp.id, 'player', e)}
-        >
-          <span>Drag &amp; drop a player modlist file here</span>
-          <span className="modlist-upload-button">Choose player modlist</span>
-          <input className="visually-hidden" type="file" onChange={(e) => handleModlistSelect(selectedOp.id, 'player', e)} />
-        </label>
-        <label
-          className="modlist-dropzone"
-          onDragOver={handleModlistDragOver}
-          onDrop={(e) => handleModlistDrop(selectedOp.id, 'server', e)}
-        >
-          <span>Drag &amp; drop a server modlist file here</span>
-          <span className="modlist-upload-button">Choose server modlist</span>
-          <input className="visually-hidden" type="file" onChange={(e) => handleModlistSelect(selectedOp.id, 'server', e)} />
-        </label>
+        {renderModlistUpload('player', 'Player modlist', selectedOp.modlistPlayer)}
+        {renderModlistUpload('server', 'Server modlist', selectedOp.modlistServer)}
       </div>
 
       {/* template-level override UI removed */}

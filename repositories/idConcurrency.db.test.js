@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-test('database-generated operation and layout IDs stay unique under concurrency', {
+test('database IDs and recurring occurrences stay unique under concurrent generators', {
   skip: process.env.RUN_DB_TESTS !== '1'
 }, async () => {
-  const [{ default: db }, templatesRepo, opsRepo] = await Promise.all([
-    import('../db.js'), import('./templates.js'), import('./ops.js')
+  const [{ default: db }, templatesRepo, opsRepo, recurrenceGenerator] = await Promise.all([
+    import('../db.js'), import('./templates.js'), import('./ops.js'), import('./recurrenceGenerator.js')
   ]);
   const marker = `id-concurrency-${process.pid}-${Date.now()}`;
   let template;
@@ -35,16 +35,15 @@ test('database-generated operation and layout IDs stay unique under concurrency'
       'INSERT INTO recurrences (op_id, rule, next_run) VALUES (?, ?, ?)',
       [root.id, JSON.stringify({ recurrence: 'daily' }), '2030-01-01 19:00:00']
     );
+    await db.query('UPDATE recurrences SET rule = ? WHERE id = ?', [JSON.stringify({
+      recurrence: 'daily', creationDelayHours: 6, name: `${marker}-recurring`, templateId: template.id
+    }), recurrenceResult.insertId]);
     const occurrenceAt = '2030-01-02 19:00:00';
-    const duplicateAttempts = await Promise.allSettled([0, 1].map(() => opsRepo.createOp({
-      templateId: template.id,
-      title: `${marker}-recurring`,
-      payload: { name: `${marker}-recurring`, squads: template.data.squads },
-      recurrenceId: recurrenceResult.insertId,
-      occurrenceAt,
-      scheduled_at: occurrenceAt
-    })));
-    assert.equal(duplicateAttempts.filter(({ status }) => status === 'fulfilled').length, 1);
+    const results = await Promise.all([
+      recurrenceGenerator.generateRecurrence(recurrenceResult.insertId, new Date('2030-01-02T01:00:00')),
+      recurrenceGenerator.generateRecurrence(recurrenceResult.insertId, new Date('2030-01-02T01:00:00'))
+    ]);
+    assert.deepEqual(results.map((generated) => generated.length).sort(), [0, 1]);
     const [occurrences] = await db.query('SELECT COUNT(*) AS count FROM ops WHERE recurrence_id = ? AND occurrence_at = ?',
       [recurrenceResult.insertId, occurrenceAt]);
     assert.equal(Number(occurrences[0].count), 1);

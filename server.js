@@ -25,7 +25,8 @@ import { readData as _readData, writeData as _writeData, ensureInitialized as en
 import * as permissionGroupsRepo from './repositories/permissionGroups.js';
 import * as notificationsRepo from './repositories/notifications.js';
 import * as trainingRepo from './repositories/training.js';
-import { buildRecurringOperation, getDueOccurrenceDates, getNextRecurrenceDate, normalizeDays } from './lib/recurrence.js';
+import { getNextRecurrenceDate, normalizeDays } from './lib/recurrence.js';
+import { generateRecurrence } from './repositories/recurrenceGenerator.js';
 import { createRateLimiter, validatePassword } from './lib/authSecurity.js';
 
 const PERMISSION_DEFINITIONS = [
@@ -286,6 +287,32 @@ app.post('/init/demo', setupRateLimit, initAdminAuth, async (req, res) => {
       ...(err?.code && !knownCodes.has(err.code) ? { causeCode: err.code } : {}),
       errorId
     });
+  }
+});
+
+function safeUploadFilename(originalName) {
+  const fallback = `modlist${path.extname(originalName).toLowerCase()}`;
+  const filename = path.basename(originalName)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .slice(0, 180);
+  return filename || fallback;
+}
+
+const modlistUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      req.modlistUploadDirectory = crypto.randomUUID();
+      const destination = path.join(UPLOADS_DIR, req.modlistUploadDirectory);
+      fs.mkdir(destination, { recursive: true }, (error) => cb(error, destination));
+    },
+    filename: (req, file, cb) => cb(null, safeUploadFilename(file.originalname))
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_UPLOAD_EXTENSIONS.has(ext)) return cb(new Error('File type not allowed'));
+    cb(null, true);
   }
 });
 
@@ -660,13 +687,6 @@ function normalizeStorage(data) {
 // This is called on data load to materialize scheduled occurrences up to now.
 let recurrenceGeneration = null;
 
-function formatApiDateTime(value) {
-  if (!value) return null;
-  if (typeof value === 'string') return value.replace(' ', 'T').slice(0, 19);
-  const pad = (part) => String(part).padStart(2, '0');
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
-}
-
 async function getApplicationSettings() {
   const [rows] = await pool.query('SELECT enable_form_mode FROM application_settings WHERE id = 1');
   return { enableFormMode: rows[0]?.enable_form_mode !== 0 };
@@ -695,31 +715,10 @@ async function generateRecurringOps(inputData) {
     normalizeStorage(data);
     const now = new Date();
     for (const recurrence of data.recurrences) {
-      const connection = await pool.getConnection();
       try {
-        await connection.beginTransaction();
-        const [locked] = await connection.query('SELECT id, op_id, rule, next_run FROM recurrences WHERE id = ? FOR UPDATE', [recurrence.id]);
-        if (!locked[0]) { await connection.rollback(); continue; }
-        const storedRule = typeof locked[0].rule === 'string' ? JSON.parse(locked[0].rule) : locked[0].rule;
-        const nextRun = formatApiDateTime(locked[0].next_run) || recurrence.nextDateTime;
-        const due = getDueOccurrenceDates(nextRun, storedRule, now);
-        const opsRepo = await import('./repositories/ops.js');
-        const root = await opsRepo.getOpById(locked[0].op_id);
-        if (!root) { await connection.rollback(); continue; }
-        const source = { ...storedRule, id: recurrence.id, squads: root.payload.squads || [] };
-        for (const occurrence of due.dates) {
-          const payload = buildRecurringOperation(source, occurrence, { id: null });
-          await opsRepo.createOp({ templateId: source.templateId, title: payload.name, payload,
-            scheduled_at: occurrence.replace('T', ' '), recurrenceId: recurrence.id,
-            occurrenceAt: occurrence.replace('T', ' ') }, connection);
-        }
-        await connection.query('UPDATE recurrences SET next_run = ? WHERE id = ?', [due.nextRun ? due.nextRun.replace('T', ' ') : null, recurrence.id]);
-        await connection.commit();
+        await generateRecurrence(recurrence.id, now);
       } catch (error) {
-        await connection.rollback();
         if (error?.code !== 'ER_DUP_ENTRY') throw error;
-      } finally {
-        connection.release();
       }
     }
   })();
@@ -2159,6 +2158,52 @@ app.post('/api/upload', authMiddleware, requireCapability('edit_settings'), (req
       } catch (err) {
         console.error('Upload file error', err);
         res.status(500).json({ error: 'Server error' });
+      }
+    })();
+  });
+});
+
+// Operation editors need to upload HTML modlists without receiving the broader
+// settings permission required by the general asset upload endpoint.
+app.post('/api/upload/modlist', authMiddleware, requireCapability('edit_operations'), (req, res) => {
+  modlistUpload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    (async () => {
+      let uploadStage = 'validating the operation';
+      try {
+        const requestedOpId = req.query.opId ?? req.body?.opId;
+        const requestedType = req.query.type ?? req.body?.type;
+        const opId = Number(requestedOpId);
+        const field = requestedType === 'player' ? 'modlistPlayer' : requestedType === 'server' ? 'modlistServer' : null;
+        if (!Number.isInteger(opId) || !field) {
+          return res.status(400).json({ error: 'A valid operation and modlist type are required' });
+        }
+        const opsRepo = await import('./repositories/ops.js');
+        const operation = await opsRepo.getOpById(opId);
+        if (!operation) return res.status(404).json({ error: 'Operation not found' });
+        uploadStage = 'recording the uploaded file';
+        const filesRepo = await import('./repositories/files.js');
+        const relativePath = `${req.modlistUploadDirectory}/${req.file.filename}`;
+        const publicPath = `/uploads/${relativePath.split('/').map(encodeURIComponent).join('/')}`;
+        const stat = await fs.promises.stat(path.join(UPLOADS_DIR, relativePath));
+        await filesRepo.addFile({
+          filename: req.file.originalname,
+          pathname: publicPath,
+          mimetype: req.file.mimetype,
+          size: stat.size,
+          ownerId: req.user?.id || null,
+          metadata: { modlist: true }
+        });
+        uploadStage = 'linking the file to the operation';
+        await opsRepo.updateOp(opId, {
+          payload: { ...(operation.payload || {}), [field]: publicPath }
+        });
+        res.json({ url: publicPath, filename: req.file.originalname });
+      } catch (error) {
+        const errorId = crypto.randomUUID();
+        console.error(`Upload modlist error [${errorId}] while ${uploadStage}`, error);
+        res.status(500).json({ error: `Upload failed while ${uploadStage}. Reference: ${errorId}` });
       }
     })();
   });

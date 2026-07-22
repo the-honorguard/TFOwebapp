@@ -44,13 +44,13 @@ export async function createOp({ templateId, title, payload = {}, scheduled_at =
   }
 }
 
-export async function getOpById(id) {
-  const [rows] = await db.query('SELECT * FROM ops WHERE id = ?', [id]);
+export async function getOpById(id, executor = db) {
+  const [rows] = await executor.query('SELECT * FROM ops WHERE id = ?', [id]);
   if (!rows[0]) return null;
   const o = rows[0];
   let payload = {};
   try { payload = typeof o.payload === 'string' ? JSON.parse(o.payload) : o.payload || {}; } catch (e) { payload = o.payload || {}; }
-  payload = normalizeOpPayload({ ...payload, id: o.id, squads: await getOperationSquads(o.id), absentUserIds: await getOperationAbsences(o.id) });
+  payload = normalizeOpPayload({ ...payload, id: o.id, squads: await getOperationSquads(o.id, executor), absentUserIds: await getOperationAbsences(o.id, executor) });
   return { id: o.id, templateId: o.template_id, title: o.title || o.name, ownerId: o.owner_id, scheduled_at: o.scheduled_at, timezone: o.timezone, recurrence: o.recurrence, payload, status: o.status };
 }
 

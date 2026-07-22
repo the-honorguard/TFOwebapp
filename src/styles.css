@@ -86,7 +86,8 @@ header { display: flex; justify-content: space-between; align-items: center; mar
 .button-like { display: inline-flex; align-items: center; justify-content: center; padding: 0.55rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
 .button-like input[type='file'] { display: none; }
 .app-header-compact .header-actions { gap: 0.4rem; }
-.app-header-compact .header-actions button { box-sizing: border-box; height: 40px; padding: 0 0.7rem; font-size: 0.85rem; }
+.app-header-compact .header-actions > button,
+.app-header-compact .header-actions > .notifications-root > .notification-trigger { box-sizing: border-box; height: 40px; padding: 0 0.7rem; font-size: 0.85rem; }
 .app-header .header-actions .header-profile-button { display: inline-flex; align-items: center; gap: 0.45rem; }
 .app-header .header-actions .header-profile-button.active { background: var(--button); border-color: var(--button); color: var(--button-text); }
 .app-header .header-actions .header-profile-avatar { width: 26px; height: 26px; padding: 0; overflow: hidden; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid currentColor; border-radius: 50%; background: var(--button-secondary); color: var(--text); font-size: 0.78rem; font-weight: 800; }
@@ -370,7 +371,12 @@ button.btn-danger:hover { background: #991b1b; }
 .modlist-dropzone { border: 2px dashed var(--border); border-radius: 10px; padding: 1rem; text-align: center; color: var(--text); opacity: 0.9; margin-bottom: 0.5rem; font-size: 0.9rem; flex:1; display: flex; flex-direction: column; align-items: center; gap: 0.65rem; cursor: pointer; }
 .modlist-dropzone:hover { opacity: 1; border-color: var(--accent, #6366f1); }
 .modlist-dropzone:focus-within { opacity: 1; border-color: var(--accent, #6366f1); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
-.modlist-upload-button { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0.45rem 0.75rem; border-radius: 7px; background: var(--button-secondary); font-weight: 700; }
+.modlist-upload-button { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0.45rem 0.75rem; border-radius: 7px; background: var(--button-secondary); font-weight: 700; cursor: pointer; }
+.modlist-upload-button.disabled { cursor: wait; opacity: 0.65; }
+.modlist-upload-status { display: grid; justify-items: center; gap: 0.35rem; min-height: 1.25rem; }
+.modlist-upload-status a { font-weight: 700; }
+.upload-success { color: var(--success, #16a34a); font-weight: 700; }
+.upload-error { color: var(--danger, #dc2626); font-weight: 700; }
 .modlist-dropzone-row { display:flex; gap:1rem; margin-bottom:1rem }
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
 .squad-title-input { font-weight: 700; font-size: 1rem; padding: 0.35rem 0.5rem; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text); width: 100%; min-width: 0; }

@@ -13,6 +13,7 @@ export default function Campaigns({
   const [selectedCampaignId, setSelectedCampaignId] = useState(null);
   const [form, setForm] = useState({ name: '', image: '', modlistPlayer: '', modlistServer: '', defaultTemplateId: null, missionmakerUserId: null });
   const [error, setError] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     if (editingId) {
@@ -95,8 +96,19 @@ export default function Campaigns({
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = await uploadFile(file);
-    setForm((prev) => ({ ...prev, image: url }));
+    setError(null);
+    setUploadingImage(true);
+    try {
+      const url = await uploadFile(file);
+      if (!url) {
+        setError('Image upload failed. The current campaign image was not changed.');
+        return;
+      }
+      setForm((prev) => ({ ...prev, image: url }));
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
   };
 
   const handleModlistUpload = async (type, e) => {
@@ -170,7 +182,8 @@ export default function Campaigns({
                 <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
 
                 <label>Image (shown on overview)</label>
-                <input type="file" accept="image/*" onChange={handleImageUpload} />
+                <input type="file" accept="image/*" disabled={uploadingImage} onChange={handleImageUpload} />
+                {uploadingImage ? <span role="status">Uploading campaign image...</span> : null}
                 {form.image ? <img src={form.image} alt="campaign" style={{ maxWidth: 360, borderRadius:6 }} /> : null}
 
                 <label>Modlist (player)</label>

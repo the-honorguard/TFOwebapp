@@ -39,6 +39,11 @@ This is the only active task list. Items are ranked by urgency and dependency: c
 
 ## P1 — Data integrity and functional blockers
 
+- [ ] **TFO-BUG-013 — Keep campaign images visible in Overview**
+  - **Problem:** A campaign image intermittently disappears from an operation in Overview, especially after page refreshes and operation actions. Previous fixes to campaign hydration, upload failure handling, and operation payload normalization did not fully resolve the reported behavior.
+  - **Work:** Reproduce the issue end to end with a persisted campaign and linked operation; trace the campaign image URL and operation `campaignId` through initial loading, authenticated and public data responses, refreshes, and every Overview action; distinguish a missing campaign association from a missing or unreachable upload; then fix the confirmed cause and add regression coverage.
+  - **Done:** A saved campaign image remains visible in Overview after repeated full refreshes, login state changes, slot join/sign-off, absence changes, scheduler edits, and other operation actions; the uploaded image URL remains reachable; and automated browser and API tests cover the failure sequence.
+
 - [ ] **TFO-DATA-001 — Make slot registration atomic**
   - **Problem:** Concurrent read-modify-write operations in `repositories/ops.js` can assign the same slot twice or overwrite an unrelated slot change.
   - **Work:** Replace the current flow with transactional locking or optimistic concurrency control.
@@ -55,7 +60,7 @@ This is the only active task list. Items are ranked by urgency and dependency: c
   - **Done:** One documented ID strategy is used consistently and concurrency tests demonstrate that IDs do not collide.
   - **Implementation:** Persistent entities use MySQL `BIGINT AUTO_INCREMENT`; optimistic browser-only IDs use `crypto.randomUUID()`. See `docs/data-model.md` and run `npm run test:db` for the real MySQL concurrency test.
 
-- [ ] **TFO-OPS-001 — Make recurrence generation safe across multiple instances** *(partially completed)*
+- [x] **TFO-OPS-001 — Make recurrence generation safe across multiple instances**
   - **Problem:** In-process overlap protection works for one Node process, but multiple server instances can generate duplicate operations.
   - **Work:** Add database locking or a unique occurrence key shared by all server instances.
   - **Done:** A concurrency integration test with at least two simultaneous generators creates each occurrence exactly once.

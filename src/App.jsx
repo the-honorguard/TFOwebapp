@@ -119,12 +119,17 @@ function App() {
   // Normalize op objects returned by different server paths (DB-backed repo vs file store)
   const normalizeOp = (raw) => {
     if (!raw) return raw;
-    const op = { ...raw };
+    // Repository endpoints return operation metadata inside `payload`, while
+    // list endpoints return the same fields at the top level. Promote every
+    // payload field so replacing an operation after an action cannot discard
+    // campaignId, modlists, dates, server details, or canvas data.
+    const op = { ...(raw.payload || {}), ...raw };
     // some endpoints return op.payload.squads (DB repo), others return op.squads
     op.squads = op.squads || op.sections || (op.payload && (op.payload.squads || op.payload.sections)) || [];
     op.absentUserIds = op.absentUserIds || op.payload?.absentUserIds || [];
     // unify template id key
     op.templateId = op.templateId ?? op.template_id ?? null;
+    op.name = op.name || op.title || 'Untitled operation';
     return op;
   };
   const [auth, setAuth] = useState(null);
@@ -1201,14 +1206,14 @@ function App() {
     }
   };
 
-  const uploadFile = async (file, onProgress) => {
+  const uploadFile = async (file, onProgress, endpoint = 'upload', fields = {}) => {
     const token = localStorage.getItem('token');
     // If a progress callback is supplied, use XHR to report progress
     if (typeof onProgress === 'function') {
       return new Promise((resolve) => {
         try {
           const xhr = new XMLHttpRequest();
-          xhr.open('POST', `${API}/upload`);
+          xhr.open('POST', `${API}/${endpoint}`);
           xhr.timeout = 30000; // 30s
           xhr.setRequestHeader('Authorization', `Bearer ${token}`);
           xhr.upload.onprogress = (e) => {
@@ -1226,7 +1231,9 @@ function App() {
           };
           xhr.onerror = () => { alert('Upload failed: network error'); resolve(null); };
           xhr.ontimeout = () => { alert('Upload timed out (30s) — please try again'); resolve(null); };
-          const fd = new FormData(); fd.append('file', file);
+          const fd = new FormData();
+          Object.entries(fields).forEach(([key, value]) => fd.append(key, String(value)));
+          fd.append('file', file);
           xhr.send(fd);
         } catch (e) {
           alert('Upload failed: ' + (e.message || e));
@@ -1237,12 +1244,13 @@ function App() {
 
     // Fallback: use fetch with abort timeout
     const formData = new FormData();
+    Object.entries(fields).forEach(([key, value]) => formData.append(key, String(value)));
     formData.append('file', file);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
     try {
-      const res = await fetch(`${API}/upload`, {
+      const res = await fetch(`${API}/${endpoint}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -1417,22 +1425,50 @@ function App() {
   };
 
   const uploadOperationModlist = async (opId, type, file) => {
-    if (!file) return;
-    const url = await uploadFile(file);
-    if (!url) return;
-    if (type === 'player') updateOpMeta(opId, { modlistPlayer: url });
-    else if (type === 'server') updateOpMeta(opId, { modlistServer: url });
+    if (!file) return { success: false, error: 'No file was selected.' };
+    const field = type === 'player' ? 'modlistPlayer' : type === 'server' ? 'modlistServer' : null;
+    if (!field) return { success: false, error: 'Unknown modlist type.' };
+    const formData = new FormData();
+    formData.append('opId', String(opId));
+    formData.append('type', type);
+    formData.append('file', file);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30000);
+    try {
+      const uploadUrl = `${API}/upload/modlist?opId=${encodeURIComponent(opId)}&type=${encodeURIComponent(type)}`;
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: formData,
+        signal: controller.signal
+      });
+      const responseText = await response.text();
+      let data = {};
+      try { data = responseText ? JSON.parse(responseText) : {}; } catch (error) { data = {}; }
+      if (!response.ok) {
+        const detail = data.error || responseText || response.statusText || 'Unknown server error';
+        return { success: false, error: `${detail} (HTTP ${response.status})` };
+      }
+      if (!data.url) return { success: false, error: 'The server accepted the upload but returned no file URL.' };
+      setOps((current) => current.map((op) => (op.id === opId ? { ...op, [field]: data.url } : op)));
+      return { success: true, url: data.url, filename: data.filename || file.name };
+    } catch (error) {
+      if (error.name === 'AbortError') return { success: false, error: 'The upload timed out after 30 seconds.' };
+      return { success: false, error: `Network error: ${error.message || error}` };
+    } finally {
+      window.clearTimeout(timeout);
+    }
   };
 
   const handleModlistDrop = async (opId, type, event) => {
     event.preventDefault();
-    await uploadOperationModlist(opId, type, event.dataTransfer.files?.[0]);
+    return uploadOperationModlist(opId, type, event.dataTransfer.files?.[0]);
   };
 
   const handleModlistSelect = async (opId, type, event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    await uploadOperationModlist(opId, type, file);
+    return uploadOperationModlist(opId, type, file);
   };
 
   const handleModlistDragOver = (event) => { event.preventDefault(); };
@@ -2480,6 +2516,8 @@ function App() {
           serverName: selectedOp.serverName || '',
           tsAddress: selectedOp.tsAddress || '',
           campaignId: selectedOp.campaignId ?? null,
+          modlistPlayer: selectedOp.modlistPlayer || '',
+          modlistServer: selectedOp.modlistServer || '',
           squads: savedSquads,
           layoutNodes,
           flowEdges: getTemplateFlowEdges(canvasKey, selectedOp.squads)
