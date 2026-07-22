@@ -34,22 +34,18 @@ Assert-SafeRemoteValue 'ApplicationPath' $ApplicationPath
 Assert-SafeRemoteValue 'NodeActivatePath' $NodeActivatePath
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$LocalEnvFile = if ([string]::IsNullOrWhiteSpace($EnvFile)) {
-    Join-Path $ProjectRoot '.env'
-} else {
-    (Resolve-Path -LiteralPath $EnvFile).Path
-}
-if (-not (Test-Path -LiteralPath $LocalEnvFile -PathType Leaf)) {
+$LocalEnvFile = if ([string]::IsNullOrWhiteSpace($EnvFile)) { $null } else { (Resolve-Path -LiteralPath $EnvFile).Path }
+if ($LocalEnvFile -and -not (Test-Path -LiteralPath $LocalEnvFile -PathType Leaf)) {
     throw "Environment file not found: $LocalEnvFile"
 }
 
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $ArchiveName = "tfo-release-$Timestamp.tar.gz"
 $LocalArchive = Join-Path ([System.IO.Path]::GetTempPath()) $ArchiveName
-$EnvUploadName = "tfo-env-$Timestamp"
-$LocalEnvUpload = Join-Path ([System.IO.Path]::GetTempPath()) $EnvUploadName
+$EnvUploadName = if ($LocalEnvFile) { "tfo-env-$Timestamp" } else { '' }
+$LocalEnvUpload = if ($LocalEnvFile) { Join-Path ([System.IO.Path]::GetTempPath()) $EnvUploadName } else { $null }
 $RemoteArchive = "/home/$CpanelUser/$ArchiveName"
-$RemoteEnvUpload = "/home/$CpanelUser/$EnvUploadName"
+$RemoteEnvUpload = if ($LocalEnvFile) { "/home/$CpanelUser/$EnvUploadName" } else { '' }
 $Remote = "$CpanelUser@$HostName"
 
 $SshArguments = @()
@@ -91,9 +87,15 @@ try {
         .
     Assert-LastExitCode 'Release packaging'
 
-    Copy-Item -LiteralPath $LocalEnvFile -Destination $LocalEnvUpload -Force
-    Write-Host "Uploading release and environment configuration to $HostName..."
-    & scp @SshArguments $LocalArchive $LocalEnvUpload "${Remote}:/home/$CpanelUser/"
+    $UploadFiles = @($LocalArchive)
+    if ($LocalEnvFile) {
+        Copy-Item -LiteralPath $LocalEnvFile -Destination $LocalEnvUpload -Force
+        $UploadFiles += $LocalEnvUpload
+        Write-Host "Uploading release and explicitly supplied environment configuration to $HostName..."
+    } else {
+        Write-Host "Uploading release to $HostName (preserving production .env)..."
+    }
+    & scp @SshArguments @UploadFiles "${Remote}:/home/$CpanelUser/"
     Assert-LastExitCode 'Release and environment upload'
 
     $RemoteScript = @"
@@ -101,10 +103,11 @@ set -Eeo pipefail
 APP_PATH='$ApplicationPath'
 RELEASE='$RemoteArchive'
 ENV_SOURCE='$RemoteEnvUpload'
-cleanup() { rm -f "`$RELEASE" "`$ENV_SOURCE"; }
+cleanup() { rm -f "`$RELEASE"; if [ -n "`$ENV_SOURCE" ]; then rm -f "`$ENV_SOURCE"; fi; }
 trap cleanup EXIT
 mkdir -p "`$APP_PATH" "`$APP_PATH/uploads" "`$APP_PATH/logs" "`$APP_PATH/tmp"
-mv -f "`$ENV_SOURCE" "`$APP_PATH/.env"
+if [ -n "`$ENV_SOURCE" ]; then mv -f "`$ENV_SOURCE" "`$APP_PATH/.env"; fi
+test -f "`$APP_PATH/.env" || { echo 'Production .env is missing; pass -EnvFile explicitly on first deployment.' >&2; exit 1; }
 chmod 600 "`$APP_PATH/.env"
 tar -xzf "`$RELEASE" -C "`$APP_PATH"
 cd "`$APP_PATH"
@@ -130,7 +133,7 @@ finally {
     if (Test-Path -LiteralPath $LocalArchive) {
         Remove-Item -LiteralPath $LocalArchive -Force
     }
-    if (Test-Path -LiteralPath $LocalEnvUpload) {
+    if ($LocalEnvUpload -and (Test-Path -LiteralPath $LocalEnvUpload)) {
         Remove-Item -LiteralPath $LocalEnvUpload -Force
     }
 }

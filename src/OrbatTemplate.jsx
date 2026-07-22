@@ -247,12 +247,21 @@ export default function OrbatTemplate({
               const target = nodeMap.get(edge.targetId);
               const sourceAnchor = edge.sourceAnchor || 'bottom';
               const targetAnchor = edge.targetAnchor || 'top';
+              const anchorPoint = (node, anchor) => {
+                const height = getOrbatNodeHeight(node.squad);
+                if (anchor === 'left') return { x: node.x, y: node.y + (height / 2) };
+                if (anchor === 'right') return { x: node.x + ORBAT_NODE_WIDTH, y: node.y + (height / 2) };
+                if (anchor === 'top') return { x: node.x + (ORBAT_NODE_WIDTH / 2), y: node.y };
+                return { x: node.x + (ORBAT_NODE_WIDTH / 2), y: node.y + height };
+              };
+              const sourcePoint = anchorPoint(source, sourceAnchor);
+              const targetPoint = anchorPoint(target, targetAnchor);
               return {
                 id: edge.id,
-                x1: source.x + (ORBAT_NODE_WIDTH / 2),
-                y1: sourceAnchor === 'top' ? source.y : source.y + getOrbatNodeHeight(source.squad),
-                x2: target.x + (ORBAT_NODE_WIDTH / 2),
-                y2: targetAnchor === 'top' ? target.y : target.y + getOrbatNodeHeight(target.squad)
+                x1: sourcePoint.x,
+                y1: sourcePoint.y,
+                x2: targetPoint.x,
+                y2: targetPoint.y
               };
             });
           const selectedFlowSquadId = flowLinkSource?.templateId === template.id ? flowLinkSource.squadId : null;
@@ -325,24 +334,6 @@ export default function OrbatTemplate({
                     <span>Inactive</span>
                   </div>
 
-                  {dragSnapPreview && dragSnapPreview.templateId === template.id ? (
-                    (() => {
-                      const unit = 40;
-                      const squad = template.squads.find((s) => s.id === dragSnapPreview.squadId) || {};
-                      const slots = Array.isArray(squad.slots) ? squad.slots.length : 0;
-                      const widthUnits = Math.max(7, 4 + slots);
-                      const w = widthUnits * unit;
-                      const h = getOrbatNodeHeight(squad);
-                      return (
-                        <div
-                          className="flow-drag-ghost"
-                          style={{ left: `${dragSnapPreview.x}px`, top: `${dragSnapPreview.y}px`, width: `${7 * unit}px`, height: `${h}px` }}
-                        />
-                      );
-                    
-                    })()
-                  ) : null}
-
                   {nodes.map((node) => {
                     const isSelected = selectedFlowSquadId === node.squad.id;
                     const collapsedHeight = getOrbatNodeHeight(node.squad);
@@ -380,6 +371,20 @@ export default function OrbatTemplate({
                           className={`orbat-connector bottom clickable ${isSelected && flowLinkSource?.anchor === 'bottom' ? 'active' : ''}`}
                           onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'bottom', event)}
                           aria-label="Connect from bottom"
+                        />
+                        <button
+                          type="button"
+                          className={`orbat-connector support left clickable ${isSelected && flowLinkSource?.anchor === 'left' ? 'active' : ''}`}
+                          onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'left', event)}
+                          aria-label="Connect support from left"
+                          title="Support relationship"
+                        />
+                        <button
+                          type="button"
+                          className={`orbat-connector support right clickable ${isSelected && flowLinkSource?.anchor === 'right' ? 'active' : ''}`}
+                          onClick={(event) => handleFlowConnectorClick(template.id, node.squad.id, 'right', event)}
+                          aria-label="Connect support from right"
+                          title="Support relationship"
                         />
                         <button
                           type="button"

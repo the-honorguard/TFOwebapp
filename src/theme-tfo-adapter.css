@@ -148,6 +148,88 @@ body {
     padding-right: 0.75rem !important;
 }
 
+/* Keep both parts of the application header at the same near-full-screen
+   width on every tab, while regular page content can retain its narrower
+   readable max width. */
+.app-header,
+.header-card {
+    width: calc(100vw - 2rem);
+    max-width: none;
+    margin-left: calc(50% - 50vw + 1rem);
+    margin-right: calc(50% - 50vw + 1rem);
+}
+
+/* The Overview header is the canonical header on every page: one compact
+   row for identity, navigation and profile instead of the tall card variant. */
+.app-header {
+    margin-bottom: 0.55rem;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 1.35rem;
+}
+
+.app-header .header-logo {
+    width: 32px;
+    height: 32px;
+}
+
+.app-header .header-actions {
+    gap: 0.4rem;
+}
+
+.app-header .header-actions button {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.85rem;
+}
+
+.header-card {
+    min-height: 0;
+    padding: 0.55rem 0.7rem;
+    margin-bottom: 0.55rem;
+}
+
+.header-card > div:first-child {
+    display: flex;
+    align-items: baseline;
+    gap: 0.65rem;
+    flex: 0 0 auto;
+}
+
+.header-card h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    white-space: nowrap;
+}
+
+.header-card p {
+    margin: 0;
+    font-size: 0.78rem;
+    opacity: 0.7;
+    white-space: nowrap;
+}
+
+.header-card .top-tabs {
+    margin-top: 0;
+    gap: 0.3rem;
+    justify-content: flex-end;
+}
+
+.header-card .tab {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+    .app-header,
+    .header-card {
+        width: calc(100vw - 1rem);
+        margin-left: calc(50% - 50vw + 0.5rem);
+        margin-right: calc(50% - 50vw + 0.5rem);
+    }
+}
+
 /* ----------------------------------------------------------------
    Card / panel backgrounds
    ---------------------------------------------------------------- */
@@ -444,6 +526,16 @@ a { color: var(--accent); }
     box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
 }
 
+button.orbat-connector.support {
+    background: #451a03 !important;
+    border-color: #f59e0b !important;
+}
+
+button.orbat-connector.support.active {
+    background: #14532d !important;
+    border-color: var(--success) !important;
+}
+
 /* ----------------------------------------------------------------
    WebKit scrollbar fallback (Chrome/Edge/Safari)
    Firefox uses the scrollbar-color rule defined on html above.
@@ -509,6 +601,93 @@ a { color: var(--accent); }
 
 .role-badge-more {
     opacity: 0.8;
+}
+
+/* ----------------------------------------------------------------
+   Compact application density
+   Keep information-heavy pages consistent with the compact header and
+   player list without shrinking canvas controls or modal workspaces.
+   ---------------------------------------------------------------- */
+.dashboard {
+    gap: 0.65rem;
+}
+
+.card:not(.header-card):not(.overview-page-card):not(.operation-overview-card) {
+    padding: 0.75rem;
+    margin-bottom: 0.65rem;
+}
+
+.card > h2,
+.card > h3,
+.card > h4 {
+    margin-top: 0;
+    margin-bottom: 0.55rem;
+}
+
+.card > p {
+    margin-top: 0.35rem;
+    margin-bottom: 0.65rem;
+}
+
+.builder-toolbar,
+.playerlist-toolbar {
+    gap: 0.65rem;
+    margin-bottom: 0.65rem;
+}
+
+.builder-toolbar h3,
+.playerlist-toolbar h3,
+.builder-toolbar p,
+.playerlist-toolbar p {
+    margin-top: 0;
+    margin-bottom: 0.25rem;
+}
+
+form {
+    gap: 0.55rem;
+}
+
+input,
+select,
+textarea {
+    padding: 0.45rem 0.6rem;
+}
+
+button {
+    padding: 0.5rem 0.75rem;
+}
+
+.player-table th,
+.player-table td {
+    padding: 0.5rem 0.65rem;
+}
+
+.template-list,
+.template-list-builder {
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+}
+
+.template-list button,
+.op-list-row {
+    padding: 0.5rem 0.7rem;
+}
+
+.settings-card,
+.settings-section,
+.settings-field,
+.settings-row {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+}
+
+.operation-details {
+    gap: 0.7rem;
+    padding: 0.7rem;
+}
+
+.operation-details-copy h4 {
+    margin-bottom: 0.45rem;
 }
 
 /* ----------------------------------------------------------------

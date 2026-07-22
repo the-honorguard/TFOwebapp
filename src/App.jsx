@@ -13,14 +13,16 @@ import Campaigns from './Campaigns';
 import Notifications from './Notifications';
 import Training from './Training';
 import apiFetch from './api';
-import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
+import { getOrbatNodeHeight, ORBAT_CANVAS_GRID_SIZE, ORBAT_NODE_WIDTH, trimOrbatNodesToGrid } from './orbatLayout';
+import { migrateEditorCanvasState } from './editorPersistence';
 
 const API = '/api';
+const operationCanvasKey = (operationId) => `operation:${operationId}`;
 const newClientId = (prefix = 'tmp') => `${prefix}-${crypto.randomUUID()}`;
 
 // Template-builder canvas grid: one "unit" approximates a single slot row, so a squad
 // with N slots naturally occupies roughly (2 + N) units tall (2 units for the header).
-const CANVAS_GRID_UNIT = 40;
+const CANVAS_GRID_UNIT = ORBAT_CANVAS_GRID_SIZE;
 const snapToCanvasGrid = (value) => Math.round(value / CANVAS_GRID_UNIT) * CANVAS_GRID_UNIT;
 
 const resolveTemplateId = (templateList, preferredId) => {
@@ -74,6 +76,7 @@ function App() {
   const [selectedOpId, setSelectedOpId] = useState(null);
   const [selectedRecurrenceId, setSelectedRecurrenceId] = useState(null);
   const [savingEditor, setSavingEditor] = useState(false);
+  const [copyingTemplateToDemo, setCopyingTemplateToDemo] = useState(false);
   const [editorSaved, setEditorSaved] = useState(false);
   const editorSavedTimerRef = useRef(null);
   const [editorDirty, setEditorDirty] = useState(false);
@@ -307,7 +310,61 @@ function App() {
     const resolvedDefaultTemplateId = resolveTemplateId(templateList, defaultOpSettings.templateId);
     setUsers(data.users || []);
     setTemplates(templateList);
-    setOps((data.ops || []).map(normalizeOp));
+    setCanvasLayout((current) => {
+      const next = { ...current };
+      templateList.forEach((template) => {
+        if (Array.isArray(template.layoutNodes) && template.layoutNodes.length) {
+          next[template.id] = Object.fromEntries(template.layoutNodes.map(({ squadId, ...node }) => [squadId, node]));
+          return;
+        }
+        const legacyEntries = Object.entries(current?.[template.id] || {});
+        const hasCurrentIds = (template.squads || []).every((squad) => current?.[template.id]?.[squad.id]);
+        if (!hasCurrentIds && legacyEntries.length === (template.squads || []).length) {
+          const legacyIdMap = new Map(legacyEntries.map(([legacyId], index) => [String(legacyId), template.squads[index]?.id]));
+          next[template.id] = Object.fromEntries(legacyEntries.map(([legacyId, node], index) => [
+            template.squads[index].id,
+            { ...node, parentId: node.parentId == null ? null : (legacyIdMap.get(String(node.parentId)) ?? null) }
+          ]));
+        }
+      });
+      return next;
+    });
+    setFlowEdges((current) => {
+      const next = { ...current };
+      templateList.forEach((template) => {
+        if (Array.isArray(template.flowEdges) && template.flowEdges.length) {
+          next[template.id] = template.flowEdges;
+          return;
+        }
+        const legacyLayoutIds = Object.keys(canvasLayout?.[template.id] || {});
+        if (legacyLayoutIds.length !== (template.squads || []).length) return;
+        const idMap = new Map(legacyLayoutIds.map((legacyId, index) => [String(legacyId), template.squads[index]?.id]));
+        next[template.id] = (current?.[template.id] || []).map((edge) => ({
+          ...edge,
+          sourceId: idMap.get(String(edge.sourceId)) ?? edge.sourceId,
+          targetId: idMap.get(String(edge.targetId)) ?? edge.targetId
+        }));
+      });
+      return next;
+    });
+    const loadedOps = (data.ops || []).map(normalizeOp);
+    setOps(loadedOps);
+    setCanvasLayout((current) => {
+      const next = { ...current };
+      loadedOps.forEach((op) => {
+        if (Array.isArray(op.layoutNodes) && op.layoutNodes.length) {
+          next[operationCanvasKey(op.id)] = Object.fromEntries(op.layoutNodes.map(({ squadId, ...node }) => [squadId, node]));
+        }
+      });
+      return next;
+    });
+    setFlowEdges((current) => {
+      const next = { ...current };
+      loadedOps.forEach((op) => {
+        if (Array.isArray(op.flowEdges)) next[operationCanvasKey(op.id)] = op.flowEdges;
+      });
+      return next;
+    });
     console.debug('[applyLoadedData] loaded ops count', (data.ops || []).length);
     setRecurrences(data.recurrences || []);
     setCampaigns(data.campaigns || []);
@@ -2129,47 +2186,73 @@ function App() {
     return auth.capabilities?.[capability] === true;
   };
   const effectiveOverviewMode = overviewMode === 'orbat' && isNarrowViewport ? 'cards' : overviewMode;
-  const isWideCanvasPage = page === 'builder'
-    || page === 'scheduler-detail'
-    || page === 'op-detail'
-    || (page === 'overview' && effectiveOverviewMode === 'orbat');
-
   const normalizeRoleKey = (role) => role?.trim().toLowerCase();
 
   const selectedOp = useMemo(() => ops.find((op) => op.id === selectedOpId), [ops, selectedOpId]);
 
   const saveTemplateDraft = async () => {
     const template = templates.find((item) => item.id === selectedTemplateId);
-    if (!template || savingEditor) return;
+    if (!template || savingEditor) return false;
     setSavingEditor(true);
     try {
       const savedSquads = prepareSquadsForSave(template.squads);
+      const layoutNodes = (template.squads || []).map((squad, index) => ({
+        squadId: squad.id,
+        ...getCanvasNode(template.id, squad.id, index)
+      }));
       const res = await fetch(`${API}/templates/${template.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ name: template.name, squads: savedSquads })
+        body: JSON.stringify({
+          name: template.name,
+          squads: savedSquads,
+          layoutNodes,
+          flowEdges: getTemplateFlowEdges(template.id, template.squads)
+        })
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not save template');
-      const savedIdByDraftId = new Map((template.squads || []).map((squad, index) => [String(squad.id), savedSquads[index]?.id]));
-      setCanvasLayout((prev) => {
-        const migrated = {};
-        Object.entries(prev?.[template.id] || {}).forEach(([squadId, node]) => {
-          const savedId = savedIdByDraftId.get(String(squadId)) ?? squadId;
-          migrated[savedId] = { ...node, parentId: node.parentId == null ? null : (savedIdByDraftId.get(String(node.parentId)) ?? node.parentId) };
-        });
-        return { ...prev, [template.id]: migrated };
+      const response = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(response.error || 'Could not save template');
+      const persistedSquads = response.template?.data?.squads || response.template?.squads;
+      if (!Array.isArray(persistedSquads) || persistedSquads.length !== savedSquads.length) {
+        throw new Error('Template was saved, but the saved squad layout could not be verified');
+      }
+      // A full save replaces the relational squad rows, so every database id can
+      // change. Migrate canvas data to the ids returned by the server, not to the
+      // ids that were merely sent in the request.
+      const serverLayoutNodes = response.template?.data?.layoutNodes;
+      const serverFlowEdges = response.template?.data?.flowEdges;
+      const migratedCanvas = migrateEditorCanvasState({
+        containerId: template.id,
+        squads: template.squads,
+        persistedSquads,
+        canvasLayout,
+        flowEdges
       });
-      setFlowEdges((prev) => ({ ...prev, [template.id]: (prev?.[template.id] || []).map((edge) => ({
-        ...edge,
-        sourceId: savedIdByDraftId.get(String(edge.sourceId)) ?? edge.sourceId,
-        targetId: savedIdByDraftId.get(String(edge.targetId)) ?? edge.targetId
-      })) }));
-      setTemplates((prev) => prev.map((item) => item.id === template.id ? { ...item, squads: savedSquads } : item));
-      window.setTimeout(() => alignInactiveSquads(template.id, savedSquads), 0);
+      const nextCanvasLayout = Array.isArray(serverLayoutNodes)
+        ? { ...canvasLayout, [template.id]: Object.fromEntries(serverLayoutNodes.map(({ squadId, ...node }) => [squadId, node])) }
+        : migratedCanvas.canvasLayout;
+      const nextFlowEdges = Array.isArray(serverFlowEdges)
+        ? { ...flowEdges, [template.id]: serverFlowEdges }
+        : migratedCanvas.flowEdges;
+      setCanvasLayout(nextCanvasLayout);
+      setFlowEdges(nextFlowEdges);
+      // Flush synchronously before showing "Saved", so an immediate refresh
+      // cannot race React's effects that normally mirror this state.
+      localStorage.setItem('overviewOrbatLayout', JSON.stringify(nextCanvasLayout));
+      localStorage.setItem('builderFlowEdges', JSON.stringify(nextFlowEdges));
+      setTemplates((prev) => prev.map((item) => item.id === template.id ? {
+        ...item,
+        squads: persistedSquads,
+        layoutNodes: serverLayoutNodes || [],
+        flowEdges: serverFlowEdges || []
+      } : item));
+      window.setTimeout(() => alignInactiveSquads(template.id, persistedSquads), 0);
       setEditorDirty(false);
       showEditorSaved();
+      return true;
     } catch (error) {
       alert(error.message || 'Could not save template');
+      return false;
     } finally {
       setSavingEditor(false);
     }
@@ -2287,19 +2370,20 @@ function App() {
       const savedIdByDraftId = new Map((selectedOp.squads || []).map((squad, index) => [String(squad.id), savedSquads[index]?.id]));
       setCanvasLayout((prev) => {
         const migrated = {};
-        Object.entries(prev?.[selectedOp.id] || {}).forEach(([squadId, node]) => {
+        const canvasKey = operationCanvasKey(selectedOp.id);
+        Object.entries(prev?.[canvasKey] || {}).forEach(([squadId, node]) => {
           const savedId = savedIdByDraftId.get(String(squadId)) ?? squadId;
           migrated[savedId] = { ...node, parentId: node.parentId == null ? null : (savedIdByDraftId.get(String(node.parentId)) ?? node.parentId) };
         });
-        return { ...prev, [selectedOp.id]: migrated };
+        return { ...prev, [canvasKey]: migrated };
       });
-      setFlowEdges((prev) => ({ ...prev, [selectedOp.id]: (prev?.[selectedOp.id] || []).map((edge) => ({
+      setFlowEdges((prev) => ({ ...prev, [operationCanvasKey(selectedOp.id)]: (prev?.[operationCanvasKey(selectedOp.id)] || []).map((edge) => ({
         ...edge,
         sourceId: savedIdByDraftId.get(String(edge.sourceId)) ?? edge.sourceId,
         targetId: savedIdByDraftId.get(String(edge.targetId)) ?? edge.targetId
       })) }));
       setOps((prev) => prev.map((item) => item.id === selectedOp.id ? { ...item, squads: savedSquads } : item));
-      window.setTimeout(() => alignInactiveSquads(selectedOp.id, savedSquads), 0);
+      window.setTimeout(() => alignInactiveSquads(operationCanvasKey(selectedOp.id), savedSquads), 0);
       const recurrence = selectedRecurrenceId ? recurrences.find((item) => item.id === selectedRecurrenceId) : null;
       if (recurrence) {
         const recurrenceRes = await fetch(`${API}/recurrences/${recurrence.id}`, {
@@ -2416,8 +2500,8 @@ function App() {
       if (sourceNode) mappedLayout[squad.id] = { ...sourceNode, parentId: null };
     });
 
-    setFlowEdges((prev) => ({ ...(prev || {}), [op.id]: mappedEdges }));
-    setCanvasLayout((prev) => ({ ...(prev || {}), [op.id]: mappedLayout }));
+    setFlowEdges((prev) => ({ ...(prev || {}), [operationCanvasKey(op.id)]: mappedEdges }));
+    setCanvasLayout((prev) => ({ ...(prev || {}), [operationCanvasKey(op.id)]: mappedLayout }));
   };
 
   const addTemplateFlowEdge = (templateId, sourceId, targetId, sourceAnchor = 'bottom', targetAnchor = 'top') => {
@@ -2452,6 +2536,48 @@ function App() {
       [templateId]: []
     }));
     setFlowLinkSource(null);
+  };
+
+  const saveTemplateToDemo = async () => {
+    if (!selectedTemplateId || savingEditor || copyingTemplateToDemo) return;
+    const template = templates.find((item) => item.id === selectedTemplateId);
+    if (!template) return;
+    setCopyingTemplateToDemo(true);
+    try {
+      const savedSquads = prepareSquadsForSave(template.squads);
+      const layoutNodes = (template.squads || []).map((squad, index) => ({
+        squadId: squad.id,
+        ...getCanvasNode(template.id, squad.id, index)
+      }));
+      const response = await fetch(`${API}/templates/${selectedTemplateId}?saveToDemo=1`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({
+          name: template.name,
+          squads: savedSquads,
+          layoutNodes,
+          flowEdges: getTemplateFlowEdges(template.id, template.squads),
+          saveToDemo: true
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error([
+        `HTTP ${response.status}`,
+        result.code,
+        result.phase,
+        result.details || result.error
+      ].filter(Boolean).join(' · '));
+      if (!result.demo) throw new Error(`The server did not copy the template to demo (demoRequested: ${String(result.demoRequested)}).`);
+      alert(`Template saved to demo (${result.demo.layoutNodes} positions, ${result.demo.flowEdges} lines).`);
+      const refreshed = await apiFetch('/data', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      applyLoadedData(refreshed, refreshed.user || auth);
+      setPage('builder');
+      setSelectedTemplateId(selectedTemplateId);
+    } catch (error) {
+      alert(error.message || 'Could not save template to demo');
+    } finally {
+      setCopyingTemplateToDemo(false);
+    }
   };
 
   const removeNodeFlowEdges = (templateId, squadId, anchor, event) => {
@@ -2494,20 +2620,17 @@ function App() {
           parentId: null
         }
       }));
-      const minX = Math.min(...nodes.map(({ node }) => Number(node.x) || 0));
-      const minY = Math.min(...nodes.map(({ node }) => Number(node.y) || 0));
-      const offsetX = snapToCanvasGrid(minX) - 40;
-      const offsetY = snapToCanvasGrid(minY) - 40;
-      if (offsetX <= 0 && offsetY <= 0) return prev;
-
       const nextTemplateLayout = { ...templateLayout };
-      nodes.forEach(({ id, node }) => {
+      const trimmedNodes = trimOrbatNodesToGrid(nodes.map(({ id, node }) => ({ id, ...node })));
+      let changed = false;
+      trimmedNodes.forEach(({ id, ...node }) => {
+        const current = templateLayout?.[id];
+        if (!current || current.x !== node.x || current.y !== node.y) changed = true;
         nextTemplateLayout[id] = {
-          ...node,
-          x: offsetX > 0 ? Math.max(40, node.x - offsetX) : node.x,
-          y: offsetY > 0 ? Math.max(40, node.y - offsetY) : node.y
+          ...node
         };
       });
+      if (!changed) return prev;
       return { ...prev, [templateId]: nextTemplateLayout };
     });
   };
@@ -2791,6 +2914,31 @@ function App() {
       return;
     }
 
+    const sourceIsSupport = ['left', 'right'].includes(flowLinkSource.anchor);
+    const targetIsSupport = ['left', 'right'].includes(anchor);
+
+    // Support links are directional: the first side dot is the supporting
+    // squad and the second side dot is the squad it supports.
+    if (sourceIsSupport && targetIsSupport) {
+      if (String(flowLinkSource.squadId) !== String(squadId)) {
+        addTemplateFlowEdge(
+          templateId,
+          flowLinkSource.squadId,
+          squadId,
+          flowLinkSource.anchor,
+          anchor
+        );
+      }
+      setFlowLinkSource(null);
+      return;
+    }
+
+    // Do not mix hierarchy and support connectors in one relationship.
+    if (sourceIsSupport !== targetIsSupport) {
+      setFlowLinkSource({ templateId, squadId, anchor });
+      return;
+    }
+
     // A line always runs from a "bottom" dot (parent, emits downward) to a "top" dot
     // (child, receives from above) - which end is which never depends on click order.
     if (flowLinkSource.anchor === anchor) {
@@ -2941,15 +3089,32 @@ function App() {
     const rect = canvasElement.getBoundingClientRect();
     const nextX = Math.max(12, event.clientX - rect.left - canvasDrag.offsetX);
     const nextY = Math.max(12, event.clientY - rect.top - canvasDrag.offsetY);
+    const snappedX = Math.max(CANVAS_GRID_UNIT, snapToCanvasGrid(nextX));
+    const snappedY = Math.max(CANVAS_GRID_UNIT, snapToCanvasGrid(nextY));
 
-    updateCanvasNode(template.id, canvasDrag.squadId, { x: nextX, y: nextY });
+    // Move the real node on-grid during the drag. This keeps its hierarchy lines
+    // attached to the same position and removes the need for a second ghost box.
+    updateCanvasNode(template.id, canvasDrag.squadId, { x: snappedX, y: snappedY });
     setDragSnapPreview({
       templateId: template.id,
       squadId: canvasDrag.squadId,
-      x: snapToCanvasGrid(nextX),
-      y: snapToCanvasGrid(nextY)
+      x: snappedX,
+      y: snappedY
     });
   };
+
+  const asOperationCanvas = (operation) => ({ ...operation, id: operationCanvasKey(operation.id) });
+  const getOperationCanvasSize = (operation) => getCanvasSize(asOperationCanvas(operation));
+  const getOperationCanvasNode = (operationId, squadId, index) => getCanvasNode(operationCanvasKey(operationId), squadId, index);
+  const getOperationFlowEdges = (operationId, squads) => getTemplateFlowEdges(operationCanvasKey(operationId), squads);
+  const resolveOperationSquadParentId = (operationId, squads, squadId, index) => resolveSquadParentId(operationCanvasKey(operationId), squads, squadId, index);
+  const updateOperationSquadParent = (operationId, squadId, parentId) => updateSquadParent(operationCanvasKey(operationId), squadId, parentId);
+  const moveOperationCanvasDrag = (event, operation) => moveCanvasDrag(event, asOperationCanvas(operation));
+  const startOperationCanvasDrag = (event, operationId, squadId, index) => startCanvasDrag(event, operationCanvasKey(operationId), squadId, index);
+  const clearOperationFlowEdges = (operationId) => clearTemplateFlowEdges(operationCanvasKey(operationId));
+  const removeOperationNodeFlowEdges = (operationId, squadId, anchor, event) => removeNodeFlowEdges(operationCanvasKey(operationId), squadId, anchor, event);
+  const resetOperationCanvasLayout = (operationId) => resetTemplateCanvasLayout(operationCanvasKey(operationId));
+  const handleOperationFlowConnectorClick = (operationId, squadId, anchor, event) => handleFlowConnectorClick(operationCanvasKey(operationId), squadId, anchor, event);
 
   const nudgeCanvasDrag = (deltaX, deltaY) => {
     if (!canvasDrag || (!deltaX && !deltaY)) return;
@@ -3327,8 +3492,8 @@ function App() {
   };
 
   return (
-    <div className={isWideCanvasPage ? 'app-shell app-shell-builder' : 'app-shell'}>
-      <header>
+    <div className="app-shell app-shell-builder">
+      <header className="app-header app-header-compact">
         <img src="/tfo-emoji.png" alt="TFO" className="header-logo" height="40" width="40" />
         <h1>TFO Attendance</h1>
         <div className="header-actions">
@@ -3505,7 +3670,7 @@ function App() {
       ) : null}
 
       <div className="dashboard">
-        <section className="card header-card">
+        <section className="card header-card header-card-compact">
           <div>
             <h2>{auth ? `Welcome, ${auth.username}` : (page === 'signup' ? 'Create account' : 'TFO Overview')}</h2>
             {!(page === 'signup') && (
@@ -3582,16 +3747,16 @@ function App() {
                   allRoles={allRoles}
                   effectiveOverviewMode={effectiveOverviewMode}
                   getTemplateName={getTemplateName}
-                  getCanvasSize={getCanvasSize}
-                  getCanvasNode={getCanvasNode}
-                  resolveSquadParentId={resolveSquadParentId}
-                  getTemplateFlowEdges={getTemplateFlowEdges}
+                  getCanvasSize={getOperationCanvasSize}
+                  getCanvasNode={getOperationCanvasNode}
+                  resolveSquadParentId={resolveOperationSquadParentId}
+                  getTemplateFlowEdges={getOperationFlowEdges}
                   nodeHeights={nodeHeights}
                   setNodeHeightRef={setNodeHeightRef}
-                  moveCanvasDrag={moveCanvasDrag}
+                  moveCanvasDrag={moveOperationCanvasDrag}
                   stopCanvasDrag={stopCanvasDrag}
-                  startCanvasDrag={startCanvasDrag}
-                  updateSquadParent={updateSquadParent}
+                  startCanvasDrag={startOperationCanvasDrag}
+                  updateSquadParent={updateOperationSquadParent}
                   squadStats={squadStats}
                   joinOpSlot={joinOpSlot}
                   signOffOpSlot={signOffOpSlot}
@@ -3784,16 +3949,16 @@ function App() {
                 recurrenceLabel={recurrenceLabel}
                 isAdmin={can('edit_operations')}
                 canAssignPlayers={can('assign_players')}
-                getCanvasSize={getCanvasSize}
-                getCanvasNode={getCanvasNode}
-                resolveSquadParentId={resolveSquadParentId}
-                getTemplateFlowEdges={getTemplateFlowEdges}
+                getCanvasSize={getOperationCanvasSize}
+                getCanvasNode={getOperationCanvasNode}
+                resolveSquadParentId={resolveOperationSquadParentId}
+                getTemplateFlowEdges={getOperationFlowEdges}
                 nodeHeights={nodeHeights}
                 setNodeHeightRef={setNodeHeightRef}
-                moveCanvasDrag={moveCanvasDrag}
+                moveCanvasDrag={moveOperationCanvasDrag}
                 stopCanvasDrag={stopCanvasDrag}
-                startCanvasDrag={startCanvasDrag}
-                updateSquadParent={updateSquadParent}
+                startCanvasDrag={startOperationCanvasDrag}
+                updateSquadParent={updateOperationSquadParent}
                 squadStats={squadStats}
                 auth={auth}
                 joinOpSlot={joinOpSlot}
@@ -3801,10 +3966,10 @@ function App() {
                 setShowLoginPanel={setShowLoginPanel}
                 flowLinkSource={flowLinkSource}
                 addOpSquad={addOpSquad}
-                clearTemplateFlowEdges={clearTemplateFlowEdges}
-                removeNodeFlowEdges={removeNodeFlowEdges}
-                resetTemplateCanvasLayout={resetTemplateCanvasLayout}
-                handleFlowConnectorClick={handleFlowConnectorClick}
+                clearTemplateFlowEdges={clearOperationFlowEdges}
+                removeNodeFlowEdges={removeOperationNodeFlowEdges}
+                resetTemplateCanvasLayout={resetOperationCanvasLayout}
+                handleFlowConnectorClick={handleOperationFlowConnectorClick}
                 updateSquadTitleLocal={updateSquadTitleLocal}
                 updateSquadMeta={updateSquadMeta}
                 updateOpSquadTitleLocal={updateOpSquadTitleLocal}
@@ -3889,6 +4054,9 @@ function App() {
                       <div className="builder-actions">
                         <button type="button" onClick={saveTemplateDraft} disabled={!selectedTemplateId || savingEditor}>
                           {savingEditor ? 'Saving...' : editorSaved ? 'Saved' : 'Save'}
+                        </button>
+                        <button type="button" className="secondary" onClick={saveTemplateToDemo} disabled={!selectedTemplateId || savingEditor || copyingTemplateToDemo}>
+                          {copyingTemplateToDemo ? 'Saving to demo...' : 'Save to demo'}
                         </button>
                         <button
                           type="button"
@@ -4039,7 +4207,22 @@ function App() {
                           <tbody>
                             {users.map((user) => (
                               <tr key={user.id} className={user.status !== 'Active' ? 'inactive-row' : ''}>
-                                <td>{user.username}</td>
+                                <td>
+                                  <div className="player-identity">
+                                    {user.profile?.avatarUrl || user.avatarUrl ? (
+                                      <img
+                                        className="player-avatar"
+                                        src={user.profile?.avatarUrl || user.avatarUrl}
+                                        alt={`${user.username} avatar`}
+                                      />
+                                    ) : (
+                                      <span className="player-avatar player-avatar-fallback" aria-hidden="true">
+                                        {(user.username || '?').trim().charAt(0).toUpperCase()}
+                                      </span>
+                                    )}
+                                    <span>{user.username}</span>
+                                  </div>
+                                </td>
                                 <td>
                                   <select
                                     value={user.rank ?? ''}

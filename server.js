@@ -21,7 +21,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import pool, { testConnection } from './db.js';
-import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential } from './lib/dataStore.js';
+import { readData as _readData, writeData as _writeData, ensureInitialized as ensureDbInitialized, resetDatabase, seedDemo, seedEssential, copyTemplateToDemo } from './lib/dataStore.js';
 import * as permissionGroupsRepo from './repositories/permissionGroups.js';
 import * as notificationsRepo from './repositories/notifications.js';
 import * as trainingRepo from './repositories/training.js';
@@ -268,8 +268,19 @@ app.post('/init/demo', setupRateLimit, initAdminAuth, async (req, res) => {
     const demo = await seedDemo();
     return res.json({ ok: true, ...demo });
   } catch (err) {
-    console.error('Demo seed error', err && err.stack ? err.stack : err);
-    return res.status(500).json({ error: 'Demo seed failed', details: err && err.message ? err.message : String(err) });
+    const errorId = crypto.randomUUID();
+    const knownCodes = new Set(['DEMO_LAYOUT_NOT_SAVED', 'DEMO_LAYOUT_SQUAD_MISMATCH']);
+    const code = knownCodes.has(err?.code) ? err.code : 'DEMO_SEED_INTERNAL_ERROR';
+    const status = knownCodes.has(code) ? 409 : 500;
+    console.error(`Demo seed error [${errorId}] [${code}]`, err && err.stack ? err.stack : err);
+    return res.status(status).json({
+      ok: false,
+      error: 'Demo seed failed',
+      code,
+      details: err && err.message ? err.message : String(err),
+      ...(err?.code && !knownCodes.has(err.code) ? { causeCode: err.code } : {}),
+      errorId
+    });
   }
 });
 
@@ -1136,15 +1147,49 @@ app.put('/api/templates/:id', authMiddleware, requireCapability('edit_templates'
       const id = Number(req.params.id);
       const updated = await (await import('./repositories/templates.js')).updateTemplate(id, {
         name: typeof req.body.name === 'string' ? req.body.name : undefined,
-        data: Array.isArray(req.body.squads) ? { squads: req.body.squads } : undefined
+        data: Array.isArray(req.body.squads) ? {
+          squads: req.body.squads,
+          layoutNodes: Array.isArray(req.body.layoutNodes) ? req.body.layoutNodes : [],
+          flowEdges: Array.isArray(req.body.flowEdges) ? req.body.flowEdges : []
+        } : undefined
       });
       if (!updated) return res.status(404).json({ error: 'Template not found' });
-      res.json({ template: updated });
+      const demoRequested = req.body.saveToDemo === true
+        || req.body.saveToDemo === 'true'
+        || req.query.saveToDemo === '1';
+      const demo = demoRequested ? await copyTemplateToDemo(id) : null;
+      res.json({ template: updated, demoRequested, demo });
     } catch (err) {
       console.error('Update template error', err);
       res.status(500).json({ error: 'Server error' });
     }
   })();
+});
+
+app.post('/api/templates/:id/save-to-demo', authMiddleware, requireCapability('edit_templates'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Array.isArray(req.body.squads)) {
+      return res.status(400).json({ error: 'Could not copy template to demo', code: 'DEMO_COPY_SQUADS_REQUIRED', details: 'The request did not contain template squads.' });
+    }
+    const templatesRepo = await import('./repositories/templates.js');
+    const template = await templatesRepo.updateTemplate(id, {
+      name: typeof req.body.name === 'string' ? req.body.name : undefined,
+      data: {
+        squads: req.body.squads,
+        layoutNodes: Array.isArray(req.body.layoutNodes) ? req.body.layoutNodes : [],
+        flowEdges: Array.isArray(req.body.flowEdges) ? req.body.flowEdges : []
+      }
+    });
+    if (!template) return res.status(404).json({ error: 'Could not copy template to demo', code: 'DEMO_TEMPLATE_NOT_FOUND' });
+    const result = await copyTemplateToDemo(id);
+    res.json({ ok: true, template, ...result });
+  } catch (err) {
+    const code = err?.code || 'DEMO_COPY_FAILED';
+    const status = code === 'DEMO_TEMPLATE_NOT_FOUND' ? 404 : code === 'DEMO_LAYOUT_NOT_SAVED' ? 409 : 500;
+    console.error(`Template demo copy error [${code}]`, err?.stack || err);
+    res.status(status).json({ error: 'Could not copy template to demo', code, phase: 'save-and-copy', details: err?.message || String(err) });
+  }
 });
 
 app.post('/api/templates/:id/duplicate', authMiddleware, requireCapability('edit_templates'), (req, res) => {

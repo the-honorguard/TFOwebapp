@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { getOrbatNodeHeight, ORBAT_NODE_WIDTH } from './orbatLayout';
 
 /**
@@ -38,6 +39,7 @@ export default function OrbatOverview({
   campaign,
   toggleOpAbsence
 }) {
+  const [joinedSlotFeedback, setJoinedSlotFeedback] = useState(() => new Set());
   const currentUser = auth
     ? users.find((user) => String(user.id) === String(auth.id))
     : null;
@@ -46,7 +48,7 @@ export default function OrbatOverview({
     .map((userId) => users.find((user) => String(user.id) === String(userId)))
     .filter(Boolean)
     .sort((a, b) => String(a.username).localeCompare(String(b.username)));
-  const modlistUrl = op.modlistPlayer || op.modlist || '';
+  const modlistUrl = op.modlistPlayer || op.modlist || campaign?.modlistPlayer || '';
   const ts3Url = op.tsAddress ? `ts3server://${op.tsAddress}` : '';
   const canUserJoinSlot = (slot) => {
     if (!auth) return false;
@@ -117,14 +119,25 @@ export default function OrbatOverview({
           const hierarchyEdges = getTemplateFlowEdges(op.id, activeSquads);
           const nodes = activeSquads.map((squad, index) => {
             const node = getCanvasNode(op.id, squad.id, index);
-            const incomingEdge = hierarchyEdges.find((edge) => edge.targetId === squad.id);
+            const incomingEdge = hierarchyEdges.find((edge) => (
+              edge.targetId === squad.id
+              && !['left', 'right'].includes(edge.sourceAnchor)
+              && !['left', 'right'].includes(edge.targetAnchor)
+            ));
+            const supportTargetIds = hierarchyEdges
+              .filter((edge) => (
+                edge.sourceId === squad.id
+                && (['left', 'right'].includes(edge.sourceAnchor) || ['left', 'right'].includes(edge.targetAnchor))
+              ))
+              .map((edge) => edge.targetId);
             return {
               squad,
               index,
               nodeKey: `overview-${op.id}-${squad.id}`,
               x: node.x,
               y: node.y,
-              parentId: incomingEdge?.sourceId || null
+              parentId: incomingEdge?.sourceId || null,
+              supportTargetIds
             };
           });
 
@@ -134,12 +147,21 @@ export default function OrbatOverview({
             .map((edge) => {
               const parent = nodeMap.get(edge.sourceId);
               const child = nodeMap.get(edge.targetId);
+              const anchorPoint = (node, anchor) => {
+                const height = getOrbatNodeHeight(node.squad);
+                if (anchor === 'left') return { x: node.x, y: node.y + (height / 2) };
+                if (anchor === 'right') return { x: node.x + ORBAT_NODE_WIDTH, y: node.y + (height / 2) };
+                if (anchor === 'top') return { x: node.x + (ORBAT_NODE_WIDTH / 2), y: node.y };
+                return { x: node.x + (ORBAT_NODE_WIDTH / 2), y: node.y + height };
+              };
+              const sourcePoint = anchorPoint(parent, edge.sourceAnchor || 'bottom');
+              const targetPoint = anchorPoint(child, edge.targetAnchor || 'top');
               return {
                 id: edge.id,
-                x1: parent.x + (ORBAT_NODE_WIDTH / 2),
-                y1: parent.y + getOrbatNodeHeight(parent.squad),
-                x2: child.x + (ORBAT_NODE_WIDTH / 2),
-                y2: child.y
+                x1: sourcePoint.x,
+                y1: sourcePoint.y,
+                x2: targetPoint.x,
+                y2: targetPoint.y
               };
             });
 
@@ -171,6 +193,8 @@ export default function OrbatOverview({
                   >
                     <span className="orbat-connector top" aria-hidden="true" />
                     <span className="orbat-connector bottom" aria-hidden="true" />
+                    <span className="orbat-connector support left" title="Supports" aria-label="Supports" />
+                    <span className="orbat-connector support right" title="Supports" aria-label="Supports" />
                     <div
                       className="orbat-node-head"
                     >
@@ -186,25 +210,17 @@ export default function OrbatOverview({
                       ) : null}
                     </div>
 
-                    {isAdmin ? (
-                      <select
-                        className="orbat-parent-select"
-                        value={node.parentId || ''}
-                        onChange={(event) => updateSquadParent(op.id, node.squad.id, event.target.value || null)}
-                      >
-                        <option value="">Top command</option>
-                        {activeSquads
-                          .filter((squad) => squad.id !== node.squad.id)
-                          .map((squad) => (
-                            <option key={squad.id} value={squad.id}>
-                              Reports to {squad.title}
-                            </option>
-                          ))}
-                      </select>
-                    ) : null}
+                    <div className="orbat-reports-to">
+                      {node.parentId
+                        ? <>Reports to: <strong>{nodeMap.get(node.parentId)?.squad.title || 'Unknown squad'}</strong></>
+                        : node.supportTargetIds.length
+                          ? <>Supports: <strong>{node.supportTargetIds.map((squadId) => nodeMap.get(squadId)?.squad.title || 'Unknown squad').join(', ')}</strong></>
+                        : <strong>Top command</strong>}
+                    </div>
 
                     <div className="orbat-slot-list">
                       {node.squad.slots.map((slot) => {
+                        const feedbackKey = `${op.id}:${slot.id}`;
                         const assignedUser = users.find((user) => user.id === slot.assignedUserId);
                         const avatarUrl = assignedUser?.profile?.avatarUrl || assignedUser?.avatarUrl || null;
                         const canJoin = !assignedUser && canUserJoinSlot(slot);
@@ -215,16 +231,28 @@ export default function OrbatOverview({
                         const badgeStyle = assignedUser && avatarUrl ? { backgroundImage: `url(${avatarUrl})`, backgroundSize: bgSize, backgroundPosition: bgPosition, backgroundRepeat: 'no-repeat' } : undefined;
                         return (
                           <div key={slot.id} className="orbat-slot-item">
-                              <span className={`slot-badge ${assignedUser ? 'occupied avatar' : 'free'}`}>
+                              <span
+                                className={`slot-badge ${assignedUser ? `occupied${avatarUrl ? ' has-avatar' : ''}` : 'free'} ${joinedSlotFeedback.has(feedbackKey) ? 'show-status' : ''}`}
+                                onMouseLeave={() => setJoinedSlotFeedback((current) => {
+                                  if (!current.has(feedbackKey)) return current;
+                                  const next = new Set(current);
+                                  next.delete(feedbackKey);
+                                  return next;
+                                })}
+                              >
                                 <span className="badge-default" style={badgeStyle}>
                                   {assignedUser && avatarUrl ? (
                                     <img src={avatarUrl} alt={`${assignedUser.username} avatar`} className="slot-badge-avatar" />
-                                  ) : (assignedUser ? 'Occupied' : 'Free')}
+                                  ) : (assignedUser ? 'Taken' : 'Free')}
                                 </span>
                                 {isOwnSlot ? (
-                                  <button type="button" className="badge-action signoff" onClick={() => signOffOpSlot(op.id, slot.id)} title="Sign off">Sign off</button>
+                                  <button type="button" className="badge-action signoff" onClick={(event) => { event.currentTarget.blur(); signOffOpSlot(op.id, slot.id); }} title="Sign off">Sign off</button>
                                 ) : auth && canJoin ? (
-                                  <button type="button" className="badge-action join" onClick={() => joinOpSlot(op.id, slot.id)}>Join</button>
+                                  <button type="button" className="badge-action join" onClick={(event) => {
+                                    event.currentTarget.blur();
+                                    setJoinedSlotFeedback((current) => new Set(current).add(feedbackKey));
+                                    joinOpSlot(op.id, slot.id);
+                                  }}>Join</button>
                                 ) : !auth && !assignedUser ? (
                                   <button type="button" className="badge-action join" onClick={() => setShowLoginPanel(true)}>Login</button>
                                 ) : null}

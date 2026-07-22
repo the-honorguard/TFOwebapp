@@ -375,7 +375,8 @@ The o2switch host, account, application root and Node.js 20 activation path are
 configured as defaults in the script. They can still be overridden with command
 line parameters. Use `-IdentityFile "$HOME\.ssh\o2switch"` after configuring an
 SSH key; otherwise SSH asks for the account password interactively. The script
-deliberately preserves the remote `.env`, `uploads/` and `logs/` directories.
+preserves the remote `.env`, `uploads/` and `logs/` directories. Pass `-EnvFile`
+only when you intentionally want to replace the production environment file.
 Database backups remain a separate operational step.
 
 ---

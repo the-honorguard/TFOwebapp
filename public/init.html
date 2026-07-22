@@ -164,8 +164,18 @@
         try {
           const res = await recoveryFetch(full, { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body), headers: body instanceof FormData ? {} : { 'Content-Type': 'application/json' } });
           if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            status.textContent = 'Error: ' + (body && body.error ? body.error : res.statusText);
+            const contentType = res.headers.get('content-type') || '';
+            const responseBody = contentType.includes('application/json')
+              ? await res.json().catch(() => ({}))
+              : { details: await res.text().catch(() => '') };
+            status.textContent = [
+              `Error: ${responseBody.error || res.statusText || 'Request failed'}`,
+              `HTTP status: ${res.status}`,
+              responseBody.code ? `Code: ${responseBody.code}` : null,
+              responseBody.causeCode ? `Cause code: ${responseBody.causeCode}` : null,
+              responseBody.details ? `Details: ${responseBody.details}` : null,
+              responseBody.errorId ? `Error reference: ${responseBody.errorId}` : null
+            ].filter(Boolean).join('\n');
             return null;
           }
           const j = await res.json().catch(() => ({}));

@@ -55,8 +55,26 @@ export async function updateTemplate(id, { name, description, data }) {
   if (typeof description !== 'undefined') { fields.push('description = ?'); values.push(description); }
   if (typeof data !== 'undefined') {
     const { squads, sections, ...settings } = data;
+    const inputSquads = squads || sections || [];
+    const persistedSquads = await replaceTemplateSquads(id, inputSquads, connection);
+    const idMap = new Map(inputSquads.map((squad, index) => [String(squad.id), persistedSquads[index]?.id]));
+    if (Array.isArray(settings.layoutNodes)) {
+      settings.layoutNodes = settings.layoutNodes.filter((node) => idMap.has(String(node.squadId))).map((node) => ({
+        ...node,
+        squadId: idMap.get(String(node.squadId)) ?? node.squadId,
+        parentId: node.parentId == null ? null : (idMap.get(String(node.parentId)) ?? node.parentId)
+      }));
+    }
+    if (Array.isArray(settings.flowEdges)) {
+      settings.flowEdges = settings.flowEdges.filter((edge) => (
+        idMap.has(String(edge.sourceId)) && idMap.has(String(edge.targetId))
+      )).map((edge) => ({
+        ...edge,
+        sourceId: idMap.get(String(edge.sourceId)) ?? edge.sourceId,
+        targetId: idMap.get(String(edge.targetId)) ?? edge.targetId
+      }));
+    }
     fields.push('data = ?'); values.push(JSON.stringify(settings));
-    await replaceTemplateSquads(id, squads || sections || [], connection);
   }
   if (fields.length) {
     values.push(id);

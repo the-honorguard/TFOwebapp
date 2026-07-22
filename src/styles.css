@@ -72,6 +72,17 @@ header { display: flex; justify-content: space-between; align-items: center; mar
 .login-modal h2 { margin: 0 0 0.25rem; }
 .login-panel-actions { display: flex; justify-content: flex-end; gap: 0.75rem; }
 .header-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.app-header-compact { margin-bottom: 0.55rem; }
+.app-header-compact h1 { margin: 0; font-size: 1.35rem; }
+.app-header-compact .header-logo { width: 32px; height: 32px; }
+.app-header-compact .header-actions { gap: 0.4rem; }
+.app-header-compact .header-actions button { padding: 0.5rem 0.7rem; font-size: 0.85rem; }
+.header-card-compact { min-height: 0; padding: 0.55rem 0.7rem; margin-bottom: 0.55rem; }
+.header-card-compact > div:first-child { display: flex; align-items: baseline; gap: 0.65rem; flex: 0 0 auto; }
+.header-card-compact h2 { margin: 0; font-size: 1.05rem; white-space: nowrap; }
+.header-card-compact p { margin: 0; font-size: 0.78rem; opacity: 0.7; white-space: nowrap; }
+.header-card-compact .top-tabs { margin-top: 0; gap: 0.3rem; justify-content: flex-end; }
+.header-card-compact .tab { padding: 0.45rem 0.7rem; font-size: 0.82rem; }
 .top-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
 .tab { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 0.75rem 1rem; border-radius: 999px; }
 .tab.active { background: var(--button); border-color: var(--button); color: var(--button-text); }
@@ -130,6 +141,14 @@ button.btn-danger:hover { background: #991b1b; }
 .app-shell-builder .overview-page-card > .builder-toolbar { padding: 0 0.25rem; }
 .app-shell-builder .operation-overview-card { width: 100%; min-width: 0; border: 0; border-radius: 0; background: transparent; }
 .app-shell-builder .operation-overview-card > .orbat-wrapper { width: 100%; min-width: 0; margin: 0; overflow: hidden; border: 0; border-radius: 0; }
+.app-shell-builder .overview-page-card .orbat-canvas { min-width: 100%; }
+.overview-page-card .operation-overview-card .orbat-node-head { display: flex; align-items: center; gap: 0.55rem; min-height: 42px; padding: 0.4rem 0.6rem; }
+.overview-page-card .operation-overview-card .orbat-node-head > strong { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overview-page-card .operation-overview-card .orbat-node-head .squad-count,
+.overview-page-card .operation-overview-card .orbat-node-head .slot-meta { flex: 0 0 auto; margin: 0; font-size: 0.74rem; white-space: nowrap; }
+.overview-page-card .operation-overview-card .orbat-node-head .marker-icon { flex: 0 0 auto; width: 30px; height: 30px; }
+.overview-page-card .operation-overview-card .orbat-node-head .marker-badge { flex: 0 0 auto; margin-left: 0; }
+.overview-page-card .operation-overview-card .orbat-reports-to { padding: 0.28rem 0.6rem; border-bottom: 1px solid var(--border); background: rgba(148,163,184,0.035); font-size: 0.72rem; opacity: 0.78; }
 .operation-details { display: flex; align-items: center; gap: 1rem; padding: 1rem; border-bottom: 1px solid var(--border); }
 .operation-campaign-image { flex: 0 0 auto; }
 .operation-campaign-image img { display: block; width: min(220px, 24vw); max-height: 120px; object-fit: cover; border-radius: 8px; }
@@ -159,11 +178,10 @@ button.btn-danger:hover { background: #991b1b; }
 .slot-meta { margin: 0.25rem 0 0; color: var(--text); opacity: 0.75; font-size: 0.95rem; }
 .builder-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .orbat-wrapper { position: relative; /* keep wrapper visible so popovers can overflow */ overflow: visible; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)); }
-.orbat-canvas { position: relative; min-height: 680px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 24px 24px; overflow: auto; }
+.orbat-canvas { position: relative; min-height: 680px; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: 40px 40px; background-position: 0 0; overflow: auto; }
 .flow-fullscreen-wrapper .orbat-canvas { min-height: 0; flex: 1 1 auto; cursor: grab; background-image: none; }
 .flow-fullscreen-wrapper .orbat-canvas.panning { cursor: grabbing; }
-.flow-canvas-content { position: relative; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: 40px 40px; }
-.flow-drag-ghost { position: absolute; border: 2px dashed #22c55e; border-radius: 12px; background: rgba(34,197,94,0.08); pointer-events: none; z-index: 3; }
+.flow-canvas-content { position: relative; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: 40px 40px; background-position: 0 0; }
 .flow-canvas-content { position: relative; }
 .orbat-links { position: absolute; inset: 0; pointer-events: none; }
 .orbat-link { stroke: #94a3b8; stroke-width: 1.5; stroke-linecap: round; }
@@ -192,6 +210,9 @@ button.btn-danger:hover { background: #991b1b; }
 .orbat-connector { position: absolute; left: 50%; width: 18px; height: 18px; padding: 0; min-width: 0; border-radius: 999px; border: 3px solid #3b82f6; background: #0f172a; transform: translate(-50%, -50%); pointer-events: none; z-index: 40; }
 .orbat-connector.top { top: 0; }
 .orbat-connector.bottom { top: auto; bottom: 0; transform: translate(-50%, 50%); }
+.orbat-connector.left { left: 0; top: 50%; transform: translate(-50%, -50%); }
+.orbat-connector.right { left: auto; right: 0; top: 50%; transform: translate(50%, -50%); }
+.orbat-connector.support { width: 14px; height: 14px; border-width: 2px; border-color: #f59e0b; background: #451a03; }
 .orbat-connector.clickable { pointer-events: auto; cursor: pointer; }
 .orbat-connector.clickable.active { border-color: #22c55e; box-shadow: 0 0 0 2px rgba(34,197,94,0.25); }
 .orbat-connector-remove { position: absolute; left: calc(50% + 18px); width: 17px; height: 17px; min-width: 0; padding: 0; border: 1px solid #ef4444; border-radius: 4px; background: #7f1d1d; color: #fff; font-size: 13px; font-weight: 700; line-height: 1; z-index: 41; cursor: pointer; }
@@ -273,12 +294,15 @@ button.btn-danger:hover { background: #991b1b; }
 .slot-badge.free { background: transparent; color: #fff; }
 .lot-badge-fallback { display: none; }
 .slot-badge .badge-default { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 0; margin: 0; background: transparent; z-index: 0; }
+.slot-badge.occupied:not(.has-avatar) .badge-default { padding: 0 0.15rem; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.01em; text-transform: uppercase; white-space: nowrap; }
 .slot-badge .badge-action { display: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0; margin: 0; border-radius: 0; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; z-index: 1; }
 /* On hover or keyboard focus show the action and hide the default label */
 .slot-badge:hover .badge-default,
 .slot-badge:focus-within .badge-default { opacity: 0; transform: translateY(-2px); transition: opacity 120ms ease, transform 120ms ease; }
 .slot-badge:hover .badge-action,
 .slot-badge:focus-within .badge-action { display: flex; }
+.slot-badge.show-status .badge-default { opacity: 1; transform: none; }
+.slot-badge.show-status .badge-action { display: none; }
 .slot-badge .badge-action.join { background: #16a34a !important; color: #ffffff !important; border: 0 !important; box-shadow: none !important; }
 .slot-badge .badge-action.signoff { background: #ef4444 !important; color: #ffffff !important; border: 0 !important; box-shadow: none !important; }
 
@@ -357,6 +381,9 @@ button.btn-danger:hover { background: #991b1b; }
 .builder-panel.panel-4 { background: var(--panel); }
 
 .playerlist-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.player-identity { display: flex; align-items: center; gap: 0.65rem; min-width: max-content; font-weight: 700; }
+.player-avatar { flex: 0 0 auto; display: block; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); object-fit: cover; background: var(--panel); }
+.player-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; color: var(--text); font-size: 0.85rem; font-weight: 800; }
 .player-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
 .player-form input, .player-form select { width: 100%; }
 /* Signup form improvements */
@@ -425,6 +452,8 @@ button.btn-danger:hover { background: #991b1b; }
     align-items: flex-start;
     flex-direction: column;
   }
+  .header-card-compact > div:first-child { display: block; }
+  .header-card-compact p { margin-top: 0.2rem; white-space: normal; }
   .operation-details { align-items: stretch; }
   .operation-campaign-image img { width: 100%; max-width: 280px; }
   .operation-actions { justify-content: flex-start; }
